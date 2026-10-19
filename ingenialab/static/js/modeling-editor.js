@@ -126,6 +126,7 @@
     busy = value; form.setAttribute("aria-busy", String(value));
     form.querySelectorAll("input,select,textarea,button").forEach(e => { e.disabled = value; });
     buttons.forEach(b => { b.disabled = value; });
+    document.getElementById("preview-format").disabled = value;
     if (!value) { Object.values(lists).forEach(renumber); saveButton.disabled = !rendered; }
   }
   async function submit(action) {
@@ -137,21 +138,32 @@
     setBusy(true);
     try {
       const urls = { validate: form.dataset.validateUrl, generate: form.dataset.generateUrl, save: form.dataset.saveUrl };
-      const response = await IL.api(urls[action], result.data);
+      const response = await IL.api(urls[action], { ...result.data, format: document.getElementById("preview-format").value });
       feedback(response, response.ok ? "Estructura válida." : "No se pudo completar la operación.");
       if (!response.ok) { rendered = null; return; }
       applyNormalized(response.spec);
       if (action !== "validate") {
-        document.getElementById("diagram").innerHTML = response.svg;
+        const diagram = document.getElementById("diagram");
+        if (response.image_format === "png" && response.png_data_uri) {
+          const image = IL.el("img", { src: response.png_data_uri, alt: "Diagrama PNG generado por PlantUML", style: "max-width:100%;height:auto" });
+          diagram.replaceChildren(image);
+        } else diagram.innerHTML = response.svg;
+        document.getElementById("preview-format").value = response.image_format || "svg";
         document.getElementById("code").textContent = response.plantuml_code;
         const tag = document.getElementById("engine-tag"); tag.hidden = false;
-        tag.textContent = response.engine === "plantuml" ? "PlantUML" : "Vista simplificada (motor existente)";
+        tag.textContent = response.engine === "plantuml" ? "PlantUML real" : "Vista simplificada (no es PlantUML)";
+        const status = document.getElementById("render-status");
+        status.textContent = (response.cached ? "Cache SHA-256: acierto" : "Generacion nueva") +
+          ` · ${response.duration_ms} ms` + (response.cache_warning ? " · " + response.cache_warning : "");
         rendered = signature(CU02Validation.check(payload(), rules).data);
       }
       if (action === "save") {
         // URL absoluta desde el prefijo actual, sin concatenar a /nuevo/.
         history.replaceState(null, "", form.dataset.listUrl + response.id + "/");
         ucId = response.id; document.getElementById("title").textContent = response.spec.name;
+        document.getElementById("diagram-downloads").style.display = "flex";
+        document.getElementById("download-svg").href = form.dataset.listUrl + ucId + "/diagrama/svg/";
+        document.getElementById("download-png").href = form.dataset.listUrl + ucId + "/diagrama/png/";
         IL.toast(response.message, "ok"); IL.showBadges(response.badges);
       }
     } catch (error) {

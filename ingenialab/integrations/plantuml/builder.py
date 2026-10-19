@@ -2,11 +2,14 @@
 
 
 def _q(text):
-    return text.replace('"', "'")
+    # PlantUML interpreta markup dentro de etiquetas: codificar metacaracteres
+    # conserva el texto visible sin aceptar enlaces, saltos ni directivas.
+    clean = " ".join(str(text).split())
+    return "".join(c if c.isalnum() or c in " .,_-/()" else f"<U+{ord(c):04X}>" for c in clean)
 
 
 def build_usecase_diagram(spec: dict) -> str:
-    lines = ["@startuml", "!pragma layout smetana", "left to right direction", "skinparam shadowing false",
+    lines = ["@startuml", "left to right direction", "skinparam shadowing false",
              "skinparam usecase {", "  BackgroundColor #E6F2F1", "  BorderColor #006A68", "}",
              "skinparam actorBorderColor #006A68", "skinparam rectangleBorderColor #5B7083", ""]
     for i, a in enumerate(spec["primary_actors"], 1):

@@ -1,9 +1,11 @@
+import base64
 import json
 import uuid
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
@@ -103,9 +105,19 @@ def api_generate(request):
     if error is not None: return error
     spec = form.cleaned_data
     code = build_usecase_diagram(spec)
-    result = plantuml.render(code)
-    return ok(plantuml_code=code, svg=result.svg, engine=result.engine, cached=result.cached,
-              spec=spec, warnings=validators.suggestions(spec))
+    format = data.get("format", "svg")
+    if format not in plantuml.FORMATS:
+        return fail("Formato permitido: svg o png.")
+    try:
+        result = plantuml.render(code, format)
+        svg = result.svg if format == "svg" else plantuml.render(code, "svg").svg
+    except plantuml.PlantUMLError as e:
+        return fail(str(e), status=e.status, error=e.code)
+    return ok(plantuml_code=code, svg=svg, engine=result.engine, cached=result.cached,
+              spec=spec, warnings=validators.suggestions(spec), code_hash=result.code_hash,
+              duration_ms=result.duration_ms, cache_warning=result.warning, image_format=format,
+              png_data_uri="data:image/png;base64,"+base64.b64encode(result.data).decode("ascii") if format=="png" else "")
+
 
 
 @login_required
@@ -124,7 +136,9 @@ def api_save(request):
         uc = get_object_or_404(UseCaseSpecification, id=uc_id, user=request.user)
     spec = form.cleaned_data
     code = build_usecase_diagram(spec)
-    result = plantuml.render(code)
+    try: result = plantuml.render(code)
+    except plantuml.PlantUMLError as e:
+        return fail(str(e), status=e.status, error=e.code)
     warnings = validators.suggestions(spec)
     attempt = None
     if spec["attempt_id"]:
@@ -152,7 +166,8 @@ def api_save(request):
         use_case=uc, defaults={"code_hash": result.code_hash, "svg": result.svg, "engine": result.engine},
     )
     return ok(id=str(uc.id), plantuml_code=code, svg=result.svg, engine=result.engine, warnings=warnings,
-              spec=spec, message="Especificación guardada correctamente en tu cuenta.", badges=evaluate_badges(request.user))
+              cached=result.cached, duration_ms=result.duration_ms, code_hash=result.code_hash,
+              cache_warning=result.warning, spec=spec, message="Especificación guardada correctamente en tu cuenta.", badges=evaluate_badges(request.user))
 
 
 @login_required
@@ -162,3 +177,23 @@ def delete(request, uc_id):
     uc.delete()
     messages.success(request, "Caso de uso eliminado.")
     return redirect("modeling:list")
+
+
+@login_required
+def download_diagram(request, uc_id, format):
+    """Solo codigo guardado del propietario; no acepta UML libre ni rutas."""
+    if format not in plantuml.FORMATS:
+        return HttpResponse("Formato no permitido.", status=400)
+    uc = get_object_or_404(UseCaseSpecification, id=uc_id, user=request.user)
+    try: result = plantuml.render(uc.plantuml_code, format)
+    except plantuml.PlantUMLError as e:
+        return fail(str(e), status=e.status, error=e.code)
+    if result.engine != "plantuml":
+        return fail("La descarga requiere el motor PlantUML real.", status=503)
+    response = HttpResponse(result.data, content_type=result.content_type)
+    response["Content-Disposition"] = f'attachment; filename="IngeniaLab_{uc.id}.{format}"'
+    response["Cache-Control"] = "private, no-store"
+    response["X-Content-Type-Options"] = "nosniff"
+    response["X-Diagram-Cache"] = "HIT" if result.cached else "MISS"
+    response["X-Diagram-Duration-Ms"] = str(result.duration_ms)
+    return response

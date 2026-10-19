@@ -109,7 +109,9 @@
             }
             hideNetBanner();
             if (res.status >= 500) {
-              resolve({ ok: false, message: "Ocurrió un error en el servidor. Intenta de nuevo." });
+              let problem = {};
+              try { problem = await res.json(); } catch (e) { /* error HTML inesperado */ }
+              resolve({ ok: false, ...problem, message: problem.message || "Ocurrió un error en el servidor. Intenta de nuevo." });
               return;
             }
             resolve(await res.json());

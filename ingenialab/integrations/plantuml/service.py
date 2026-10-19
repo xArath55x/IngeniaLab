@@ -1,132 +1,150 @@
-"""PlantUMLService (SCI-05, SDS §3.2).
-
-Calcula el SHA-256 del código; si el SVG ya existe en la caché en disco se sirve de inmediato.
-Si no, invoca `java -jar plantuml.jar -pipe -tsvg`. Si Java o el JAR no están disponibles,
-usa un renderizador SVG mínimo para que la práctica no se bloquee (modo degradado).
-"""
+"""ACT-207B: PlantUML local real, Graphviz, SVG/PNG y cache atomica SHA-256."""
 import hashlib
-import html
+import io
 import logging
+import os
 import re
+import shutil
 import subprocess
+import tempfile
+import time
+import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from pathlib import Path
-
+from PIL import Image
 from django.conf import settings
 
 log = logging.getLogger(__name__)
+FORMATS = {"svg": "image/svg+xml", "png": "image/png"}
+CACHE_VERSION = "plantuml-v2-graphviz"
+ERROR_MARKERS = ("an error has occurred", "has crashed", "cannot parse result", "syntax error?", "error java.lang", "dot executable does not exist")
 
+class PlantUMLError(Exception):
+    def __init__(self, message, code="render_failed", status=503):
+        super().__init__(message); self.code = code; self.status = status
 
 @dataclass
 class RenderResult:
     svg: str
     code_hash: str
-    engine: str  # "plantuml" | "fallback"
+    engine: str
     cached: bool
+    data: bytes = b""
+    format: str = "svg"
+    duration_ms: float = 0
+    warning: str = ""
+    @property
+    def content_type(self): return FORMATS[self.format]
 
-
-def code_hash(code: str) -> str:
+def code_hash(code):
     return hashlib.sha256(code.encode("utf-8")).hexdigest()
 
-
-def render(plantuml_code: str) -> RenderResult:
-    digest = code_hash(plantuml_code)
-    cache_dir = Path(settings.PLANTUML_CACHE_DIR)
-    cache_file = cache_dir / f"{digest}.svg"
-    if cache_file.exists():
-        return RenderResult(cache_file.read_text("utf-8"), digest, "plantuml", True)
-
-    svg = _render_with_jar(plantuml_code)
-    if svg is None:
-        return RenderResult(render_fallback(plantuml_code), digest, "fallback", False)
-    cache_dir.mkdir(parents=True, exist_ok=True)
-    cache_file.write_text(svg, "utf-8")
-    return RenderResult(svg, digest, "plantuml", False)
-
-
-def _render_with_jar(code: str):
+def _cache_path(code, format):
+    # La clave de contenido sigue siendo SHA-256 del codigo; un espacio de
+    # nombres adicional invalida caches de versiones/configuraciones previas.
     jar = Path(settings.PLANTUML_JAR)
-    if not jar.exists():
-        log.warning("PlantUML JAR no encontrado en %s; usando renderizador de respaldo", jar)
-        return None
     try:
-        proc = subprocess.run(
-            [settings.PLANTUML_JAVA, "-Djava.awt.headless=true", "-jar", str(jar), "-pipe", "-tsvg", "-charset", "UTF-8"],
-            input=code.encode("utf-8"), capture_output=True, timeout=settings.PLANTUML_TIMEOUT,
-        )
-    except (OSError, subprocess.TimeoutExpired) as e:
-        log.warning("Fallo al ejecutar PlantUML: %s", e)
-        return None
-    out = proc.stdout.decode("utf-8", "replace")
-    if proc.returncode != 0 or "<svg" not in out:
-        log.warning("PlantUML devolvió error: %s", proc.stderr.decode("utf-8", "replace")[:500])
-        return None
-    return out[out.index("<svg"):]
+        stat = jar.stat(); identity = f"{jar.resolve()}:{stat.st_size}:{stat.st_mtime_ns}"
+    except OSError: identity = str(jar)
+    identity += str(settings.PLANTUML_JAVA) + str(getattr(settings, "PLANTUML_DOT", "dot"))
+    engine = hashlib.sha256(identity.encode()).hexdigest()[:16]
+    return Path(settings.PLANTUML_CACHE_DIR) / CACHE_VERSION / engine / f"{code_hash(code)}.{format}"
 
+def _valid_image(data, format):
+    if not data or len(data) > 8_000_000:
+        raise PlantUMLError("El generador devolvio una imagen vacia o demasiado grande.", "invalid_image")
+    if format == "png":
+        try:
+            with Image.open(io.BytesIO(data)) as image:
+                if image.format != "PNG" or image.width * image.height > 16_000_000: raise ValueError()
+                image.verify()
+        except Exception as e:
+            raise PlantUMLError("PlantUML no devolvio un PNG valido.", "invalid_image") from e
+        return data
+    try:
+        if b"<!DOCTYPE" in data.upper() or b"<!ENTITY" in data.upper(): raise ValueError()
+        root = ET.fromstring(data)
+        if root.tag != "{http://www.w3.org/2000/svg}svg": raise ValueError()
+        visible = " ".join(n.text or "" for n in root.iter() if n.tag.endswith("}text")).lower()
+        if any(marker in visible for marker in ERROR_MARKERS): raise ValueError()
+        for node in root.iter():
+            tag = node.tag.rsplit("}", 1)[-1].lower()
+            if tag in ("script", "foreignobject", "image", "iframe", "a", "style", "animate", "set"): raise ValueError()
+            for attr, value in node.attrib.items():
+                attr = attr.rsplit("}", 1)[-1].lower()
+                if attr.startswith("on"): raise ValueError()
+                if attr in ("href", "src") and not value.startswith("#"): raise ValueError()
+                if "url(" in value.lower() and not re.fullmatch(r"url\(#[A-Za-z0-9_-]+\)", value): raise ValueError()
+    except (ET.ParseError, ValueError) as e:
+        raise PlantUMLError("PlantUML devolvio un SVG invalido o una imagen de error. Ejecuta plantuml_check.", "invalid_image") from e
+    return data
 
-_ACTOR = re.compile(r'^actor "(.+)" as (\w+)$')
-_UC = re.compile(r'^usecase "(.+)" as (\w+)$')
-_SYS = re.compile(r'^rectangle "(.+)" \{$')
-_LINK = re.compile(r"^(\w+) (-->|\.\.>) (\w+)(?: : <<(\w+)>>)?$")
+def _write_atomic(path, data):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    name = None
+    try:
+        with tempfile.NamedTemporaryFile(dir=path.parent, prefix=".render-", delete=False) as f:
+            name = f.name; f.write(data)
+        os.replace(name, path)
+    finally:
+        if name:
+            try: os.unlink(name)
+            except FileNotFoundError: pass
 
+def _execute(code, format, timeout):
+    jar = Path(settings.PLANTUML_JAR)
+    if not jar.is_file(): raise PlantUMLError("Falta plantuml.jar. Ejecuta python manage.py install_plantuml.", "jar_missing")
+    java = shutil.which(settings.PLANTUML_JAVA)
+    dot = shutil.which(getattr(settings, "PLANTUML_DOT", "dot"))
+    if not java: raise PlantUMLError("Falta Java en PATH. Instala Java 17 o configura PLANTUML_JAVA.", "java_missing")
+    if not dot: raise PlantUMLError("Falta Graphviz. Instala Graphviz y agrega dot al PATH.", "graphviz_missing")
+    env = os.environ.copy(); env["GRAPHVIZ_DOT"] = dot
+    command = [java, "-Djava.awt.headless=true", "-DPLANTUML_SECURITY_PROFILE=SECURE", "-Xmx256m",
+               "-jar", str(jar), "-pipe", "-t" + format, "-charset", "UTF-8", "-noerror"]
+    try:
+        result = subprocess.run(command, input=code.encode("utf-8"), capture_output=True,
+                                timeout=timeout, env=env, check=False)
+    except subprocess.TimeoutExpired as e:
+        raise PlantUMLError("PlantUML excedio el tiempo disponible. Reduce el diagrama o revisa plantuml_check.", "timeout", 504) from e
+    except OSError as e:
+        raise PlantUMLError("No se pudo ejecutar Java. Revisa PLANTUML_JAVA.", "execution_failed") from e
+    stderr = result.stderr.decode("utf-8", "replace").lower()
+    if result.returncode or any(marker in stderr for marker in ("exception", "error line", "cannot parse result", "syntax error")):
+        log.warning("PlantUML fallo: codigo=%s, detalle=%s", result.returncode, stderr[:500])
+        raise PlantUMLError("PlantUML no pudo generar el diagrama. Ejecuta plantuml_check.", "render_failed")
+    return _valid_image(result.stdout, format)
 
-def render_fallback(code: str) -> str:
-    """Renderizador de respaldo para el subconjunto de PlantUML que genera builder.py."""
-    actors, usecases, links, system = {}, {}, [], "Sistema"
-    for raw in code.splitlines():
-        line = raw.strip()
-        if m := _ACTOR.match(line):
-            actors[m[2]] = m[1]
-        elif m := _UC.match(line):
-            usecases[m[2]] = m[1]
-        elif m := _SYS.match(line):
-            system = m[1]
-        elif m := _LINK.match(line):
-            links.append((m[1], m[2], m[3], m[4]))
-
-    left = [k for k in actors if k.startswith("P")]
-    right = [k for k in actors if k.startswith("S")]
-    ucs = list(usecases)
-    rows = max(len(left), len(right), len(ucs), 1)
-    row_h, width = 110, 760
-    height = rows * row_h + 60
-    pos = {}
-
-    def column(keys, x):
-        offset = (rows - len(keys)) * row_h / 2
-        for i, k in enumerate(keys):
-            pos[k] = (x, 50 + offset + i * row_h + row_h / 2)
-
-    column(left, 80)
-    column(ucs, 380)
-    column(right, 680)
-    e = html.escape
-    parts = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" '
-             f'viewBox="0 0 {width} {height}" font-family="Helvetica, Arial, sans-serif" font-size="13">',
-             '<defs><marker id="arr" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">'
-             '<path d="M0,0 L10,4 L0,8 z" fill="#33475b"/></marker></defs>',
-             f'<rect x="200" y="20" width="360" height="{height - 40}" rx="6" fill="none" stroke="#5B7083"/>',
-             f'<text x="380" y="40" text-anchor="middle" font-weight="bold">{e(system)}</text>']
-    for a, kind, b, stereo in links:
-        if a not in pos or b not in pos:
-            continue
-        (x1, y1), (x2, y2) = pos[a], pos[b]
-        x1 += 30 if a in actors else 110
-        x2 -= 30 if b in actors else 110
-        dash = ' stroke-dasharray="6,4"' if kind == "..>" else ""
-        parts.append(f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" stroke="#33475b"{dash} marker-end="url(#arr)"/>')
-        if stereo:
-            parts.append(f'<text x="{(x1 + x2) / 2}" y="{(y1 + y2) / 2 - 6}" text-anchor="middle" '
-                         f'font-size="11">«{e(stereo)}»</text>')
-    for k, name in actors.items():
-        x, y = pos[k]
-        parts.append(f'<g stroke="#006A68" stroke-width="2" fill="none"><circle cx="{x}" cy="{y - 30}" r="10"/>'
-                     f'<line x1="{x}" y1="{y - 20}" x2="{x}" y2="{y + 5}"/><line x1="{x - 15}" y1="{y - 12}" x2="{x + 15}" y2="{y - 12}"/>'
-                     f'<line x1="{x}" y1="{y + 5}" x2="{x - 12}" y2="{y + 22}"/><line x1="{x}" y1="{y + 5}" x2="{x + 12}" y2="{y + 22}"/></g>'
-                     f'<text x="{x}" y="{y + 40}" text-anchor="middle">{e(name)}</text>')
-    for k, name in usecases.items():
-        x, y = pos[k]
-        parts.append(f'<ellipse cx="{x}" cy="{y}" rx="110" ry="30" fill="#E6F2F1" stroke="#006A68"/>'
-                     f'<text x="{x}" y="{y + 4}" text-anchor="middle">{e(name[:34])}</text>')
-    parts.append("</svg>")
-    return "".join(parts)
+def render(plantuml_code, format="svg"):
+    start = time.perf_counter()
+    if format not in FORMATS: raise PlantUMLError("Formato permitido: svg o png.", "invalid_format", 400)
+    if not isinstance(plantuml_code, str) or not plantuml_code.startswith("@startuml\n") or not plantuml_code.rstrip().endswith("@enduml") or len(plantuml_code.encode()) > 100_000:
+        raise PlantUMLError("Codigo UML invalido o demasiado grande.", "invalid_code", 400)
+    digest = code_hash(plantuml_code)
+    path = _cache_path(plantuml_code, format)
+    cached = False; warning = ""
+    try:
+        data = _valid_image(path.read_bytes(), format); cached = True
+    except (OSError, PlantUMLError): data = None
+    if data is None:
+        try:
+            budget = float(settings.PLANTUML_TIMEOUT)
+            if format == "png":
+                # Verificar el SVG evita aceptar un PNG que solo contiene un
+                # mensaje de error. El editor genera primero SVG y lo reutiliza.
+                certified = render(plantuml_code, "svg")
+                if certified.engine != "plantuml": raise PlantUMLError("PNG requiere el motor PlantUML real.")
+            remaining = budget - (time.perf_counter() - start)
+            if remaining <= 0: raise PlantUMLError("Se agoto el tiempo de generacion.", "timeout", 504)
+            data = _execute(plantuml_code, format, remaining)
+        except PlantUMLError as e:
+            if not getattr(settings, "PLANTUML_ALLOW_FALLBACK", False) or format != "svg": raise
+            from .fallback import render_fallback
+            svg = render_fallback(plantuml_code)
+            return RenderResult(svg, digest, "fallback", False, svg.encode(), format,
+                                round((time.perf_counter()-start)*1000, 3), str(e))
+        try: _write_atomic(path, data)
+        except OSError:
+            warning = "Diagrama generado; no se pudo escribir la cache. Revisa los permisos de var/."
+            log.warning(warning)
+    return RenderResult(data.decode("utf-8") if format == "svg" else "", digest, "plantuml", cached,
+                        data, format, round((time.perf_counter()-start)*1000, 3), warning)

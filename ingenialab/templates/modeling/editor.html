@@ -42,6 +42,13 @@
     <section class="card sticky">
       <div class="card-head"><h2>Diagrama UML</h2><span class="tag" id="engine-tag" hidden></span></div>
       <div id="validation" aria-live="polite"></div>
+      <label for="preview-format">Formato de vista previa</label>
+      <select id="preview-format"><option value="svg">SVG vectorial</option><option value="png">PNG</option></select>
+      <p id="render-status" class="small muted" role="status"></p>
+      <div class="btn-row" id="diagram-downloads" style="display:{% if uc %}flex{% else %}none{% endif %}">
+        <a class="btn small secondary" id="download-svg" {% if uc %}href="{% url 'modeling:download_diagram' uc.id 'svg' %}"{% endif %}>Descargar SVG guardado</a>
+        <a class="btn small secondary" id="download-png" {% if uc %}href="{% url 'modeling:download_diagram' uc.id 'png' %}"{% endif %}>Descargar PNG guardado</a>
+      </div>
       <div class="diagram" id="diagram">{% if svg %}{{ svg|safe }}{% else %}<p class="muted">El diagrama aparecerá aquí al validar la plantilla.</p>{% endif %}</div>
       <details><summary>Ver código PlantUML</summary><pre class="code" id="code">{{ uc.plantuml_code|default:"" }}</pre></details>
     </section>

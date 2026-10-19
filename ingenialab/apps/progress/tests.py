@@ -14,6 +14,7 @@ from apps.modeling.models import UseCaseSpecification
 from integrations.plantuml import service as plantuml
 
 
+@override_settings(PLANTUML_ALLOW_FALLBACK=True, PLANTUML_JAR="/no/existe-prueba.jar")
 class BaseCase(TestCase):
     @classmethod
     def setUpTestData(cls):
@@ -257,7 +258,7 @@ class ModelingTests(BaseCase):
 
 class PlantUMLTests(TestCase):
     def test_fallback_renderer_when_jar_missing(self):
-        with tempfile.TemporaryDirectory() as tmp, override_settings(PLANTUML_JAR="/no/existe.jar", PLANTUML_CACHE_DIR=tmp):
+        with tempfile.TemporaryDirectory() as tmp, override_settings(PLANTUML_ALLOW_FALLBACK=True, PLANTUML_JAR="/no/existe.jar", PLANTUML_CACHE_DIR=tmp):
             from integrations.plantuml.builder import build_usecase_diagram
             from apps.modeling.validators import normalize
             code = build_usecase_diagram(normalize(USE_CASE))

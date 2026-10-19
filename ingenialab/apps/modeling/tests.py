@@ -43,7 +43,7 @@ class StructuredFormTests(SimpleTestCase):
     def test_optional_and_default_system(self):
         f=self.form(system_name='  ');self.assertTrue(f.is_valid());self.assertEqual(f.cleaned_data['system_name'],'Sistema')
 
-@override_settings(INGENIALAB_MODULES=['interviews','modeling'])
+@override_settings(INGENIALAB_MODULES=['interviews','modeling'],PLANTUML_ALLOW_FALLBACK=True,PLANTUML_JAR='/no/existe-prueba.jar')
 class StructuredApiTests(TestCase):
     @classmethod
     def setUpTestData(cls):

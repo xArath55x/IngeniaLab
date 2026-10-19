@@ -6,15 +6,15 @@ SRS v1.2 (WP.13) y al SDS v1.0 (WP.16) — ISO/IEC 29110-5-1-2:2025, Perfil Bás
 
 ## Inicio rápido (desarrollo)
 
-Requisitos: Python 3.11+, Java 11+ (para PlantUML). Graphviz **no** es necesario: los diagramas usan el
-motor de layout integrado de PlantUML (Smetana).
+Requisitos: Python 3.11+, Java 17+ y Graphviz (`dot` en PATH). ACT-207B usa el motor real de PlantUML con Graphviz para SVG y PNG.
 
 ```bash
 cd ingenialab
 python3 -m venv .venv
-carpeta_actual/.venv/bin/pip install -r requirements.txt
-# PlantUML (si no existe vendor/plantuml.jar)
-curl -L -o vendor/plantuml.jar https://github.com/plantuml/plantuml/releases/download/latest
+.venv/bin/pip install -r requirements.txt
+# PlantUML fijado, descargado con verificacion SHA-256
+.venv/bin/python manage.py install_plantuml
+.venv/bin/python manage.py plantuml_check --strict
 .venv/bin/python manage.py migrate
 .venv/bin/python manage.py seed_ingenialab        # escenarios e inspecciones (idempotente)
 .venv/bin/python manage.py runserver
@@ -26,7 +26,7 @@ La base de datos de desarrollo incluida trae un usuario de demostración: `demo`
 Pruebas automatizadas (evidencia para VR-01):
 
 ```bash
-.venv/bin/python manage.py test apps
+.venv/bin/python manage.py test apps integrations
 ```
 
 ## Flujo del estudiante (piloto: entrevistas y modelado)
@@ -55,7 +55,7 @@ INGENIALAB_MODULES=interviews,classification,modeling,inspection,reports,progres
 | SCI-02 | `apps/interviews` | Escenarios versionados, `services.py` = InterviewEngine, bitácora |
 | SCI-03 | `apps/classification` | `services.py` = RequirementService (upsert RF/RNF, precisión) |
 | SCI-04 | `apps/modeling` | `validators.py` = ModelingValidator, casos de uso y diagramas |
-| SCI-05 | `integrations/plantuml` | `builder.py` (spec → PlantUML), `service.py` (render + caché SHA-256) |
+| SCI-05 | `integrations/plantuml` | `builder.py` (spec → PlantUML), `service.py` (SVG/PNG real + caché SHA-256 atómica) |
 | SCI-06 | `apps/inspection` | `services.py` = AuditEngine (hallazgos, pistas, precisión) |
 | SCI-07 | `apps/progress` | `services.py` = GamificationService/ScoringEngine, tablero |
 | SCI-08 | `integrations/pdf` | `generator.py` = PDFReportGenerator |
@@ -83,7 +83,7 @@ versión nueva (`"version": "2.1"`) y la anterior se desactiva automáticamente.
 | RF-11 Inspección de defectos | `apps/inspection` |
 | RF-12 Interrupciones | `static/js/app.js` (banner + reintento, modal de reautenticación) + middleware 401 |
 | RNF-01/02 Usabilidad y accesibilidad | Instrucciones por pantalla, campos resaltados, retroalimentación con icono + texto, navegación con teclado |
-| RNF-03 < 2 s | Caché de diagramas por SHA-256 (`var/diagram_cache`) |
+| RNF-03 < 2 s | Caché SHA-256, timeout y mediciones con `plantuml_check --strict`; depende del equipo y tamaño del diagrama |
 | RNF-05 Sesión segura | Expiración a 30 min de inactividad; HTTPS/HSTS/cookies seguras con `INGENIALAB_DEBUG=0` |
 | RNF-06 Arquitectura modular | Capas separadas: vistas → servicios → ORM / adaptadores |
 
@@ -108,7 +108,7 @@ Variables de entorno:
 ```
 
 Sirve detrás de un proxy inverso con TLS (Nginx/Caddy) que envíe `X-Forwarded-Proto`.
-Si Java o el JAR no están disponibles, el sistema usa un renderizador SVG de respaldo y lo indica en pantalla.
+Si Java, Graphviz o el JAR no están disponibles, se muestra un error explicativo y no se guarda un diagrama falso. El respaldo heredado solo se activa explícitamente con `PLANTUML_ALLOW_FALLBACK=1`, para demostración; no cuenta como generación real.
 
 ## Decisiones respecto al SDS
 
@@ -138,3 +138,37 @@ python manage.py test apps.modeling
 # Opcional, solo si tienes Node.js: no requiere npm install
 node tests/modeling-validation.cjs
 ```
+
+## ACT-207B: motor real de diagramas
+
+Tras instalar Java 17+ y Graphviz, ejecuta `python manage.py install_plantuml` y
+`python manage.py plantuml_check --strict`. El primer comando requiere Internet
+para instalar PlantUML 1.2026.2 con SHA-256 verificado; después se genera localmente.
+El JAR no se incluye en el ZIP. La descarga manual oficial también es válida.
+
+En Modelado puedes elegir vista previa SVG o PNG y pulsar **Validar y generar diagrama**.
+La pantalla indica el tiempo y si se reutilizó la caché. Guarda para habilitar las
+descargas de la versión persistida. Cambios pendientes no aparecen en esas descargas.
+
+Se conservan los formularios y validaciones de ACT-207A. No hay migraciones nuevas.
+Los casos antiguos deben regenerarse y guardarse para usar el builder actualizado.
+
+Configuración adicional: `PLANTUML_DOT` (ruta o nombre de dot), `PLANTUML_TIMEOUT`
+(presupuesto por operación, 1.8 s por defecto) y `PLANTUML_ALLOW_FALLBACK` (0 por defecto).
+La caché distingue formato, versión del adaptador y configuración del motor. Las
+entradas antiguas quedan ignoradas; se pueden borrar con el servidor detenido.
+
+Pruebas con Java/Graphviz/JAR configurados, en PowerShell:
+
+```powershell
+$env:INGENIALAB_TEST_PLANTUML = "1"
+.\.venv\Scripts\python.exe manage.py test apps integrations
+.\.venv\Scripts\python.exe manage.py plantuml_check --runs 3 --strict
+```
+
+Sin esa variable, las tres pruebas de integración que requieren Java se omiten
+explícitamente. Las pruebas generales usan el respaldo o dobles de prueba donde
+corresponde; eso no cambia el modo normal de la aplicación.
+
+Consulta `../ACT-207B_CAMBIOS.txt` para instrucciones completas de Windows y
+`../docs/ACT-207B_Mediciones.json` para las muestras del entorno de validación.

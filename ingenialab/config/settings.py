@@ -123,4 +123,8 @@ INGENIALAB_MODULES = [m for m in os.environ.get("INGENIALAB_MODULES", "interview
 PLANTUML_JAR = os.environ.get("PLANTUML_JAR", str(BASE_DIR / "vendor" / "plantuml.jar"))
 PLANTUML_JAVA = os.environ.get("PLANTUML_JAVA", "java")
 PLANTUML_CACHE_DIR = Path(os.environ.get("PLANTUML_CACHE_DIR", BASE_DIR / "var" / "diagram_cache"))
-PLANTUML_TIMEOUT = 10
+# ACT-207B: presupuesto del subproceso (objetivo interactivo < 2 s).
+PLANTUML_TIMEOUT = float(os.environ.get("PLANTUML_TIMEOUT", "1.8"))
+PLANTUML_DOT = os.environ.get("PLANTUML_DOT", "dot")
+# Solo demostraciones explicitas: nunca confundir respaldo con PlantUML real.
+PLANTUML_ALLOW_FALLBACK = os.environ.get("PLANTUML_ALLOW_FALLBACK", "0") == "1"
