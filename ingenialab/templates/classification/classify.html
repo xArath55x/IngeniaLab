@@ -1,6 +1,13 @@
 {% extends "base.html" %}
 {% block title %}Clasificación · {{ attempt.version.title }}{% endblock %}
 {% block content %}
+<style>
+  /* Estilos para el menu flotante y el resaltado de texto interactivo */
+  #highlighter-menu { position: absolute; display: none; z-index: 1000; background: #343a40; padding: 8px; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
+  .highlight-rf { background-color: #d1e7dd; padding: 2px 4px; border-radius: 3px; border-bottom: 2px solid #198754; cursor: pointer; }
+  .highlight-rnf { background-color: #fff3cd; padding: 2px 4px; border-radius: 3px; border-bottom: 2px solid #ffc107; cursor: pointer; }
+</style>
+
 <div class="page-head">
   <div>
     <p class="small muted" style="margin:0">Elicitación · Paso 2 de 2</p>
@@ -18,6 +25,7 @@
     <li>Haz clic (o selecciona con el cursor) una <span class="stmt" style="cursor:default">declaración subrayada</span> de la bitácora.</li>
     <li>Elige si es <b>RF</b> (lo que el sistema hace) o <b>RNF</b> (una cualidad o restricción de cómo lo hace) y confirma.</li>
     <li>Para corregir, vuelve a seleccionar la declaración o su fila en la tabla: se reclasifica sin duplicarse.</li>
+    <li><b>(CU-03):</b> Selecciona cualquier texto libre de la bitácora con el mouse para clasificar fragmentos adicionales.</li>
   </ol>
   {% if attempt.premature_finish %}<p class="small" style="margin:.4rem 0 0">⚠ La entrevista se finalizó con temas pendientes: solo puedes clasificar lo que quedó en la bitácora.</p>{% endif %}
 </div>
@@ -66,6 +74,24 @@
     </section>
   </div>
 </div>
+
+<!-- CU-03: Menu flotante para clasificacion interactiva libre -->
+<div id="highlighter-menu">
+    <button class="btn btn-sm btn-success me-1" type="button" onclick="submitFreeClassification('RF')">RF</button>
+    <button class="btn btn-sm btn-warning" type="button" onclick="submitFreeClassification('RNF')">RNF</button>
+</div>
+
+<!-- Inyeccion CU-03: Alertas (Toasts) para retroalimentacion -->
+<div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 1055;">
+    <div id="statusToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="toast-header" id="toastHeader">
+            <strong class="me-auto" id="toastTitle">Notificación</strong>
+            <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+        <div class="toast-body" id="toastMessage"></div>
+    </div>
+</div>
+
 {{ rows|json_script:"rows-data" }}
 {% endblock %}
 
@@ -151,5 +177,97 @@
     document.getElementById("m-score").textContent = INTERVIEW_SCORE + r.score;
   });
 })();
+
+// Logica de seleccion libre y menu flotante
+
+let selectedText = "";
+let selectionRange = null;
+const menu = document.getElementById('highlighter-menu');
+const logContainer = document.getElementById('log');
+
+// Reemplazamos el eventListener 'mouseup' del #log para que funcione tanto 
+// con las declaraciones originales (stmt) como con el texto libre.
+logContainer.addEventListener('mouseup', (e) => {
+    const sel = window.getSelection();
+    
+    // Validar si es una declaración maestra ya estructurada
+    const node = sel.anchorNode && (sel.anchorNode.nodeType === 3 ? sel.anchorNode.parentElement : sel.anchorNode);
+    const span = node && node.closest(".stmt[data-req]");
+    
+    // Si NO es una declaración maestra (texto libre) y hay seleccion
+    if (!span && sel && !sel.isCollapsed) {
+        selectedText = sel.toString().trim();
+        if (selectedText.length > 5) {
+            selectionRange = sel.getRangeAt(0);
+            menu.style.top = `${e.pageY - 45}px`;
+            menu.style.left = `${e.pageX - 40}px`;
+            menu.style.display = 'block';
+        }
+    } else {
+        menu.style.display = 'none';
+    }
+});
+
+document.addEventListener('mousedown', (e) => {
+    if (!menu.contains(e.target) && e.target.id !== 'log') {
+        menu.style.display = 'none';
+    }
+});
+
+async function submitFreeClassification(reqType) {
+    menu.style.display = 'none';
+    if (!selectedText) return;
+
+    // Obtener CSRF Token del entorno de Django
+    const csrfToken = document.cookie.split('; ').find(row => row.startsWith('csrftoken='))?.split('=')[1] || '';
+
+    try {
+        // Enviar a la nueva vista API que creamos
+        const response = await fetch(`/clasificacion/api/save/{{ attempt.id }}/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify({
+                text_fragment: selectedText,
+                req_type: reqType
+            })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            showToast('Error', data.error || 'No se pudo guardar.', 'bg-danger text-white');
+        } else {
+            // Aplicar estilo visual de resaltado
+            const span = document.createElement('span');
+            span.className = reqType === 'RF' ? 'highlight-rf' : 'highlight-rnf';
+            span.textContent = selectedText;
+            selectionRange.deleteContents();
+            selectionRange.insertNode(span);
+            
+            showToast('Éxito', data.message || `Clasificado como ${reqType}`, 'bg-success text-white');
+        }
+    } catch (error) {
+        showToast('Error', 'Falla de conexión con el servidor.', 'bg-danger text-white');
+    }
+    window.getSelection().removeAllRanges();
+}
+
+function showToast(title, message, headerClass) {
+    document.getElementById('toastTitle').textContent = title;
+    document.getElementById('toastMessage').textContent = message;
+    document.getElementById('toastHeader').className = `toast-header ${headerClass}`;
+    
+    // Requiere que Bootstrap JS este cargado en base.html
+    if (typeof bootstrap !== 'undefined') {
+        const toast = new bootstrap.Toast(document.getElementById('statusToast'));
+        toast.show();
+    } else {
+        alert(`${title}: ${message}`);
+    }
+}
+
 </script>
 {% endblock %}
