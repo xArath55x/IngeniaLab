@@ -11,6 +11,4 @@ urlpatterns = [
     path("api/intento/<uuid:attempt_id>/preguntar/", views.api_ask, name="api_ask"),
     path("api/intento/<uuid:attempt_id>/finalizar/", views.api_finish, name="api_finish"),
     path("api/intento/<uuid:attempt_id>/reiniciar/", views.api_reset, name="api_reset"),
-    path('catalog-simulator/', views.chat_interface, name='catalog_simulator'),
-    path('api/catalog-data/', views.get_catalog_data, name='catalog_data'),
 ]
