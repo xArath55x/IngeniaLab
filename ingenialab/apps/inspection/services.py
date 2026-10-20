@@ -1,4 +1,5 @@
 """AuditEngine (SCI-06): hallazgos contra la clave, pistas y precisión (CU-04)."""
+from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils import timezone
 
@@ -51,8 +52,12 @@ def register_finding(attempt: InspectionAttempt, fragment_id, defect_type: str) 
         raise AuditError("Selecciona un tipo de defecto de la lista.")
     try:
         fragment = attempt.exercise.fragments.get(id=fragment_id)
-    except (InspectionFragment.DoesNotExist, ValueError):
+    except (InspectionFragment.DoesNotExist, ValidationError, ValueError):
         raise AuditError("Selecciona una sección del documento.")
+
+    if attempt.findings.filter(fragment=fragment, is_correct=True).exists():
+        return {"status": "already_found", "message": "Ya identificaste este defecto.",
+                "explanation": fragment.explanation, "summary": summary(attempt)}
 
     attempt.registrations += 1
     if not fragment.defect_type:
