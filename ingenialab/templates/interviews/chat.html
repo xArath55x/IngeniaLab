@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador de Entrevistas CU-01 | IngeniaLab</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f4f7f6; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+        .main-container { flex: 1; padding: 20px; display: flex; gap: 20px; height: 100%; }
+
+        /* Dividiremos el panel; en el lado izquierdo se mostrara el chat y en el lado derecho se mostrara la bitacora. Panel Izquierdo: Chat*/
+        .chat-container { flex: 2; background: #fff; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); display: flex; flex-direction: column; overflow: hidden; }
+        .chat-header { background: #0d6efd; color: white; padding: 15px; text-align: center; }
+        .chat-box { flex: 1; padding: 20px; overflow-y: auto; background-color: #e5ddd5; }
+        .message { margin-bottom: 15px; display: flex; flex-direction: column; }
+        .message.client { align-items: flex-start; }
+        .message.analyst { align-items: flex-end; }
+        .bubble { max-width: 75%; padding: 12px 18px; border-radius: 20px; position: relative; font-size: 0.95rem; }
+        .message.client .bubble { background: #fff; color: #333; border-bottom-left-radius: 0; }
+        .message.analyst .bubble { background: #dcf8c6; color: #333; border-bottom-right-radius: 0; }
+        .options-panel { padding: 15px; background: #fff; border-top: 1px solid #ddd; }
+        .option-btn { width: 100%; text-align: left; margin-bottom: 8px; white-space: normal; }
+
+        /* Panel Derecho: Bitácora */
+        .log-container { flex: 1; background: #fff; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); display: flex; flex-direction: column; overflow: hidden; border-left: 4px solid #198754; }
+        .log-header { background: #f8f9fa; padding: 15px; border-bottom: 1px solid #ddd; font-weight: bold; }
+        .log-list { padding: 15px; overflow-y: auto; flex: 1; }
+        .log-item { font-size: 0.85rem; margin-bottom: 10px; padding: 10px; border-radius: 5px; background: #f8f9fa; border-left: 3px solid #0d6efd; }
+        .log-item.rnf { border-left-color: #ffc107; }
+        
+        /* Alerta Temática Flotante */
+        .toast-container { position: fixed; top: 20px; right: 20px; z-index: 1055; }
+    </style>
+</head>
+<body>
+
+<!-- Contenedor de alertas tematicas -->
+<div class="toast-container">
+    <div id="thematicAlert" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="toast-header bg-warning text-dark">
+            <strong class="me-auto">⚠️ Alerta Temática</strong>
+            <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+        <div class="toast-body" id="thematicAlertBody">
+            <!-- Mensaje inyectado por JS -->
+        </div>
+    </div>
+</div>
+
+<div class="main-container">
+    <!-- CHAT INTERACTIVO -->
+    <div class="chat-container">
+        <div class="chat-header">
+            <h5 class="mb-0">Virtual Client <span id="client-role" class="badge bg-warning text-dark ms-2">Cargando...</span></h5>
+            <small>Simulación Iteración 2 - WP.15</small>
+        </div>
+        
+        <div class="chat-box" id="chat-box"></div>
+
+        <div class="options-panel" id="options-panel">
+            <p class="text-muted small mb-2">Selecciona tu siguiente pregunta (Analista):</p>
+            <div id="buttons-container"></div>
+        </div>
+    </div>
+
+    <!-- Bitacora de requisitos -->
+    <div class="log-container">
+        <div class="log-header d-flex justify-content-between align-items-center">
+            <span>📋 Bitácora de Requisitos</span>
+            <span class="badge bg-success" id="log-counter">0 extraídos</span>
+        </div>
+        <div class="log-list" id="log-list">
+            <div class="text-muted small text-center mt-4">La entrevista acaba de comenzar. Realiza preguntas para extraer requisitos.</div>
+        </div>
+    </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    let currentScenario = null;
+    let availableQuestions = [];
+    let extractedRequirements = { RF: 0, RNF: 0 };
+    let totalTurns = 0;
+
+    document.addEventListener("DOMContentLoaded", () => {
+        const apiUrl = "{% url 'interviews:catalog_data' %}";
+        fetch(apiUrl)
+            .then(res => res.ok ? res.json() : Promise.reject(res.statusText))
+            .then(data => {
+                currentScenario = data.escenarios[0];
+                availableQuestions = [...currentScenario.preguntas_disponibles];
+                document.getElementById('client-role').innerText = currentScenario.rol_cliente;
+                appendMessage('client', currentScenario.mensaje_inicial);
+                loadNextOptions();
+            })
+            .catch(err => {
+                console.error(err);
+                appendMessage('client', 'Error: No se pudo cargar el catálogo JSON.');
+            });
+    });
+
+    function appendMessage(sender, text) {
+        const chatBox = document.getElementById('chat-box');
+        chatBox.innerHTML += `<div class="message ${sender}"><div class="bubble shadow-sm">${text}</div></div>`;
+        chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    function loadNextOptions() {
+        const container = document.getElementById('buttons-container');
+        container.innerHTML = '';
+        if (availableQuestions.length === 0) {
+            container.innerHTML = '<p class="text-success text-center fw-bold">✓ Entrevista completada. Requisitos extraídos con éxito.</p>';
+            return;
+        }
+        const shuffled = availableQuestions.sort(() => 0.5 - Math.random()).slice(0, 3);
+        shuffled.forEach(q => {
+            const btn = document.createElement('button');
+            btn.className = 'btn btn-outline-primary option-btn';
+            btn.innerText = `[${q.tipo}] ${q.texto}`;
+            btn.onclick = () => handleQuestionSelect(q);
+            container.appendChild(btn);
+        });
+    }
+
+    function handleQuestionSelect(question) {
+        appendMessage('analyst', question.texto);
+        availableQuestions = availableQuestions.filter(q => q.id !== question.id);
+        document.getElementById('buttons-container').innerHTML = '<div class="spinner-border text-primary spinner-border-sm"></div> Analizando respuesta...';
+        setTimeout(() => {
+            appendMessage('client', question.respuesta);
+            updateBitacora(question);
+            evaluateThematicAlert();
+            loadNextOptions();
+        }, 1000);
+    }
+
+    // Logica de la bitacora
+    function updateBitacora(question) {
+        const logList = document.getElementById('log-list');
+        if (extractedRequirements.RF === 0 && extractedRequirements.RNF === 0) {
+            logList.innerHTML = ''; // Limpiar mensaje inicial
+        }
+        extractedRequirements[question.tipo]++;
+        totalTurns++;
+        const logItem = document.createElement('div');
+        logItem.className = `log-item ${question.tipo.toLowerCase()}`;
+        logItem.innerHTML = `<strong>${question.tipo} Extraído:</strong><br>${question.respuesta}`;
+        logList.appendChild(logItem);
+        logList.scrollTop = logList.scrollHeight;
+        document.getElementById('log-counter').innerText = `${extractedRequirements.RF + extractedRequirements.RNF} extraídos`;
+    }
+
+    // Logica de la alerta tematica
+    function evaluateThematicAlert() {
+        let alertMessage = null;
+        // Si el usuario lleva 3 turnos seguidos preguntando solo requisitos funcionales
+        if (totalTurns >= 3 && extractedRequirements.RF >= 3 && extractedRequirements.RNF === 0) {
+            alertMessage = "Has centrado la entrevista únicamente en funcionalidades. Es crucial indagar sobre <strong>Requisitos No Funcionales (Seguridad, Rendimiento)</strong> para evitar fallas arquitectónicas.";
+        }
+        // Si el usuario agota el catalogo y se omitieron RNFs
+        else if (availableQuestions.length === 0 && extractedRequirements.RNF === 0) {
+            alertMessage = "Entrevista finalizada, pero <strong>no recolectaste Requisitos No Funcionales</strong>. Esto es un riesgo alto según la evaluación de calidad.";
+        }
+        if (alertMessage) {
+            document.getElementById('thematicAlertBody').innerHTML = alertMessage;
+            const toastEl = document.getElementById('thematicAlert');
+            const toast = new bootstrap.Toast(toastEl, { delay: 6000 });
+            toast.show();
+        }
+    }
+</script>
+</body>
+</html>
