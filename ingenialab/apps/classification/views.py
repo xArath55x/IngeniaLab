@@ -1,18 +1,20 @@
+import json
+from django.http import JsonResponse
+from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
-from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
+from django.db import IntegrityError
+from .models import RequirementClassification
 
 from apps.accounts.api import fail, ok, read_json
 from apps.interviews import services as interview_services
 from apps.interviews.models import StudentAttempt
 from apps.progress.services import evaluate_badges
-
 from . import services
-
+from .models import RequirementClassification
 
 def _own_attempt(request, attempt_id):
     return get_object_or_404(StudentAttempt, id=attempt_id, user=request.user)
-
 
 def _rows(attempt):
     return [
@@ -69,3 +71,33 @@ def api_hint(request, attempt_id):
         return fail(str(e))
     attempt.refresh_from_db()
     return ok(hint=hint, score=attempt.classification_score, hints_used=attempt.hints_used)
+
+
+@login_required
+@require_POST
+def save_classification(request, attempt_id):
+    """Guarda la clasificación RF/RNF excluyente basada en texto resaltado y maneja duplicados."""
+    attempt = _own_attempt(request, attempt_id)
+    try:
+        data = json.loads(request.body)
+        fragment = data.get('text_fragment', '').strip()
+        req_type = data.get('req_type')
+        
+        if not fragment:
+            return JsonResponse({'error': 'El fragmento de texto no puede estar vacío.'}, status=400)
+        if req_type not in ['RF', 'RNF']:
+            return JsonResponse({'error': 'Tipo de clasificación inválido.'}, status=400)
+            
+        # Creacion del registro (clasificacion excluyente)
+        RequirementClassification.objects.create(
+            attempt=attempt,
+            text_fragment=fragment,
+            req_type=req_type
+        )
+        return JsonResponse({'status': 'success', 'message': f'{req_type} guardado correctamente.'})
+        
+    except IntegrityError:
+        # Falla segura si viola la restriccion UNIQUE de models.py
+        return JsonResponse({'error': 'Este fragmento ya fue clasificado previamente. No se permiten duplicados.'}, status=409)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)

@@ -24,3 +24,27 @@ class StudentClassification(models.Model):
             models.UniqueConstraint(fields=["attempt", "master_requirement"], name="unique_classification_per_attempt"),
             models.CheckConstraint(condition=models.Q(selected_category__in=["RF", "RNF"]), name="classification_type_valid"),
         ]
+
+class RequirementClassification(models.Model):
+    REQUIREMENT_TYPES = [
+        ('RF', 'Requisito Funcional'),
+        ('RNF', 'Requisito No Funcional'),
+    ]
+ 
+ 
+    attempt = models.ForeignKey(StudentAttempt, on_delete=models.CASCADE, related_name='requirement_classifications')
+    
+    text_fragment = models.TextField(help_text="Fragmento de texto resaltado de la bitácora.")
+    req_type = models.CharField(max_length=3, choices=REQUIREMENT_TYPES)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['attempt', 'text_fragment'], 
+                name='unique_requirement_fragment'
+            )
+        ]
+
+    def __str__(self):
+        return f"[{self.req_type}] {self.text_fragment[:30]}..."
