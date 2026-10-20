@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador de Entrevistas CU-01 | IngeniaLab</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f4f7f6; height: 100vh; display: flex; flex-direction: column; }
+        .chat-container { flex: 1; max-width: 800px; margin: 20px auto; background: #fff; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); display: flex; flex-direction: column; overflow: hidden; }
+        .chat-header { background: #0d6efd; color: white; padding: 15px; text-align: center; }
+        .chat-box { flex: 1; padding: 20px; overflow-y: auto; background-color: #e5ddd5; }
+        .message { margin-bottom: 15px; display: flex; flex-direction: column; }
+        .message.client { align-items: flex-start; }
+        .message.analyst { align-items: flex-end; }
+        .bubble { max-width: 75%; padding: 12px 18px; border-radius: 20px; position: relative; font-size: 0.95rem; }
+        .message.client .bubble { background: #fff; color: #333; border-bottom-left-radius: 0; }
+        .message.analyst .bubble { background: #dcf8c6; color: #333; border-bottom-right-radius: 0; }
+        .options-panel { padding: 15px; background: #fff; border-top: 1px solid #ddd; }
+        .option-btn { width: 100%; text-align: left; margin-bottom: 8px; white-space: normal; }
+    </style>
+</head>
+<body>
+<div class="chat-container">
+    <div class="chat-header">
+        <h5 class="mb-0">Virtual Client <span id="client-role" class="badge bg-warning text-dark ms-2">Cargando rol...</span></h5>
+        <small>Simulación Iteración 2 - WP.15</small>
+    </div>
+    <div class="chat-box" id="chat-box">
+        <!-- Los mensajes se renderizan aqui -->
+    </div>
+    <div class="options-panel" id="options-panel">
+        <p class="text-muted small mb-2">Selecciona tu siguiente pregunta (Analista):</p>
+        <div id="buttons-container">
+            <!-- Botones inyectados via JS -->
+        </div>
+    </div>
+</div>
+<script>
+    let currentScenario = null;
+    let availableQuestions = [];
+    document.addEventListener("DOMContentLoaded", () => {
+        // Usamos el tag de Django para resolver la URL dinamicamente
+        const apiUrl = "{% url 'interviews:catalog_data' %}";
+        fetch(apiUrl)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Error al cargar el JSON: ' + response.statusText);
+                }
+                return response.json();
+            })
+            .then(data => {
+                // Tomamos el primer escenario por defecto para la sesion
+                currentScenario = data.escenarios[0];
+                availableQuestions = [...currentScenario.preguntas_disponibles];
+                document.getElementById('client-role').innerText = currentScenario.rol_cliente;
+                // Mensaje inicial del cliente virtual
+                appendMessage('client', currentScenario.mensaje_inicial);
+                loadNextOptions();
+            })
+            .catch(error => {
+                console.error("Error cargando el catálogo:", error);
+                appendMessage('client', 'Error de conexión. No se pudo cargar el catálogo de datos didácticos.');
+            });
+    });
+
+    function appendMessage(sender, text) {
+        const chatBox = document.getElementById('chat-box');
+        const msgDiv = document.createElement('div');
+        msgDiv.className = `message ${sender}`;
+        msgDiv.innerHTML = `<div class="bubble shadow-sm">${text}</div>`;
+        chatBox.appendChild(msgDiv);
+        chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    function loadNextOptions() {
+        const container = document.getElementById('buttons-container');
+        container.innerHTML = '';
+        if (availableQuestions.length === 0) {
+            container.innerHTML = '<p class="text-success text-center fw-bold">✓ Entrevista completada. Requisitos extraídos con éxito.</p>';
+            return;
+        }
+        // Orden aleatorio de opciones
+        const shuffled = availableQuestions.sort(() => 0.5 - Math.random());
+        // Seleccionar maximo 3 opciones por turno
+        const currentBatch = shuffled.slice(0, 3);
+        currentBatch.forEach(q => {
+            const btn = document.createElement('button');
+            btn.className = 'btn btn-outline-primary option-btn';
+            btn.innerText = `[${q.tipo}] ${q.texto}`;
+            btn.onclick = () => handleQuestionSelect(q);
+            container.appendChild(btn);
+        });
+    }
+
+    function handleQuestionSelect(selectedQuestion) {
+        // Mostramos la pregunta del analista
+        appendMessage('analyst', selectedQuestion.texto);
+        // Removemos la pregunta de las opciones disponibles
+        availableQuestions = availableQuestions.filter(q => q.id !== selectedQuestion.id);
+        // Deshabilitamos los botones temporalmente
+        document.getElementById('buttons-container').innerHTML = '<div class="spinner-border text-primary spinner-border-sm" role="status"></div> Escribiendo...';
+        // Simulamos retraso y mostramos la respuesta del cliente virtual
+        setTimeout(() => {
+            appendMessage('client', selectedQuestion.respuesta);
+            loadNextOptions();
+        }, 1200);
+    }
+</script>
+</body>
+</html>
