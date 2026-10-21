@@ -95,7 +95,6 @@
     if (!typeSel.value) { fb.innerHTML = IL.feedback("bad", "Elige el tipo de defecto detectado."); typeSel.focus(); return; }
     const r = await IL.api(BASE + "hallazgo/", { fragment_id: selected.dataset.id, defect_type: typeSel.value });
     if (!r.ok) { fb.innerHTML = IL.feedback("bad", r.message); return; }
-    if (r.status === "already_found") { fb.innerHTML = IL.feedback("ok", r.message, " " + r.explanation); return; }
     setSummary(r.summary);
     const status = selected.querySelector(".frag-status");
     selected.classList.remove("found", "wrong", "hinted");

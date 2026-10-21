@@ -1,12 +1,14 @@
-PlantUML de ACT-207B
+PlantUML — ACT-214B
 
-Instala Java 17+ y Graphviz, y verifica java -version y dot -V.
-Desde la carpeta con manage.py ejecuta:
-  python manage.py install_plantuml
-  python manage.py plantuml_check --strict
+Este paquete incluye plantuml.jar 1.2026.2, sin modificaciones.
+SHA-256: 3cdce52133c424dea22425b947ae9d47f2167b0866dfcf99e714d4ea1689975c
+Fuente oficial: https://github.com/plantuml/plantuml/releases/tag/v1.2026.2
+Licencia: GPL; avisos y licencia de terceros incluidos en el JAR.
+Código fuente de esa versión: https://github.com/plantuml/plantuml/tree/v1.2026.2
+Conserva sus avisos de licencia al redistribuir.
 
-El instalador descarga PlantUML 1.2026.2 del repositorio oficial y verifica
-el SHA-256 fijado. Tambien puedes colocar manualmente plantuml.jar aqui
-o indicar otra ruta con PLANTUML_JAR. El JAR no viene dentro de este ZIP.
-Descarga oficial: https://plantuml.com/download
-El archivo conserva la licencia de su distribucion oficial.
+Requiere Java 17+ y Graphviz en PATH.
+python manage.py install_plantuml comprueba la copia existente sin descargarla
+si el hash coincide. scripts/verify_environment.py comprueba también el hash.
+Puedes indicar otra ruta con PLANTUML_JAR, pero el perfil reproducible exige
+exactamente el artefacto fijado. No se incluye Java ni Graphviz.

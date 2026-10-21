@@ -172,3 +172,39 @@ corresponde; eso no cambia el modo normal de la aplicación.
 
 Consulta `../ACT-207B_CAMBIOS.txt` para instrucciones completas de Windows y
 `../docs/ACT-207B_Mediciones.json` para las muestras del entorno de validación.
+
+## ACT-209 pruebas y evidencia
+
+Se agregaron pruebas de limites, tipos de entrada, contrato del subproceso y errores
+del motor real. El reporte y los logs estan en `../05_Testing_And_Reports/ACT-209/`.
+Para reproducir todo, instala Java/Graphviz/JAR y las dependencias de pruebas:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -r requirements-test.txt
+.\.venv\Scripts\python.exe manage.py install_plantuml
+.\.venv\Scripts\python.exe tests/run_act209.py --runs 3
+```
+
+El comando ejecuta pruebas y mediciones **en serie**, registra JSON y JUnit,
+exporta cobertura y verifica checks Django/migraciones. La carpeta por defecto
+es `../05_Testing_And_Reports/ACT-209/repeticion/`; `--output` permite otra ruta.
+La suite de evidencia usa un hasher rapido exclusivamente dentro del proceso
+de pruebas funcionales; no modifica las cuentas ni la configuracion normal.
+
+Se corrigio el formato JSON no textual (antes daba TypeError) y se incorporo
+`PLANTUML_FAST_START=1`, con opciones HotSpot para JVM de corta duracion.
+En otra JVM puede desactivarse con `PLANTUML_FAST_START=0`; vuelve a medir
+los tiempos. PNG conserva su certificacion SVG porque un error Graphviz
+puede devolver un PNG de error con salida 0 y stderr vacio.
+
+Los resultados de cierre se separan: pruebas ejecutables y latencia pueden
+aprobarse, pero ACT209-IA-01 sigue BLOQUEADO hasta integrar el proveedor IA.
+El runner lo registra y `--require-complete` devuelve codigo 2 si persiste
+esa dependencia, aunque lo tecnico pase. Fallos tecnicos devuelven codigo 1.
+Consulta `../ACT-209_CAMBIOS.txt` para archivos e instrucciones completas.
+
+## Entorno reproducible ACT-214B
+
+Consulta [README_ACT214B.md](README_ACT214B.md) para instalación desde cero,
+verificación automatizada y evidencia por equipo. Perfil verificado: Python 3.12,
+Java 17+, Graphviz, SQLite y ReportLab; entrevistas por catálogo.

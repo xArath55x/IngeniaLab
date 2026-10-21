@@ -128,3 +128,6 @@ PLANTUML_TIMEOUT = float(os.environ.get("PLANTUML_TIMEOUT", "1.8"))
 PLANTUML_DOT = os.environ.get("PLANTUML_DOT", "dot")
 # Solo demostraciones explicitas: nunca confundir respaldo con PlantUML real.
 PLANTUML_ALLOW_FALLBACK = os.environ.get("PLANTUML_ALLOW_FALLBACK", "0") == "1"
+
+# ACT-209: compilacion JVM reducida para procesos de render cortos (HotSpot 17+).
+PLANTUML_FAST_START = os.environ.get("PLANTUML_FAST_START", "1") == "1"

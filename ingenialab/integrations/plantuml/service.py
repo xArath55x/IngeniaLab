@@ -99,7 +99,7 @@ def _execute(code, format, timeout):
     if not java: raise PlantUMLError("Falta Java en PATH. Instala Java 17 o configura PLANTUML_JAVA.", "java_missing")
     if not dot: raise PlantUMLError("Falta Graphviz. Instala Graphviz y agrega dot al PATH.", "graphviz_missing")
     env = os.environ.copy(); env["GRAPHVIZ_DOT"] = dot
-    command = [java, "-Djava.awt.headless=true", "-DPLANTUML_SECURITY_PROFILE=SECURE", "-Xmx256m",
+    command = [java, *(["-XX:TieredStopAtLevel=1", "-XX:+UseSerialGC"] if getattr(settings, "PLANTUML_FAST_START", True) else []), "-Djava.awt.headless=true", "-DPLANTUML_SECURITY_PROFILE=SECURE", "-Xmx256m",
                "-jar", str(jar), "-pipe", "-t" + format, "-charset", "UTF-8", "-noerror"]
     try:
         result = subprocess.run(command, input=code.encode("utf-8"), capture_output=True,
@@ -116,7 +116,7 @@ def _execute(code, format, timeout):
 
 def render(plantuml_code, format="svg"):
     start = time.perf_counter()
-    if format not in FORMATS: raise PlantUMLError("Formato permitido: svg o png.", "invalid_format", 400)
+    if not isinstance(format, str) or format not in FORMATS: raise PlantUMLError("Formato permitido: svg o png.", "invalid_format", 400)
     if not isinstance(plantuml_code, str) or not plantuml_code.startswith("@startuml\n") or not plantuml_code.rstrip().endswith("@enduml") or len(plantuml_code.encode()) > 100_000:
         raise PlantUMLError("Codigo UML invalido o demasiado grande.", "invalid_code", 400)
     digest = code_hash(plantuml_code)
@@ -129,8 +129,8 @@ def render(plantuml_code, format="svg"):
         try:
             budget = float(settings.PLANTUML_TIMEOUT)
             if format == "png":
-                # Verificar el SVG evita aceptar un PNG que solo contiene un
-                # mensaje de error. El editor genera primero SVG y lo reutiliza.
+                # PlantUML puede devolver PNG de error con salida 0 y stderr
+                # vacio. La certificacion SVG es necesaria incluso con -noerror.
                 certified = render(plantuml_code, "svg")
                 if certified.engine != "plantuml": raise PlantUMLError("PNG requiere el motor PlantUML real.")
             remaining = budget - (time.perf_counter() - start)

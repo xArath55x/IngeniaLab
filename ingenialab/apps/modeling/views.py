@@ -106,7 +106,7 @@ def api_generate(request):
     spec = form.cleaned_data
     code = build_usecase_diagram(spec)
     format = data.get("format", "svg")
-    if format not in plantuml.FORMATS:
+    if not isinstance(format, str) or format not in plantuml.FORMATS:
         return fail("Formato permitido: svg o png.")
     try:
         result = plantuml.render(code, format)
@@ -182,7 +182,7 @@ def delete(request, uc_id):
 @login_required
 def download_diagram(request, uc_id, format):
     """Solo codigo guardado del propietario; no acepta UML libre ni rutas."""
-    if format not in plantuml.FORMATS:
+    if not isinstance(format, str) or format not in plantuml.FORMATS:
         return HttpResponse("Formato no permitido.", status=400)
     uc = get_object_or_404(UseCaseSpecification, id=uc_id, user=request.user)
     try: result = plantuml.render(uc.plantuml_code, format)

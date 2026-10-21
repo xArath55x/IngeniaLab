@@ -109,3 +109,46 @@ class SharedValidationCasesTests(SimpleTestCase):
                 else:
                     self.assertEqual(form.cleaned_data['name'],'Registrar préstamo')
                     self.assertEqual([s['number'] for s in form.numbered_steps()],[1,2])
+
+class Act209FormBoundaryTests(SimpleTestCase):
+    """ACT-209 / CA-04: limites validos e invalidos y conservacion del texto."""
+    def test_exact_scalar_boundaries(self):
+        for field,limit in [('name',200),('system_name',200),('preconditions',4000),('postconditions',4000)]:
+            for length,valid in [(limit,True),(limit+1,False)]:
+                with self.subTest(field=field,length=length):
+                    form=UseCaseForm(data={**SPEC,field:'x'*length});self.assertEqual(form.is_valid(),valid)
+    def test_minimum_and_maximum_flow_counts(self):
+        for count,valid in [(0,False),(1,False),(2,True),(50,True),(51,False)]:
+            with self.subTest(count=count):
+                form=UseCaseForm(data={**SPEC,'main_flow':[f'Paso {i}' for i in range(count)]})
+                self.assertEqual(form.is_valid(),valid)
+                if valid:self.assertEqual([r['number'] for r in form.numbered_steps()],list(range(1,count+1)))
+    def test_optional_lists_limits_and_item_lengths(self):
+        for field,maximum,item_limit in [('secondary_actors',10,120),('alternate_flows',20,2000)]:
+            for count,valid in [(0,True),(maximum,True),(maximum+1,False)]:
+                with self.subTest(field=field,count=count):
+                    form=UseCaseForm(data={**SPEC,field:[f'Texto {i}' for i in range(count)]});self.assertEqual(form.is_valid(),valid)
+            for length,valid in [(item_limit,True),(item_limit+1,False)]:
+                with self.subTest(field=field,length=length):self.assertEqual(UseCaseForm(data={**SPEC,field:['x'*length]}).is_valid(),valid)
+    def test_main_flow_keeps_order_and_normalizes_whitespace(self):
+        form=UseCaseForm(data={**SPEC,'main_flow':['  El actor\t solicita  ',' El sistema responde '], 'preconditions':' Sesion activa\r\n Cuenta vigente '})
+        self.assertTrue(form.is_valid());self.assertEqual(form.cleaned_data['main_flow'],['El actor solicita','El sistema responde']);self.assertEqual(form.cleaned_data['preconditions'],'Sesion activa\nCuenta vigente')
+    def test_relations_exact_count_boundaries(self):
+        for count,valid in [(20,True),(21,False)]:
+            with self.subTest(count=count):self.assertEqual(UseCaseForm(data={**SPEC,'relations':[{'type':'include','target':f'Consultar {i}'} for i in range(count)]}).is_valid(),valid)
+    def test_optional_none_and_invalid_controls(self):
+        form=UseCaseForm(data={**SPEC,'secondary_actors':None,'relations':None});self.assertTrue(form.is_valid())
+        for value in ['Nombre\x00oculto','Nombre\u200boculto',False,{'name':'x'}]:
+            with self.subTest(value=value):self.assertFalse(UseCaseForm(data={**SPEC,'name':value}).is_valid())
+
+@override_settings(INGENIALAB_MODULES=['interviews','modeling'])
+class Act209InputTypeTests(TestCase):
+    def setUp(self):
+        self.user=get_user_model().objects.create_user('act209-types');self.client.force_login(self.user)
+        version=ScenarioVersion.objects.create(scenario_code='ACT209',version_number='1',title='Prueba')
+        StudentAttempt.objects.create(user=self.user,version=version,status=StudentAttempt.CLASSIFYING)
+    def test_invalid_format_types_return_400(self):
+        for value in [[],{},None,False,1,'pdf']:
+            with self.subTest(format=value):
+                response=self.client.post('/modelado/api/generar/',json.dumps({**SPEC,'format':value}),content_type='application/json')
+                self.assertEqual(response.status_code,400)
