@@ -37,8 +37,13 @@ def main():
         return (p.stdout + p.stderr).strip()
 
     def python_version():
+<<<<<<< Updated upstream
         if sys.version_info[:2] != (3, 12):
             raise RuntimeError('Perfil verificado: Python 3.12.x; usa ese interprete para reproducirlo.')
+=======
+        if not (3, 11) <= sys.version_info[:2] <= (3, 13):
+            raise RuntimeError('Se requiere Python 3.11, 3.12 o 3.13. Perfil validado localmente: 3.12.x.')
+>>>>>>> Stashed changes
         return platform.python_version()
 
     def requirements():
@@ -97,6 +102,31 @@ def main():
     check('sqlite', sqlite)
     check('django_check', lambda: command([sys.executable, 'manage.py', 'check']))
     check('migration_consistency', lambda: command([sys.executable, 'manage.py', 'makemigrations', '--check', '--dry-run']))
+<<<<<<< Updated upstream
+=======
+
+    def clean_database():
+        # Configurar antes de django.setup en un proceso separado evita tocar db.sqlite3.
+        with tempfile.TemporaryDirectory() as tmp:
+            code = """import sys
+from django.conf import settings
+settings.DATABASES = {'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': sys.argv[1]}}
+import django
+django.setup()
+from django.core.management import call_command
+from apps.interviews.models import InterviewQuestion
+call_command('migrate', interactive=False, verbosity=0)
+call_command('seed_ingenialab', verbosity=0)
+first = InterviewQuestion.objects.count()
+call_command('seed_ingenialab', verbosity=0)
+second = InterviewQuestion.objects.count()
+if not first or first != second:
+    raise RuntimeError('La carga semilla no es idempotente o no creo preguntas.')
+print('Migraciones y semilla idempotente en SQLite temporal; preguntas:', second)
+"""
+            return command([sys.executable, '-c', code, str(Path(tmp) / 'clean.sqlite3')])
+    check('clean_database_and_seed', clean_database)
+>>>>>>> Stashed changes
     check('real_svg_png_cache', lambda: command([sys.executable, 'manage.py', 'plantuml_check', '--runs', '1']))
 
     def pdf():
@@ -117,7 +147,11 @@ def main():
         return {'bytes':len(data), 'includes_real_plantuml_svg':True, 'engine':'ReportLab + svglib'}
     check('integrated_pdf', pdf)
     results.append({'check':'ai', 'status':'NOT_APPLICABLE', 'detail':'Entrevistas por catalogo; esta base no contiene adaptador ni SDK de proveedor IA. No se valida una IA en vivo.'})
+<<<<<<< Updated upstream
     report = {'activity':'ACT-214B', 'version':'ACT-214B-entorno-v2.0', 'timestamp_utc':datetime.now(timezone.utc).isoformat(), 'platform':platform.platform(), 'executable':sys.executable, 'ok':all(r['status'] != 'FAIL' for r in results), 'results':results}
+=======
+    report = {'activity':'ACT-214B', 'version':'ACT-214B-entorno-v2.0-base-08c036e', 'timestamp_utc':datetime.now(timezone.utc).isoformat(), 'platform':platform.platform(), 'executable':sys.executable, 'ok':all(r['status'] != 'FAIL' for r in results), 'results':results}
+>>>>>>> Stashed changes
     target = Path(args.output)
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(json.dumps(report, ensure_ascii=False, indent=2)+'\n', encoding='utf-8')

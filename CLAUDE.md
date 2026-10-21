@@ -17,7 +17,7 @@ código y úsalos en commits y PRs cuando aplique. La tabla de trazabilidad est�
 - `ingenialab/`: proyecto Django. **Todos los comandos de `manage.py` se ejecutan desde aquí.**
 - `docs/`: Manual de Usuario y Guía de Operación (.docx).
 - `USO_DEL_REPO.md`: flujo de Git del equipo. Léelo antes de crear ramas, commits o PRs.
-- `.github/workflows/ci.yml`: CI (Python 3.11 y 3.13).
+- `.github/workflows/ci.yml`: CI (Python 3.11, 3.12 y 3.13).
 
 ## Comandos
 
@@ -28,7 +28,7 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 .venv/bin/python manage.py seed_ingenialab      # idempotente; carga data/*.json
 .venv/bin/python manage.py runserver
 
-.venv/bin/python manage.py test apps            # toda la suite
+.venv/bin/python manage.py test apps integrations  # toda la suite
 .venv/bin/python manage.py test apps.progress.tests.<Clase>.<test>   # una sola prueba
 .venv/bin/python manage.py makemigrations --check --dry-run          # el CI falla si falta una migración
 ```
@@ -53,7 +53,7 @@ Rutas raíz (`config/urls.py`): `/cuentas/`, `/elicitacion/`, `/clasificacion/`,
 
 ## Cosas no obvias
 
-- **Módulos deshabilitados por defecto.** Solo `interviews` está activo. `ModuleGateMiddleware` redirige los demás
+- **Módulos deshabilitados por defecto.** `interviews` y `modeling` están activos. `ModuleGateMiddleware` redirige los demás
   a la lista de escenarios (o responde 404 JSON en `/api/`). Para probarlos:
   `INGENIALAB_MODULES=interviews,classification,modeling,inspection,reports,progress`.
   Las pruebas ejercitan todos los módulos, así que no asumas que el código inactivo está muerto.
@@ -66,11 +66,19 @@ Rutas raíz (`config/urls.py`): `/cuentas/`, `/elicitacion/`, `/clasificacion/`,
 - **Entrevista:** máximo 9 preguntas (`MAX_QUESTIONS`); +10 / +5 / 0 puntos según la calidad. El orden de las
   opciones es aleatorio pero estable por intento (semilla `intento:ronda`).
 - **Sesión:** expira a los 30 min de inactividad. Con `INGENIALAB_DEBUG=0` se activan HTTPS, HSTS y cookies seguras.
-- **PlantUML es opcional.** Si falta Java o `vendor/plantuml.jar`, se usa un renderizador SVG de respaldo.
-  `vendor/*.jar`, `var/` y `db.sqlite3` están en `.gitignore`; no los subas.
-- **Pruebas:** están todas en `apps/progress/tests.py`. Son de integración, cubren CU-01 a CU-05 y son la evidencia
-  de VR-01. `BaseCase` ejecuta `seed_ingenialab` y usa el escenario `ESC-BIBLIOTECA-01`. Agrega pruebas nuevas ahí
-  o en un `tests.py` del app correspondiente.
+- **Motor real PlantUML.** Java 17+ y Graphviz son necesarios para la verificación completa.
+  El instalador fija PlantUML 1.2026.2 y verifica SHA-256. El fallback está deshabilitado
+  por defecto y no se acepta como prueba de integración real. No subir JAR a Git;
+  en CI se recupera con `manage.py install_plantuml`.
+- **Pruebas:** están en `apps/progress/tests.py`, `apps/progress/test_pdf.py`,
+  `apps/modeling/tests.py`, `apps/modeling/test_plantuml.py`, `apps/inspection/tests.py`
+  e `integrations/plantuml/tests.py`. Ejecutar `manage.py test apps integrations`.
+  Definir `INGENIALAB_TEST_PLANTUML=1` para incluir el motor real. Mantener el
+  contenido pedagógico y las pruebas existentes de ACT-208D.
+- **Entorno ACT-214B:** consultar `ingenialab/README_ACT214B.md`. La preparación
+  se ejecuta con `python scripts/setup_local.py`; la evidencia de instalación no
+  sustituye la ejecución de la suite ni la validación en cada equipo.
+
 
 ## Flujo de Git (resumen de `USO_DEL_REPO.md`)
 

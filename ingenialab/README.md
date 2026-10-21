@@ -6,7 +6,7 @@ SRS v1.2 (WP.13) y al SDS v1.0 (WP.16) — ISO/IEC 29110-5-1-2:2025, Perfil Bás
 
 ## Inicio rápido (desarrollo)
 
-Requisitos: Python 3.11+, Java 17+ y Graphviz (`dot` en PATH). ACT-207B usa el motor real de PlantUML con Graphviz para SVG y PNG.
+Requisitos: Python 3.11–3.13 (perfil verificado: 3.12.x), Java 17+ y Graphviz (`dot` en PATH). ACT-207B usa el motor real de PlantUML con Graphviz para SVG y PNG.
 
 ```bash
 cd ingenialab
@@ -173,6 +173,7 @@ corresponde; eso no cambia el modo normal de la aplicación.
 Consulta `../ACT-207B_CAMBIOS.txt` para instrucciones completas de Windows y
 `../docs/ACT-207B_Mediciones.json` para las muestras del entorno de validación.
 
+<<<<<<< Updated upstream
 ## ACT-209 pruebas y evidencia
 
 Se agregaron pruebas de limites, tipos de entrada, contrato del subproceso y errores
@@ -208,3 +209,14 @@ Consulta `../ACT-209_CAMBIOS.txt` para archivos e instrucciones completas.
 Consulta [README_ACT214B.md](README_ACT214B.md) para instalación desde cero,
 verificación automatizada y evidencia por equipo. Perfil verificado: Python 3.12,
 Java 17+, Graphviz, SQLite y ReportLab; entrevistas por catálogo.
+=======
+## ACT-214B — Entorno de ejecución integrado v2.0
+
+La revisión `ACT-214B-entorno-v2.0-base-08c036e` parte del adjunto
+`IngeniaLab(1).rar`, no del ZIP ACT-209 entregado previamente.
+Consulta [README_ACT214B.md](README_ACT214B.md) para preparar el entorno,
+ejecutar verificaciones reproducibles y registrar evidencia por integrante.
+El preparador no modifica la base de datos personal; las migraciones y el seed
+se verifican en una base temporal. La versión de código conserva las mejoras
+PDF de ACT-208D incluidas en el adjunto.
+>>>>>>> Stashed changes

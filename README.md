@@ -20,7 +20,7 @@ reciban retroalimentación inmediata.
 - **Inspección:** detección de defectos en especificaciones, con pistas y precisión.
 - **Progreso y reportes:** puntos, niveles, insignias y reporte descargable en PDF.
 
-> **Versión piloto:** solo el módulo de entrevistas está habilitado por defecto. Los demás se activan con la variable de
+> **Versión piloto:** los módulos de entrevistas y modelado están habilitados por defecto. Los demás se activan con la variable de
 > entorno `INGENIALAB_MODULES` (ver abajo).
 
 **Tecnologías:** Python 3.11+, Django 5.1, SQLite (desarrollo) / PostgreSQL (producción), PlantUML, ReportLab.
@@ -37,10 +37,10 @@ reciban retroalimentación inmediata.
 
 ### Requisitos
 
-- **Python 3.11 o superior**
+- **Python 3.11–3.13** (perfil validado localmente: 3.12.x)
 - **Git**
-- **Java 11 o superior** (opcional, solo para los diagramas PlantUML). Sin Java, el sistema usa un renderizador SVG de
-  respaldo. Graphviz no es necesario.
+- **Java 17 o superior** y **Graphviz** (`java` y `dot` en PATH), necesarios para verificar los diagramas reales.
+- El JAR PlantUML 1.2026.2 viene en este archivo adjunto. Si no está presente en un clon, el instalador lo descarga y valida por SHA-256.
 
 ### Pasos
 
@@ -51,21 +51,18 @@ reciban retroalimentación inmediata.
    cd IngeniaLab/ingenialab
    ```
 
-2. Crea el entorno virtual e instala las dependencias:
+2. Prepara y verifica el entorno desde `ingenialab/`:
 
    ```bash
-   python3 -m venv .venv
-   .venv/bin/pip install -r requirements.txt
+   python3.12 scripts/setup_local.py
    ```
 
-   En Windows usa `.venv\Scripts\pip` y `.venv\Scripts\python` en lugar de `.venv/bin/...`.
+   En Windows: `py -3.12 scripts/setup_local.py`. Crea `.venv`, instala las
+   versiones de requirements.txt, valida el JAR y prueba Java, Graphviz,
+   migraciones sobre SQLite temporal y PDF con un diagrama real.
 
-3. (Opcional) Descarga PlantUML para generar diagramas:
-
-   ```bash
-   mkdir -p vendor
-   curl -L -o vendor/plantuml.jar https://github.com/plantuml/plantuml/releases/download/v1.2024.7/plantuml-1.2024.7.jar
-   ```
+3. Consulta [README_ACT214B.md](ingenialab/README_ACT214B.md) para instalación
+   desde cero, diagnóstico, evidencias por integrante y otros intérpretes.
 
 4. Crea la base de datos y carga los escenarios e inspecciones:
 
@@ -92,7 +89,7 @@ reciban retroalimentación inmediata.
 
 ### Activar todos los módulos
 
-Por defecto solo está habilitado el módulo de entrevistas. Para activar el resto, define la variable antes de iniciar el servidor:
+Por defecto están habilitados entrevistas y modelado. Para activar el resto, define la variable antes de iniciar el servidor:
 
 ```bash
 INGENIALAB_MODULES=interviews,classification,modeling,inspection,reports,progress .venv/bin/python manage.py runserver
@@ -101,8 +98,11 @@ INGENIALAB_MODULES=interviews,classification,modeling,inspection,reports,progres
 ### Ejecutar las pruebas
 
 ```bash
-.venv/bin/python manage.py test apps
+.venv/bin/python manage.py test apps integrations
 ```
+
+Para incluir el motor real en las pruebas, define `INGENIALAB_TEST_PLANTUML=1`
+antes de ejecutar el comando. Sin esa variable se omiten dos pruebas de integración.
 
 ## Documentación
 
