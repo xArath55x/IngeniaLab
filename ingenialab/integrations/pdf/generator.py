@@ -94,6 +94,13 @@ def build_report(*, report_id, user, level, points, attempts, use_cases, inspect
                      Paragraph(f"Cobertura: {a['coverage']} · Puntaje entrevista: {a['interview_score']} · "
                                f"Precisión de clasificación: {a['precision']} % · Pistas: {a['hints']}", st["Small"]),
                      Spacer(1, 4)]
+            if a.get("log"):
+                block.append(Paragraph("Bitácora de la entrevista", st["H3x"]))
+                log_rows = [["#", "Pregunta formulada", "Respuesta del cliente", "Pts"]]
+                log_rows += [[str(i), e["question"], e["answer"], str(e["points"])]
+                             for i, e in enumerate(a["log"], 1)]
+                block.append(_table(log_rows, [0.8 * cm, 5.5 * cm, width - 7.8 * cm, 1.5 * cm], st))
+                block.append(Spacer(1, 6))
             if a["rows"]:
                 rows = [["#", "Declaración", "Clasificación", "Resultado"]]
                 rows += [[str(i), r["statement"], r["category"], "Correcto" if r["is_correct"] else "Inconsistente"]
