@@ -8,6 +8,8 @@ import random
 from django.db import transaction
 from django.utils import timezone
 
+from integrations.ai.dialogue import answer as dialogue_answer
+
 from .models import InterviewLogEntry, InterviewQuestion, StudentAttempt
 
 MAX_QUESTIONS = 9
@@ -56,13 +58,15 @@ def requirement_index(version):
 def serialize_entry(entry: InterviewLogEntry, req_ids_by_key):
     q = entry.question
     return {
+        "source": entry.response_source,
+        "fallback": bool(entry.fallback_reason),
         "question_id": str(q.id),
         "question": q.text,
         "topic": q.topic,
         "time": timezone.localtime(entry.created_at).strftime("%H:%M"),
         "segments": [
             {"text": s["text"], "req_id": req_ids_by_key.get(s.get("req")) if s.get("req") else None}
-            for s in q.answer_segments
+            for s in (entry.response_segments or q.answer_segments)
         ],
     }
 
@@ -122,7 +126,11 @@ def get_dialogue(attempt: StudentAttempt, question_id) -> dict:
     question = next((q for q in options if str(q.id) == str(question_id)), None)
     if question is None:
         raise InterviewError("Elige una de las tres preguntas disponibles en esta ronda.")
-    entry = InterviewLogEntry.objects.create(attempt=attempt, question=question)
+    response = dialogue_answer(question)
+    entry = InterviewLogEntry.objects.create(
+        attempt=attempt, question=question, response_segments=response.segments,
+        response_source=response.source, fallback_reason=response.reason,
+    )
     finished = next_round(attempt) is None
     if finished:
         _close(attempt, premature=False)

@@ -114,10 +114,10 @@ if not DEBUG:
     SECURE_HSTS_SECONDS = 31536000
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
-# ACT-207A: entrevistas y formulario de modelado habilitados por defecto; los demás pueden
+# ACT-211A1: entrevistas, clasificación y modelado habilitados por defecto; los demás pueden
 # reactivarse con, p. ej., INGENIALAB_MODULES=interviews,classification,modeling,inspection,reports,progress
 ALL_MODULES = ["interviews", "classification", "modeling", "inspection", "reports", "progress"]
-INGENIALAB_MODULES = [m for m in os.environ.get("INGENIALAB_MODULES", "interviews,modeling").split(",") if m]
+INGENIALAB_MODULES = [m for m in os.environ.get("INGENIALAB_MODULES", "interviews,classification,modeling").split(",") if m]
 
 # SCI-05: integración PlantUML (SDS §3.2).
 PLANTUML_JAR = os.environ.get("PLANTUML_JAR", str(BASE_DIR / "vendor" / "plantuml.jar"))
@@ -128,3 +128,14 @@ PLANTUML_TIMEOUT = float(os.environ.get("PLANTUML_TIMEOUT", "1.8"))
 PLANTUML_DOT = os.environ.get("PLANTUML_DOT", "dot")
 # Solo demostraciones explicitas: nunca confundir respaldo con PlantUML real.
 PLANTUML_ALLOW_FALLBACK = os.environ.get("PLANTUML_ALLOW_FALLBACK", "0") == "1"
+
+# ACT-211A1: proveedor opcional compatible con Chat Completions, solo en backend.
+INGENIALAB_AI_MODE = os.environ.get("INGENIALAB_AI_MODE", "catalog")
+INGENIALAB_AI_ENDPOINT = os.environ.get("INGENIALAB_AI_ENDPOINT", "")
+INGENIALAB_AI_MODEL = os.environ.get("INGENIALAB_AI_MODEL", "")
+INGENIALAB_AI_API_KEY = os.environ.get("INGENIALAB_AI_API_KEY", "")
+# El adaptador valida el rango y usa catálogo si la configuración no es válida.
+try:
+    INGENIALAB_AI_TIMEOUT = float(os.environ.get("INGENIALAB_AI_TIMEOUT", "1.2"))
+except ValueError:
+    INGENIALAB_AI_TIMEOUT = 0

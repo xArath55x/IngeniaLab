@@ -60,8 +60,11 @@
   });
   const attempt = document.getElementById("f-attempt");
   guide.forEach(g => attempt.append(IL.el("option", { value: g.id, text: g.label })));
+  if (!initial && form.dataset.selectedAttempt) attempt.value = form.dataset.selectedAttempt;
   function renderGuide() {
     const g = guide.find(x => x.id === attempt.value);
+    const back = document.getElementById("back-classification");
+    if (back && g) back.href = "/clasificacion/intento/" + g.id + "/";
     const box = document.getElementById("guide"); box.replaceChildren();
     if (!g) { box.append(IL.el("p", { class: "muted small", text: "Sin entrevista seleccionada." })); return; }
     if (!g.requirements.length) box.append(IL.el("p", { class: "muted small", text: "Aún no has clasificado requisitos en esta entrevista." }));

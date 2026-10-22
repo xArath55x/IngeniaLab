@@ -12,13 +12,14 @@
   </div>
 </div>
 <div class="instructions">
+  {% if reference_attempt %}<a id="back-classification" href="{% url 'classification:classify' reference_attempt.id %}">← Volver a los requisitos de la entrevista</a><br>{% endif %}
   Completa la plantilla. <b>Validar plantilla</b> comprueba la estructura sin invocar el generador.
   El nombre se normaliza y los pasos se numeran automáticamente; cada fila del flujo debe contener texto. Los campos marcados con * son obligatorios. Al pulsar <b>Validar y generar diagrama</b> se verifica la
   estructura y se produce el código PlantUML; si algo falta, se resaltará el campo a corregir sin perder lo que ya escribiste.
 </div>
 
 <div class="grid-2">
-  <form class="card" id="uc-form" novalidate data-uc-id="{{ uc.id|default:'' }}"
+  <form class="card" id="uc-form" novalidate data-uc-id="{{ uc.id|default:'' }}" data-selected-attempt="{{ reference_attempt.id }}"
     data-validate-url="{% url 'modeling:api_validate' %}" data-generate-url="{% url 'modeling:api_generate' %}"
     data-save-url="{% url 'modeling:api_save' %}" data-list-url="{% url 'modeling:list' %}">
     <div class="field" data-field="attempt_id">
