@@ -182,3 +182,11 @@ ejecutar verificaciones reproducibles y registrar evidencia por integrante.
 El preparador no modifica la base de datos personal; las migraciones y el seed
 se verifican en una base temporal. La versión de código conserva las mejoras
 PDF de ACT-208D incluidas en el adjunto.
+
+## ACT-211A1 — Pipeline de elicitación integrado
+
+Consulta [README_ACT211A1.md](README_ACT211A1.md). Entrevistas, clasificación
+y modelado están habilitados por defecto. Antes de ejecutar esta versión,
+aplica `manage.py migrate` para preservar las respuestas en snapshots de
+bitácora. La IA es opcional mediante Chat Completions compatible y conserva
+un fallback local al catálogo.

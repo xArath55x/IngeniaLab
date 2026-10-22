@@ -130,6 +130,15 @@ class InterviewLogEntry(models.Model):
     attempt = models.ForeignKey(StudentAttempt, on_delete=models.CASCADE, related_name="log_entries")
     question = models.ForeignKey(InterviewQuestion, on_delete=models.CASCADE)
     created_at = models.DateTimeField(auto_now_add=True)
+    # Snapshot de lo realmente mostrado; no volver a consultar IA al reabrir.
+    response_segments = models.JSONField(default=list, blank=True)
+    response_source = models.CharField(max_length=10, default="catalog")
+    fallback_reason = models.CharField(max_length=32, blank=True, default="")
+
+    @property
+    def answer_text(self):
+        return " ".join(s["text"] for s in (self.response_segments or self.question.answer_segments))
+
 
     class Meta:
         ordering = ["created_at", "id"]

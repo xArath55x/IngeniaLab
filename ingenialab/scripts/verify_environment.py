@@ -138,8 +138,23 @@ print('Migraciones y semilla idempotente en SQLite temporal; preguntas:', second
             raise RuntimeError('PDF no valido')
         return {'bytes':len(data), 'includes_real_plantuml_svg':True, 'engine':'ReportLab + svglib'}
     check('integrated_pdf', pdf)
-    results.append({'check':'ai', 'status':'NOT_APPLICABLE', 'detail':'Entrevistas por catalogo; esta base no contiene adaptador ni SDK de proveedor IA. No se valida una IA en vivo.'})
-    report = {'activity':'ACT-214B', 'version':'ACT-214B-entorno-v2.0-base-08c036e', 'timestamp_utc':datetime.now(timezone.utc).isoformat(), 'platform':platform.platform(), 'executable':sys.executable, 'ok':all(r['status'] != 'FAIL' for r in results), 'results':results}
+    def ai_configuration():
+        from urllib.parse import urlparse
+        import math
+        mode = settings.INGENIALAB_AI_MODE
+        if mode == 'catalog':
+            return {'mode': mode, 'live_provider_checked': False}
+        if mode != 'chat_completions':
+            raise RuntimeError('INGENIALAB_AI_MODE debe ser catalog o chat_completions.')
+        endpoint = urlparse(settings.INGENIALAB_AI_ENDPOINT)
+        timeout = settings.INGENIALAB_AI_TIMEOUT
+        if endpoint.scheme not in ('http', 'https') or not endpoint.netloc or not settings.INGENIALAB_AI_MODEL:
+            raise RuntimeError('Configura endpoint y modelo del proveedor IA.')
+        if not math.isfinite(timeout) or not 0 < timeout <= 1.5:
+            raise RuntimeError('INGENIALAB_AI_TIMEOUT debe estar entre 0 y 1.5 segundos.')
+        return {'mode': mode, 'timeout': timeout, 'live_provider_checked': False}
+    check('ai_configuration', ai_configuration)
+    report = {'activity':'ACT-211A1', 'version':'ACT-211A1-pipeline-v1.0', 'timestamp_utc':datetime.now(timezone.utc).isoformat(), 'platform':platform.platform(), 'executable':sys.executable, 'ok':all(r['status'] != 'FAIL' for r in results), 'results':results}
     target = Path(args.output)
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(json.dumps(report, ensure_ascii=False, indent=2)+'\n', encoding='utf-8')

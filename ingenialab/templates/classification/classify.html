@@ -3,7 +3,7 @@
 {% block content %}
 <div class="page-head">
   <div>
-    <p class="small muted" style="margin:0">Elicitación · Paso 2 de 2</p>
+    <p class="small muted" style="margin:0">Entrevista → Clasificación → Modelado · Paso 2 de 3</p>
     <h1>Clasificación de requisitos</h1>
     <p class="muted" style="margin:0">{{ attempt.version.title }} · {{ attempt.version.client_name }}</p>
   </div>
@@ -60,8 +60,9 @@
         <tbody id="rows"></tbody>
       </table></div>
       <div class="btn-row" style="margin-top:1rem">
-        <a class="btn secondary" href="{% url 'modeling:new' %}">Modelar casos de uso →</a>
-        <a class="btn ghost" href="{% url 'progress:reports' %}">Exportar reporte</a>
+        <a class="btn secondary" href="{% url 'modeling:new' %}?attempt={{ attempt.id }}">Modelar casos de uso →</a>
+        <a class="btn ghost" href="{% url 'interviews:interview' attempt.id %}">Volver a la entrevista</a>
+        {% if "reports" in modules %}<a class="btn ghost" href="{% url 'progress:reports' %}">Exportar reporte</a>{% endif %}
       </div>
     </section>
   </div>

@@ -2,6 +2,7 @@ import base64
 import json
 import uuid
 
+from django.core.exceptions import ValidationError
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
@@ -40,6 +41,12 @@ def editor(request, uc_id=None):
         messages.warning(request, "Para modelar casos de uso primero completa al menos una entrevista en el módulo de Elicitación.")
         return redirect("modeling:list")
     uc = get_object_or_404(UseCaseSpecification, id=uc_id, user=request.user) if uc_id else None
+    reference = uc.attempt if uc and uc.attempt_id else attempts.first()
+    if not uc and request.GET.get("attempt"):
+        try:
+            reference = get_object_or_404(attempts, id=request.GET["attempt"])
+        except ValidationError:
+            return HttpResponse("La entrevista seleccionada no es válida.", status=400)
     guide = []
     for a in attempts:
         guide.append({
@@ -56,6 +63,7 @@ def editor(request, uc_id=None):
         "form_data": uc.as_form_data() if uc else None,
         "svg": uc.diagram.svg if uc and hasattr(uc, "diagram") else "",
         "guide": guide,
+        "reference_attempt": reference,
         "validation_rules": validators.RULES,
     })
 

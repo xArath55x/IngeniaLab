@@ -39,7 +39,7 @@ def _report_data(user):
             "title": a.version.title, "code": a.version.scenario_code,
             "coverage": f"{prog['asked']}/{prog['max']} preguntas",
             "interview_score": a.interview_score, "precision": a.classification_precision, "hints": a.hints_used,
-            "log": [{"question": e.question.text, "answer": e.question.answer_text, "points": e.question.points}
+            "log": [{"question": e.question.text, "answer": e.answer_text, "points": e.question.points}
                     for e in a.log_entries.select_related("question")],
             "classified": a.classifications.count(), "available": available_requirements(a).count(),
             "rows": [{"statement": c.master_requirement.statement_text, "category": c.selected_category,
