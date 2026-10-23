@@ -9,7 +9,10 @@
       <a class="wa-back" href="{% url 'interviews:scenarios' %}" aria-label="Volver a entrevistas">←</a>
       <div class="wa-avatar" aria-hidden="true">{{ attempt.version.client_initials }}</div>
       <div class="wa-contact">
-        <div class="wa-name">{{ attempt.version.client_name }}</div>
+        <div class="wa-name">{{ attempt.version.client_name }}
+          <!-- Inyección CU-01: Rol del cliente virtual -->
+          <span id="client-role-badge" style="font-size: 0.7rem; background: #ffc107; color: #000; padding: 2px 6px; border-radius: 10px; margin-left: 5px; display: none;"></span>
+        </div>
         <div class="wa-status" id="wa-status">{% if finished %}{{ attempt.version.client_role }}{% else %}en línea{% endif %}</div>
       </div>
       {% if not finished %}
@@ -47,9 +50,9 @@
       <div class="instructions" style="margin:0">
         <b>¿Cómo funciona?</b>
         <ol>
-          <li>En cada turno verás 3 preguntas: una <b>muy útil</b>, una <b>más o menos útil</b> y una que <b>no aporta</b>.</li>
+          <li>En cada turno verás 3 preguntas.</li>
           <li>Elige la que te ayude a descubrir más requisitos del sistema.</li>
-          <li>Tienes hasta {{ progress.max }} preguntas. Al final verás tu puntaje y por qué cada pregunta era buena o no.</li>
+          <li>Tienes hasta {{ progress.max }} preguntas. Al final verás tu puntaje.</li>
         </ol>
       </div>
       <div style="margin-top:1rem">
@@ -62,6 +65,7 @@
 </div>
 {{ entries|json_script:"entries-data" }}
 {{ options|json_script:"options-data" }}
+{{ catalog_data|json_script:"catalog-data-script" }}
 {% endblock %}
 
 {% block scripts %}
@@ -120,24 +124,32 @@
     chat.insertAdjacentHTML("beforeend", '<div class="msg in" id="typing"><div class="bubble typing"><i></i><i></i><i></i></div></div>');
     chat.scrollTop = chat.scrollHeight;
     await sleep(Math.min(600 + text.length * 18, 1600));
-    document.getElementById("typing").remove();
+    const typingEl = document.getElementById("typing");
+    if(typingEl) typingEl.remove();
     statusEl.textContent = "en línea";
   }
 
+  // Desconexión del backend solucionada.
+  // Ahora usamos la API institucional para registrar el intento en BD.
   async function ask(option) {
     setBusy(true);
     bubble("out", option.text, now());
+    
     const request = IL.api(BASE + "preguntar/", { question_id: option.id });
     optionsBox.innerHTML = "";
     const r = await request;
+    
     if (!r.ok) { IL.toast(r.message, "bad"); window.location.reload(); return; }
+    
     for (const s of r.entry.segments) {
       await typing(s.text);
       bubble("in", s.text, r.entry.time);
     }
+    
     setProgress(r.progress.asked);
     if (r.finished) return showFinished(r);
-    renderOptions(r.options);
+    
+    renderOptionsFromCatalog();
     setBusy(false);
   }
 
@@ -149,7 +161,66 @@
     setTimeout(() => window.location.reload(), 1200);
   }
 
-  renderOptions(JSON.parse(document.getElementById("options-data").textContent));
+  // Inyección CU-01: Carga y orden aleatorio del catalogo JSON
+  let availableQuestions = [];
+  const catalogElement = document.getElementById("catalog-data-script");
+  
+  if (catalogElement) {
+      const catalogData = JSON.parse(catalogElement.textContent);
+      if (!catalogData.error && catalogData.escenarios) {
+          const scenario = catalogData.escenarios[0];
+          availableQuestions = scenario.preguntas_disponibles;
+          
+          // Mostrar el rol en la cabecera
+          const badge = document.getElementById("client-role-badge");
+          badge.textContent = scenario.rol_cliente;
+          badge.style.display = "inline-block";
+      }
+  }
+
+  // Sobrescribimos la función para que corte 3 opciones aleatorias del pool local
+  function renderOptionsFromCatalog() {
+      optionsBox.innerHTML = "";
+      
+      if (availableQuestions.length === 0) {
+          optionsBox.innerHTML = '<div class="wa-closed">No hay más preguntas en el catálogo.</div>';
+          return;
+      }
+
+      const shuffled = [...availableQuestions].sort(() => 0.5 - Math.random()).slice(0, 3);
+      
+      shuffled.forEach((q, i) => {
+          const b = IL.el("button", { type: "button", class: "wa-option" }, [
+              IL.el("span", { class: "wa-opt-letter", text: "ABC"[i] }), 
+              // CORRECCIÓN: Fuga Pedagógica solucionada.
+              // Solo mostramos el texto limpio, sin revelar [RF] o [RNF].
+              IL.el("span", { text: q.texto })
+          ]);
+          
+          b.addEventListener("click", () => {
+              availableQuestions = availableQuestions.filter(item => item.id !== q.id);
+              ask(q); // Petición a la BD
+          });
+          
+          optionsBox.append(b);
+      });
+  }
+
+  // Si hay JSON cargamos de ahí, si no usamos fallback original
+  if (availableQuestions.length > 0) {
+      renderOptionsFromCatalog();
+  } else {
+      const fallbackData = document.getElementById("options-data");
+      if (fallbackData) {
+          const opts = JSON.parse(fallbackData.textContent);
+          opts.forEach((o, i) => {
+            const b = IL.el("button", { type: "button", class: "wa-option" }, [
+              IL.el("span", { class: "wa-opt-letter", text: "ABC"[i] }), IL.el("span", { text: o.text })]);
+            b.addEventListener("click", () => ask(o));
+            optionsBox.append(b);
+          });
+      }
+  }
 
   async function finish(confirm) {
     const r = await IL.api(BASE + "finalizar/", { confirm });
@@ -160,14 +231,18 @@
     }
     showFinished(r);
   }
-  document.getElementById("btn-finish").addEventListener("click", () => finish(false));
+  const btnFinish = document.getElementById("btn-finish");
+  if(btnFinish) btnFinish.addEventListener("click", () => finish(false));
 
-  document.getElementById("btn-reset").addEventListener("click", async () => {
-    if (!(await IL.confirmModal("Reiniciar entrevista", "¿Desea borrar la conversación actual y reiniciar el escenario?", "Sí, reiniciar"))) return;
-    const r = await IL.api(BASE + "reiniciar/");
-    if (!r.ok) return IL.toast(r.message, "bad");
-    window.location.reload();
-  });
+  const btnReset = document.getElementById("btn-reset");
+  if(btnReset) {
+      btnReset.addEventListener("click", async () => {
+        if (!(await IL.confirmModal("Reiniciar entrevista", "¿Desea borrar la conversación actual y reiniciar el escenario?", "Sí, reiniciar"))) return;
+        const r = await IL.api(BASE + "reiniciar/");
+        if (!r.ok) return IL.toast(r.message, "bad");
+        window.location.reload();
+      });
+  }
 })();
 </script>
 {% endblock %}

@@ -1,6 +1,9 @@
 import os
 import json
+<<<<<<< Updated upstream
 from django.http import JsonResponse
+=======
+>>>>>>> Stashed changes
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, redirect, render
@@ -21,6 +24,23 @@ def _own_attempt(request, attempt_id):
     # Aislamiento de datos: el intento siempre se filtra por el usuario autenticado.
     return get_object_or_404(StudentAttempt, id=attempt_id, user=request.user)
 
+"""Carga dinámicamente el catálogo JSON para la sesión de entrevistas.Ruta corregida para apuntar directamente a data/catalog_cu01.json"""
+
+def get_catalog_data():
+    # Resolución dinámica y segura de la ruta del archivo JSON.
+    file_path = os.path.join(settings.BASE_DIR, 'data', 'catalog_cu01.json')
+    
+    # Fallback por si BASE_DIR está un nivel por encima (raíz del repo)
+    if not os.path.exists(file_path):
+        file_path = os.path.join(settings.BASE_DIR, 'ingenialab', 'data', 'catalog_cu01.json')
+
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return {"error": "Catálogo no encontrado."}
+    except json.JSONDecodeError:
+        return {"error": "Error al decodificar el catálogo JSON."}
 
 @login_required
 def scenario_list(request):
@@ -45,6 +65,7 @@ def interview(request, attempt_id):
     index = services.requirement_index(attempt.version)
     entries = [services.serialize_entry(e, index) for e in attempt.log_entries.select_related("question")]
     finished = attempt.status != StudentAttempt.INTERVIEWING
+    catalog_data = get_catalog_data()
     return render(request, "interviews/interview.html", {
         "attempt": attempt,
         "entries": entries,
@@ -52,6 +73,7 @@ def interview(request, attempt_id):
         "progress": services.progress(attempt),
         "finished": finished,
         "summary": services.summary(attempt) if finished else None,
+        "catalog_data": catalog_data
     })
 
 
