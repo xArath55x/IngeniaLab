@@ -10,62 +10,38 @@
           "id": "q1",
           "tipo": "RF",
           "texto": "¿Cómo planea cobrar a los clientes en la aplicación?",
-<<<<<<< Updated upstream
-          "respuesta": "Me gustaría aceptar tarjetas de crédito, débito y quizá transferencias. No quiero manejar efectivo contra entrega por seguridad."
-=======
           "respuesta": "Me gustaría aceptar tarjetas de crédito, débito y quizá transferencias. No quiero manejar efectivo contra entrega por seguridad.",
           "feedback_explanation": "Excelente pregunta. Indagar sobre los métodos de pago destapa los requisitos funcionales de procesamiento de transacciones."
->>>>>>> Stashed changes
         },
         {
           "id": "q2",
           "tipo": "RF",
           "texto": "¿Necesitará un panel de administrador para subir las fotos y actualizar stock?",
-<<<<<<< Updated upstream
-          "respuesta": "Sí, definitivo. Necesito algo sencillo que pueda abrir en mi computadora para dar de alta las playeras y pantalones que van llegando."
-=======
           "respuesta": "Sí, definitivo. Necesito algo sencillo que pueda abrir en mi computadora para dar de alta las playeras y pantalones que van llegando.",
           "feedback_explanation": "Muy bien. El cliente a menudo olvida mencionar el 'back-office'. Esto define los requisitos funcionales de inventario."
->>>>>>> Stashed changes
         },
         {
           "id": "q3",
           "tipo": "RNF",
           "texto": "¿La aplicación móvil debería estar disponible para Android, iOS (iPhone), o ambos?",
-<<<<<<< Updated upstream
-          "respuesta": "Pues la mayoría de mis clientes usan Android, pero me gustaría que estuviera en ambas si el presupuesto me lo permite."
-=======
           "respuesta": "Pues la mayoría de mis clientes usan Android, pero me gustaría que estuviera en ambas si el presupuesto me lo permite.",
           "feedback_explanation": "Buena captura. Definir la plataforma objetivo establece las restricciones tecnológicas (RNF) del entorno operativo."
->>>>>>> Stashed changes
         },
         {
           "id": "q4",
           "tipo": "RF",
           "texto": "¿Los clientes necesitarán crear una cuenta obligatoria para comprar?",
-<<<<<<< Updated upstream
-          "respuesta": "Creo que sí, para poder guardar su dirección de envío, aunque si se puede comprar como 'invitado' sería más rápido para ellos."
-=======
           "respuesta": "Creo que sí, para poder guardar su dirección de envío, aunque si se puede comprar como 'invitado' sería más rápido para ellos.",
           "feedback_explanation": "Correcto. Esta pregunta descubre flujos alternos y requisitos funcionales de gestión de usuarios."
->>>>>>> Stashed changes
         },
         {
           "id": "q5",
           "tipo": "RNF",
           "texto": "¿Cuántos clientes espera que usen la aplicación al mismo tiempo?",
-<<<<<<< Updated upstream
-          "respuesta": "Al principio no muchos, quizás unas 50 personas a la vez, pero en Buen Fin o Navidad el tráfico podría subir bastante."
-=======
           "respuesta": "Al principio no muchos, quizás unas 50 personas a la vez, pero en Buen Fin o Navidad el tráfico podría subir bastante.",
           "feedback_explanation": "Pregunta clave. Estimar la concurrencia permite definir los requisitos no funcionales de rendimiento y escalabilidad."
->>>>>>> Stashed changes
         }
       ]
     }
   ]
-<<<<<<< Updated upstream
 }
-=======
-}
->>>>>>> Stashed changes
