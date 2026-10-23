@@ -110,3 +110,8 @@ INGENIALAB_MODULES=interviews,classification,modeling,inspection,reports,progres
 - [Guía de Operación](docs/Byte%20Force%20-%20Guia%20de%20Operacion%20v1.0%20-%20IngeniaLab.docx)
 - [Arquitectura, trazabilidad y despliegue](ingenialab/README.md)
 - [Guía de uso del repositorio](USO_DEL_REPO.md)
+
+## ACT-211C — Correcciones de integración
+
+Consulta [README_ACT211C.md](ingenialab/README_ACT211C.md) para errores corregidos,
+reintentos, renovación CSRF, presupuestos de PlantUML y pruebas de regresión.

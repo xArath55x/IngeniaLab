@@ -4,8 +4,9 @@ En cada ronda el estudiante elige una de tres preguntas (muy útil, algo útil, 
 hasta un máximo de MAX_QUESTIONS. La calidad de cada elección se revela al finalizar.
 """
 import random
+import uuid
 
-from django.db import transaction
+from django.db import transaction, IntegrityError
 from django.utils import timezone
 
 from integrations.ai.dialogue import answer as dialogue_answer
@@ -117,9 +118,26 @@ def _close(attempt, premature):
     attempt.save()
 
 
+def _dialogue_payload(attempt, entry, replayed=False):
+    finished = next_round(attempt) is None
+    return {
+        "entry": serialize_entry(entry, requirement_index(attempt.version)),
+        "options": serialize_options(current_options(attempt)),
+        "progress": progress(attempt), "finished": finished,
+        "summary": summary(attempt) if finished else None, "replayed": replayed,
+    }
+
+
 @transaction.atomic
-def get_dialogue(attempt: StudentAttempt, question_id) -> dict:
+def get_dialogue(attempt: StudentAttempt, question_id, allow_replay=False) -> dict:
     """Registra la pregunta elegida, devuelve la respuesta del cliente y la siguiente ronda."""
+    try:
+        question_id = uuid.UUID(str(question_id))
+    except (ValueError, TypeError):
+        raise InterviewError("El identificador de la pregunta no es válido.")
+    previous = attempt.log_entries.filter(question_id=question_id).select_related("question").first()
+    if previous is not None and (attempt.status == StudentAttempt.INTERVIEWING or allow_replay):
+        return _dialogue_payload(attempt, previous, replayed=True)
     if attempt.status != StudentAttempt.INTERVIEWING:
         raise InterviewError("La entrevista ya terminó; no se pueden formular nuevas preguntas.")
     options = current_options(attempt)
@@ -127,20 +145,22 @@ def get_dialogue(attempt: StudentAttempt, question_id) -> dict:
     if question is None:
         raise InterviewError("Elige una de las tres preguntas disponibles en esta ronda.")
     response = dialogue_answer(question)
-    entry = InterviewLogEntry.objects.create(
-        attempt=attempt, question=question, response_segments=response.segments,
-        response_source=response.source, fallback_reason=response.reason,
-    )
+    try:
+        with transaction.atomic():
+            entry = InterviewLogEntry.objects.create(
+                attempt=attempt, question=question, response_segments=response.segments,
+                response_source=response.source, fallback_reason=response.reason,
+            )
+    except IntegrityError:
+        entry = attempt.log_entries.filter(question=question).select_related("question").first()
+        if entry is None:
+            raise
+        attempt.refresh_from_db()
+        return _dialogue_payload(attempt, entry, replayed=True)
     finished = next_round(attempt) is None
     if finished:
         _close(attempt, premature=False)
-    return {
-        "entry": serialize_entry(entry, requirement_index(attempt.version)),
-        "options": serialize_options(current_options(attempt)),
-        "progress": progress(attempt),
-        "finished": finished,
-        "summary": summary(attempt) if finished else None,
-    }
+    return _dialogue_payload(attempt, entry)
 
 
 @transaction.atomic

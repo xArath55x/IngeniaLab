@@ -37,6 +37,7 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "apps.accounts.middleware.ApiSessionGuardMiddleware",
+    "apps.accounts.middleware.ApiRequestGuardMiddleware",
     "apps.accounts.middleware.ModuleGateMiddleware",
 ]
 
@@ -139,3 +140,9 @@ try:
     INGENIALAB_AI_TIMEOUT = float(os.environ.get("INGENIALAB_AI_TIMEOUT", "1.2"))
 except ValueError:
     INGENIALAB_AI_TIMEOUT = 0
+
+# ACT-211C: los errores CSRF de API mantienen el contrato JSON.
+CSRF_FAILURE_VIEW = "apps.accounts.views.csrf_failure"
+
+# ACT-211C: reducir arranque HotSpot sin ampliar el presupuesto PlantUML.
+PLANTUML_FAST_START = os.environ.get("PLANTUML_FAST_START", "1") == "1"

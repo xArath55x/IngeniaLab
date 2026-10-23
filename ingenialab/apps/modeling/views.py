@@ -1,6 +1,7 @@
 import base64
 import json
 import uuid
+from time import perf_counter
 
 from django.core.exceptions import ValidationError
 from django.contrib import messages
@@ -114,18 +115,39 @@ def api_generate(request):
     spec = form.cleaned_data
     code = build_usecase_diagram(spec)
     format = data.get("format", "svg")
-    if format not in plantuml.FORMATS:
+    if not isinstance(format, str) or format not in plantuml.FORMATS:
         return fail("Formato permitido: svg o png.")
+    started = perf_counter()
+    certification_ms = 0
     try:
-        result = plantuml.render(code, format)
-        svg = result.svg if format == "svg" else plantuml.render(code, "svg").svg
+        # Separar fases explícitas: la certificación SVG queda en caché antes del PNG.
+        # Cada render mantiene su presupuesto y la latencia total se informa aparte.
+        if format == "png":
+            certified = plantuml.render(code, "svg")
+            certification_ms = certified.duration_ms
+            svg = certified.svg
+            result = plantuml.render(code, "png")
+        else:
+            result = plantuml.render(code, "svg")
+            svg = result.svg
     except plantuml.PlantUMLError as e:
         return fail(str(e), status=e.status, error=e.code)
+    total_ms = round((perf_counter() - started) * 1000, 3)
     return ok(plantuml_code=code, svg=svg, engine=result.engine, cached=result.cached,
               spec=spec, warnings=validators.suggestions(spec), code_hash=result.code_hash,
-              duration_ms=result.duration_ms, cache_warning=result.warning, image_format=format,
+              duration_ms=result.duration_ms, total_duration_ms=total_ms, svg_certification_ms=certification_ms,
+              cache_warning=result.warning, image_format=format,
               png_data_uri="data:image/png;base64,"+base64.b64encode(result.data).decode("ascii") if format=="png" else "")
 
+
+
+def _replay_saved(uc, spec, user):
+    if uc.user_id != user.pk or uc.as_form_data() != spec or not hasattr(uc, "diagram"):
+        return fail("La solicitud ya se utilizó con otros datos. Conserva el borrador e inicia un nuevo guardado.", status=409)
+    return ok(id=str(uc.id), plantuml_code=uc.plantuml_code, svg=uc.diagram.svg,
+              engine=uc.diagram.engine, warnings=validators.suggestions(spec), cached=True,
+              duration_ms=0, code_hash=uc.diagram.code_hash, cache_warning="", spec=spec,
+              message="La especificación ya estaba guardada.", badges=[], replayed=True)
 
 
 @login_required
@@ -143,6 +165,15 @@ def api_save(request):
         except ValueError: return fail("El identificador del caso de uso no es válido.")
         uc = get_object_or_404(UseCaseSpecification, id=uc_id, user=request.user)
     spec = form.cleaned_data
+    request_id = None
+    if uc is None and request.headers.get("X-Request-ID"):
+        try:
+            request_id = uuid.UUID(request.headers["X-Request-ID"])
+        except ValueError:
+            return fail("El identificador de solicitud no es válido.")
+        previous = UseCaseSpecification.objects.select_related("diagram").filter(id=request_id).first()
+        if previous is not None:
+            return _replay_saved(previous, spec, request.user)
     code = build_usecase_diagram(spec)
     try: result = plantuml.render(code)
     except plantuml.PlantUMLError as e:
@@ -168,6 +199,11 @@ def api_save(request):
         for k, v in fields.items():
             setattr(uc, k, v)
         uc.save()
+    elif request_id is not None:
+        uc, created = UseCaseSpecification.objects.get_or_create(
+            id=request_id, defaults={"user": request.user, **fields})
+        if not created:
+            return _replay_saved(uc, spec, request.user)
     else:
         uc = UseCaseSpecification.objects.create(user=request.user, **fields)
     GeneratedDiagram.objects.update_or_create(
@@ -190,7 +226,7 @@ def delete(request, uc_id):
 @login_required
 def download_diagram(request, uc_id, format):
     """Solo codigo guardado del propietario; no acepta UML libre ni rutas."""
-    if format not in plantuml.FORMATS:
+    if not isinstance(format, str) or format not in plantuml.FORMATS:
         return HttpResponse("Formato no permitido.", status=400)
     uc = get_object_or_404(UseCaseSpecification, id=uc_id, user=request.user)
     try: result = plantuml.render(uc.plantuml_code, format)
@@ -204,4 +240,5 @@ def download_diagram(request, uc_id, format):
     response["X-Content-Type-Options"] = "nosniff"
     response["X-Diagram-Cache"] = "HIT" if result.cached else "MISS"
     response["X-Diagram-Duration-Ms"] = str(result.duration_ms)
+    response["X-Diagram-Total-Duration-Ms"] = str(result.total_duration_ms)
     return response
