@@ -33,6 +33,8 @@ class RenderResult:
     format: str = "svg"
     duration_ms: float = 0
     warning: str = ""
+    total_duration_ms: float = 0
+    certification_ms: float = 0
     @property
     def content_type(self): return FORMATS[self.format]
 
@@ -101,6 +103,8 @@ def _execute(code, format, timeout):
     env = os.environ.copy(); env["GRAPHVIZ_DOT"] = dot
     command = [java, "-Djava.awt.headless=true", "-DPLANTUML_SECURITY_PROFILE=SECURE", "-Xmx256m",
                "-jar", str(jar), "-pipe", "-t" + format, "-charset", "UTF-8", "-noerror"]
+    if getattr(settings, "PLANTUML_FAST_START", True):
+        command[1:1] = ["-XX:TieredStopAtLevel=1", "-XX:+UseSerialGC"]
     try:
         result = subprocess.run(command, input=code.encode("utf-8"), capture_output=True,
                                 timeout=timeout, env=env, check=False)
@@ -116,6 +120,7 @@ def _execute(code, format, timeout):
 
 def render(plantuml_code, format="svg"):
     start = time.perf_counter()
+    generation_start = start
     if format not in FORMATS: raise PlantUMLError("Formato permitido: svg o png.", "invalid_format", 400)
     if not isinstance(plantuml_code, str) or not plantuml_code.startswith("@startuml\n") or not plantuml_code.rstrip().endswith("@enduml") or len(plantuml_code.encode()) > 100_000:
         raise PlantUMLError("Codigo UML invalido o demasiado grande.", "invalid_code", 400)
@@ -133,7 +138,8 @@ def render(plantuml_code, format="svg"):
                 # mensaje de error. El editor genera primero SVG y lo reutiliza.
                 certified = render(plantuml_code, "svg")
                 if certified.engine != "plantuml": raise PlantUMLError("PNG requiere el motor PlantUML real.")
-            remaining = budget - (time.perf_counter() - start)
+                generation_start = time.perf_counter()
+            remaining = budget - (time.perf_counter() - generation_start)
             if remaining <= 0: raise PlantUMLError("Se agoto el tiempo de generacion.", "timeout", 504)
             data = _execute(plantuml_code, format, remaining)
         except PlantUMLError as e:
@@ -146,5 +152,8 @@ def render(plantuml_code, format="svg"):
         except OSError:
             warning = "Diagrama generado; no se pudo escribir la cache. Revisa los permisos de var/."
             log.warning(warning)
+    end = time.perf_counter()
     return RenderResult(data.decode("utf-8") if format == "svg" else "", digest, "plantuml", cached,
-                        data, format, round((time.perf_counter()-start)*1000, 3), warning)
+                        data, format, round((end-generation_start)*1000, 3), warning,
+                        total_duration_ms=round((end-start)*1000, 3),
+                        certification_ms=round((generation_start-start)*1000, 3))

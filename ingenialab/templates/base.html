@@ -6,7 +6,7 @@
   <title>{% block title %}IngeniaLab{% endblock %} · IngeniaLab</title>
   <link rel="stylesheet" href="{% static 'css/app.css' %}">
 </head>
-<body>
+<body data-user-id="{{ user.pk }}">
 {% with url=request.resolver_match.namespace %}
 <div class="layout">
   <aside class="sidebar">
@@ -36,7 +36,7 @@
   </main>
 </div>
 {% endwith %}
-<script src="{% static 'js/app.js' %}"></script>
+<script src="{% static 'js/app.js' %}?v=act211c1"></script>
 {% block scripts %}{% endblock %}
 </body>
 </html>

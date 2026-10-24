@@ -74,49 +74,100 @@
     showNetBanner("Sin conexión. IngeniaLab requiere una conexión activa; tu trabajo en pantalla se conserva."));
   window.addEventListener("online", () => { hideNetBanner(); toast("Conexión restablecida.", "ok"); });
 
-  function sessionExpired(message, retry) {
-    const back = el("div", { class: "modal-back" }, [
-      el("div", { class: "modal", role: "dialog", "aria-modal": "true" }, [
-        el("h3", { text: "Sesión expirada" }),
-        el("p", { text: message }),
-        el("p", { class: "small muted", text: "Inicia sesión en la pestaña que se abrirá y después pulsa «Reintentar». Lo que tienes en pantalla no se perderá." }),
-        el("div", { class: "btn-row" }, [
-          el("a", { class: "btn secondary", href: "/cuentas/login/?next=/", target: "_blank", rel: "noopener", text: "Iniciar sesión" }),
-          el("button", { class: "btn", type: "button", text: "Reintentar", onclick: () => { back.remove(); retry(); } }),
-        ]),
-      ]),
-    ]);
-    document.body.append(back);
+  // ACT-211C: límite completo de fetch + lectura JSON, con aborto de transporte.
+  async function fetchJSON(url, init, timeoutMs) {
+    const controller = new AbortController();
+    let timer;
+    const deadline = new Promise((_, reject) => {
+      timer = setTimeout(() => {
+        controller.abort();
+        const error = new Error("Tiempo de espera agotado"); error.name = "AbortError"; reject(error);
+      }, timeoutMs);
+    });
+    const operation = (async () => {
+      const res = await fetch(url, { ...init, signal: controller.signal });
+      try { return { res, data: await res.json(), parseError: false }; }
+      catch (error) { return { res, data: null, parseError: true }; }
+    })();
+    try { return await Promise.race([operation, deadline]); }
+    finally { clearTimeout(timer); }
   }
 
-  /* Envía JSON por POST. Resuelve con la respuesta del servidor ({ok, ...}).
-   * Si la red falla o la sesión expiró, la promesa queda pendiente hasta que el reintento tenga éxito. */
-  function api(url, body) {
+  let sessionRecovery = null;
+  function sessionExpired(message) {
+    if (sessionRecovery) return sessionRecovery;
+    sessionRecovery = new Promise((resolve) => {
+      const note = el("p", { text: message });
+      const retry = el("button", { class: "btn", type: "button", text: "Reintentar", onclick: async () => {
+        retry.disabled = true;
+        try {
+          const { res, data, parseError } = await fetchJSON("/cuentas/api/sesion/", { credentials: "same-origin", cache: "no-store" }, 10000);
+          if (res.status !== 200 || parseError || !data || !data.ok || typeof data.user_id !== "string" || typeof data.csrf_token !== "string" || !data.csrf_token) {
+            note.textContent = "Primero inicia sesión en la pestaña nueva y vuelve a reintentar."; return;
+          }
+          back.remove(); resolve(data);
+        } catch (error) { note.textContent = "No se pudo actualizar la sesión. Revisa tu conexión y reintenta."; }
+        finally { retry.disabled = false; }
+      }});
+      const back = el("div", { class: "modal-back" }, [
+        el("div", { class: "modal", role: "dialog", "aria-modal": "true" }, [
+          el("h3", { text: "Actualizar sesión" }), note,
+          el("p", { class: "small muted", text: "Inicia sesión en la pestaña nueva y después pulsa Reintentar. Tu borrador se conserva." }),
+          el("div", { class: "btn-row" }, [
+            el("a", { class: "btn secondary", href: "/cuentas/login/?next=/elicitacion/", target: "_blank", rel: "noopener", text: "Iniciar sesión" }), retry,
+          ]),
+        ]),
+      ]);
+      document.body.append(back);
+    }).finally(() => { sessionRecovery = null; });
+    return sessionRecovery;
+  }
+
+  function requestId() {
+    if (window.crypto && window.crypto.randomUUID) return window.crypto.randomUUID();
+    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+      const n = Math.floor(Math.random() * 16); return (c === "x" ? n : (n & 3) | 8).toString(16);
+    });
+  }
+
+  /* Mantiene cuerpo, identidad y clave durante los reintentos explícitos.
+   * No reenvía automáticamente operaciones cuyo resultado sea incierto. */
+  function api(url, body, options) {
+    const payload = JSON.stringify(body || {});
+    const identity = document.body.dataset.userId || "";
+    const id = requestId();
+    let csrf = "";
+    const configured = options && options.timeoutMs;
+    const timeoutMs = Number.isFinite(configured) && configured > 0 ? configured : 10000;
     return new Promise((resolve) => {
-      const attempt = () => {
-        fetch(url, {
-          method: "POST",
-          credentials: "same-origin",
-          headers: { "Content-Type": "application/json", "X-CSRFToken": getCookie("csrftoken"), "X-Requested-With": "fetch" },
-          body: JSON.stringify(body || {}),
-        })
-          .then(async (res) => {
-            if (res.status === 401 || res.status === 403) {
-              let data = {};
-              try { data = await res.json(); } catch (e) { /* respuesta HTML de CSRF */ }
-              sessionExpired(data.message || "Tu sesión expiró por inactividad. Tu trabajo guardado se conserva.", attempt);
-              return;
+      let busy = false;
+      const attempt = async () => {
+        if (busy) return;
+        busy = true;
+        try {
+          const { res, data, parseError } = await fetchJSON(url, {
+            method: "POST", credentials: "same-origin",
+            headers: { "Content-Type": "application/json", "X-CSRFToken": csrf || getCookie("csrftoken"),
+              "X-Requested-With": "fetch", "X-Request-ID": id, "X-IngeniaLab-User": identity },
+            body: payload,
+          }, timeoutMs);
+          if (res.status === 401 || (res.status === 403 && (parseError || !data || data.error === "csrf_failed"))) {
+            const refreshed = await sessionExpired((data && data.message) || "Tu sesión o token necesitan actualizarse.");
+            if (identity && refreshed.user_id !== identity) {
+              resolve({ ok: false, status: 409, error: "session_changed", message: "La cuenta activa cambió. Tu borrador se conserva; vuelve a tu cuenta para enviarlo." }); return;
             }
-            hideNetBanner();
-            if (res.status >= 500) {
-              let problem = {};
-              try { problem = await res.json(); } catch (e) { /* error HTML inesperado */ }
-              resolve({ ok: false, ...problem, message: problem.message || "Ocurrió un error en el servidor. Intenta de nuevo." });
-              return;
-            }
-            resolve(await res.json());
-          })
-          .catch(() => showNetBanner("No se pudo contactar al servidor. Revisa tu conexión; tus datos en pantalla se conservan.", attempt));
+            csrf = refreshed.csrf_token; Promise.resolve().then(attempt); return;
+          }
+          hideNetBanner();
+          if (parseError || !data || typeof data !== "object" || Array.isArray(data) || typeof data.ok !== "boolean") {
+            resolve({ ok: false, status: res.status, error: "invalid_response", message: "El servidor devolvió una respuesta no válida. Tus datos en pantalla se conservan." }); return;
+          }
+          resolve({ ...data, ok: res.status >= 200 && res.status < 300 && data.ok, status: res.status });
+        } catch (error) {
+          showNetBanner(error.name === "AbortError"
+            ? "El servidor tardó demasiado. El resultado puede haberse guardado; reintenta la misma operación para comprobarlo."
+            : "No se pudo contactar al servidor. Tus datos en pantalla se conservan.", attempt);
+        } finally { busy = false; }
       };
       attempt();
     });

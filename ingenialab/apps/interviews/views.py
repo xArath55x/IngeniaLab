@@ -56,7 +56,8 @@ def interview(request, attempt_id):
 def api_ask(request, attempt_id):
     attempt = _own_attempt(request, attempt_id)
     try:
-        data = services.get_dialogue(attempt, read_json(request).get("question_id"))
+        data = services.get_dialogue(attempt, read_json(request).get("question_id"),
+                                     allow_replay=bool(request.headers.get("X-Request-ID")))
     except services.InterviewError as e:
         return fail(str(e))
     if data["finished"]:
