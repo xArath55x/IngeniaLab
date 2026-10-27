@@ -1,14 +1,17 @@
 """Pruebas de integración de los casos de uso CU-01 a CU-05 (evidencia para VR-01)."""
 import json
 import tempfile
+import uuid
 from io import StringIO
 
+from django.conf import settings
 from django.contrib.auth.models import User
 from django.core.management import call_command
 from django.test import TestCase, override_settings
 
 from apps.classification.models import StudentClassification
 from apps.inspection.models import InspectionExercise
+from apps.interviews import services as interview_services
 from apps.interviews.models import ScenarioVersion, StudentAttempt
 from apps.modeling.models import UseCaseSpecification
 from integrations.plantuml import service as plantuml
@@ -94,6 +97,42 @@ class InterviewTests(BaseCase):
         self.assertNotIn("quality", options[0])  # la calidad no se revela al estudiante
         qualities = sorted(self.version.questions.get(id=o["id"]).quality for o in options)
         self.assertEqual(qualities, ["high", "low", "medium"])
+
+    def test_cu01_catalog_lists_json_scenarios_with_client_role(self):
+        with open(settings.BASE_DIR / "data" / "interviews.json", encoding="utf-8") as fh:
+            catalog = json.load(fh)["scenarios"]
+        r = self.client.get("/elicitacion/")
+        listed = {s.scenario_code for s in r.context["scenarios"]}
+        self.assertEqual(listed, {s["code"] for s in catalog})
+        for s in catalog:
+            self.assertContains(r, s["client_name"])
+            self.assertContains(r, s["client_role"])
+
+    def test_cu01_chat_shows_client_role_during_interview(self):
+        attempt = self.new_attempt()
+        r = self.client.get(f"/elicitacion/intento/{attempt.id}/")
+        self.assertContains(r, f'<span class="wa-role">{self.version.client_role}</span>', html=True)
+        self.assertContains(r, self.version.client_greeting)
+
+    def test_cu01_option_order_is_stable_per_attempt_and_varies_between_attempts(self):
+        attempt = self.new_attempt()
+        url = f"/elicitacion/intento/{attempt.id}/"
+        first = [o["id"] for o in self.client.get(url).context["options"]]
+        self.assertEqual(first, [o["id"] for o in self.client.get(url).context["options"]])
+        # Identificadores fijos para que la prueba sea determinista.
+        orders = set()
+        for n in range(1, 13):
+            other = StudentAttempt.objects.create(id=uuid.UUID(int=n), user=self.user, version=self.version)
+            orders.add(tuple(q.quality for q in interview_services.current_options(other)))
+        self.assertGreater(len(orders), 1)
+
+    def test_cu01_page_does_not_leak_quality_or_rationale(self):
+        attempt = self.new_attempt()
+        r = self.client.get(f"/elicitacion/intento/{attempt.id}/")
+        html = r.content.decode()
+        for o in r.context["options"]:
+            self.assertEqual(set(o), {"id", "text"})
+            self.assertNotIn(self.version.questions.get(id=o["id"]).rationale, html)
 
     def test_cu01_nine_questions_finish_automatically_with_scoring(self):
         attempt = self.new_attempt()

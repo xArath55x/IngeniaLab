@@ -10,7 +10,7 @@
       <div class="wa-avatar" aria-hidden="true">{{ attempt.version.client_initials }}</div>
       <div class="wa-contact">
         <div class="wa-name">{{ attempt.version.client_name }}</div>
-        <div class="wa-status" id="wa-status">{% if finished %}{{ attempt.version.client_role }}{% else %}en línea{% endif %}</div>
+        <div class="wa-status"><span class="wa-role">{{ attempt.version.client_role }}</span>{% if not finished %} · <span id="wa-status">en línea</span>{% endif %}</div>
       </div>
       {% if not finished %}
       <div class="wa-actions">

@@ -10,7 +10,7 @@
 .wa-avatar { width: 40px; height: 40px; border-radius: 50%; background: #dfe5e7; color: #075e54; display: grid; place-items: center; font-weight: 700; flex-shrink: 0; }
 .wa-contact { flex: 1; min-width: 0; }
 .wa-name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.wa-status { font-size: .78rem; opacity: .85; }
+.wa-status { font-size: .78rem; opacity: .85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .wa-actions { display: flex; gap: .4rem; align-items: center; }
 .wa-icon { background: transparent; border: 0; color: #fff; font-size: 1.25rem; cursor: pointer; border-radius: 50%; width: 36px; height: 36px; }
 .wa-icon:hover { background: rgba(255,255,255,.12); }
