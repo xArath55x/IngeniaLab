@@ -58,6 +58,23 @@
 .wa-opt-letter { flex-shrink: 0; width: 24px; height: 24px; border-radius: 50%; background: #25d366; color: #fff; display: grid; place-items: center; font-size: .75rem; font-weight: 700; }
 .wa-closed { text-align: center; color: #54656f; font-size: .88rem; padding: .4rem; }
 
+/* Bitácora interactiva */
+.topics { list-style: none; padding: 0; margin: 0 0 .8rem; display: flex; flex-wrap: wrap; gap: .3rem; }
+.topic { font-size: .75rem; padding: .15rem .55rem; border-radius: 99px; border: 1px dashed var(--border); color: var(--muted); }
+.topic.done { border-style: solid; border-color: var(--ok); background: var(--ok-bg); color: var(--ok); }
+.topic.done::before { content: "✓ "; }
+.log { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: .35rem; max-height: 40vh; overflow-y: auto; }
+.log-item { display: flex; gap: .55rem; align-items: flex-start; width: 100%; text-align: left; background: #f8fafb; border: 1px solid var(--border);
+  border-radius: 8px; padding: .45rem .6rem; font: inherit; color: var(--text); cursor: pointer; }
+.log-item:hover { border-color: var(--accent); background: var(--accent-soft); }
+.log-n { flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%; background: var(--accent); color: #fff; display: grid; place-items: center; font-size: .72rem; font-weight: 700; }
+.log-q { display: block; font-size: .86rem; }
+.log-a { margin: .2rem 0 0 2.4rem; font-size: .82rem; }
+.log-a summary { color: var(--accent); cursor: pointer; }
+.log-a p { margin: .25rem 0 0; padding: .4rem .55rem; background: #fff; border-left: 3px solid var(--accent); border-radius: 0 6px 6px 0; }
+.msg.flash .bubble { animation: flash 1.2s ease-out; }
+@keyframes flash { 0%, 40% { box-shadow: 0 0 0 3px #25d366; } 100% { box-shadow: 0 1px .5px rgba(11,20,26,.13); } }
+
 /* Resumen */
 .result-score { font-size: 1.1rem; margin: .2rem 0 .5rem; }
 .result-score b { font-size: 2.4rem; color: var(--accent-dark); }

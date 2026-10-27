@@ -57,6 +57,23 @@
         <div class="bar" role="progressbar" aria-label="Preguntas realizadas" aria-valuemin="0" aria-valuemax="{{ progress.max }}" aria-valuenow="{{ progress.asked }}" id="prog-bar"><span style="width:0%"></span></div>
       </div>
     </div>
+    <div class="card log-card">
+      <h2>Bitácora de la entrevista</h2>
+      <p class="small muted">Temas explorados <b id="topics-count">0 / {{ topics|length }}</b></p>
+      <ul class="topics" id="topics" aria-label="Temas del escenario">
+        {% for t in topics %}<li class="topic">{{ t }}</li>{% endfor %}
+      </ul>
+      <ol class="log" id="log" aria-label="Preguntas formuladas">
+        {% for e in entries %}
+        <li><button type="button" class="log-item" data-n="{{ forloop.counter }}">
+          <span class="log-n">{{ forloop.counter }}</span>
+          <span><span class="small muted">{{ e.topic }} · {{ e.time }}</span><span class="log-q">{{ e.question }}</span></span>
+        </button>
+        <details class="log-a"><summary>Respuesta del cliente</summary><p>{% for s in e.segments %}{{ s.text }}{% if not forloop.last %} {% endif %}{% endfor %}</p></details></li>
+        {% endfor %}
+      </ol>
+      <p class="small muted" id="log-empty"{% if entries %} hidden{% endif %}>Aún no has hecho preguntas. Cada pregunta y respuesta quedará registrada aquí.</p>
+    </div>
     {% endif %}
   </aside>
 </div>
@@ -74,21 +91,55 @@
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const now = () => new Date().toTimeString().slice(0, 5);
 
-  function bubble(dir, text, time) {
+  function bubble(dir, text, time, n) {
     const ticks = dir === "out" ? '<span class="ticks" aria-label="leído">✓✓</span>' : "";
+    const id = n ? ` id="msg-q${n}"` : "";
     chat.insertAdjacentHTML("beforeend",
-      `<div class="msg ${dir}"><div class="bubble">${IL.esc(text)}<span class="meta">${time}${ticks}</span></div></div>`);
+      `<div class="msg ${dir}"${id}><div class="bubble">${IL.esc(text)}<span class="meta">${time}${ticks}</span></div></div>`);
     chat.scrollTop = chat.scrollHeight;
   }
 
   // Historial (al reanudar la entrevista).
-  JSON.parse(document.getElementById("entries-data").textContent).forEach((e) => {
-    bubble("out", e.question, e.time);
+  const entries = JSON.parse(document.getElementById("entries-data").textContent);
+  entries.forEach((e, i) => {
+    bubble("out", e.question, e.time, i + 1);
     e.segments.forEach((s) => bubble("in", s.text, e.time));
   });
 
   const optionsBox = document.getElementById("options");
   if (!optionsBox) return;  // entrevista finalizada
+
+  // Bitácora interactiva: cada registro lleva a su pregunta en la conversación.
+  const log = document.getElementById("log");
+  log.addEventListener("click", (ev) => {
+    const item = ev.target.closest(".log-item");
+    const msg = item && document.getElementById("msg-q" + item.dataset.n);
+    if (!msg) return;
+    msg.scrollIntoView({ behavior: "smooth", block: "center" });
+    msg.classList.remove("flash");
+    void msg.offsetWidth;  // reinicia la animación
+    msg.classList.add("flash");
+  });
+
+  function addLogItem(e, n) {
+    log.append(IL.el("li", {}, [IL.el("button", { type: "button", class: "log-item", "data-n": n }, [
+      IL.el("span", { class: "log-n", text: n }),
+      IL.el("span", {}, [IL.el("span", { class: "small muted", text: `${e.topic} · ${e.time}` }),
+                         IL.el("span", { class: "log-q", text: e.question })]),
+    ]), IL.el("details", { class: "log-a" }, [
+      IL.el("summary", { text: "Respuesta del cliente" }),
+      IL.el("p", { text: e.segments.map((s) => s.text).join(" ") }),
+    ])]));
+    document.getElementById("log-empty").hidden = true;
+  }
+
+  function markTopics() {
+    const asked = new Set(entries.map((e) => e.topic));
+    const chips = document.querySelectorAll("#topics .topic");
+    chips.forEach((c) => c.classList.toggle("done", asked.has(c.textContent)));
+    document.getElementById("topics-count").textContent = `${asked.size} / ${chips.length}`;
+  }
+  markTopics();
 
   function setProgress(asked) {
     document.getElementById("prog-text").textContent = `${asked} / ${MAX}`;
@@ -126,7 +177,7 @@
 
   async function ask(option) {
     setBusy(true);
-    bubble("out", option.text, now());
+    bubble("out", option.text, now(), entries.length + 1);
     const request = IL.api(BASE + "preguntar/", { question_id: option.id });
     optionsBox.innerHTML = "";
     const r = await request;
@@ -134,6 +185,11 @@
     for (const s of r.entry.segments) {
       await typing(s.text);
       bubble("in", s.text, r.entry.time);
+    }
+    if (!entries.some((e) => e.question_id === r.entry.question_id)) {
+      entries.push(r.entry);
+      addLogItem(r.entry, entries.length);
+      markTopics();
     }
     setProgress(r.progress.asked);
     if (r.finished) return showFinished(r);
@@ -155,7 +211,7 @@
     const r = await IL.api(BASE + "finalizar/", { confirm });
     if (!r.ok) return IL.toast(r.message, "bad");
     if (r.needs_confirmation) {
-      if (await IL.confirmModal("¿Terminar la entrevista?", r.message, "Terminar", "Seguir preguntando")) finish(true);
+      if (await IL.confirmModal(r.title, r.message, "Terminar", "Seguir preguntando")) finish(true);
       return;
     }
     showFinished(r);

@@ -3,6 +3,7 @@
 En cada ronda el estudiante elige una de tres preguntas (muy útil, algo útil, sin aporte),
 hasta un máximo de MAX_QUESTIONS. La calidad de cada elección se revela al finalizar.
 """
+import math
 import random
 import uuid
 
@@ -14,6 +15,8 @@ from integrations.ai.dialogue import answer as dialogue_answer
 from .models import InterviewLogEntry, InterviewQuestion, StudentAttempt
 
 MAX_QUESTIONS = 9
+# Fracción mínima de rondas para considerar suficiente la entrevista al terminar antes (CU-01 E-1).
+THRESHOLD_RATIO = 2 / 3
 QUALITY_LABELS = dict(InterviewQuestion.QUALITIES)
 
 
@@ -50,6 +53,23 @@ def current_options(attempt):
 
 def progress(attempt):
     return {"asked": attempt.log_entries.count(), "max": len(rounds(attempt.version))}
+
+
+def round_topics(version):
+    """Tema de cada ronda en orden; todas las opciones de una ronda comparten tema."""
+    by_round = dict(version.questions.values_list("round_number", "topic"))
+    return [by_round[r] for r in rounds(version)]
+
+
+def evaluate_threshold(attempt):
+    """Compara el avance con el umbral mínimo y lista los temas que aún no se exploran."""
+    p = progress(attempt)
+    minimum = math.ceil(p["max"] * THRESHOLD_RATIO)
+    asked = set(attempt.log_entries.values_list("question__topic", flat=True))
+    return {
+        **p, "minimum": minimum, "reached": p["asked"] >= minimum,
+        "pending_topics": [t for t in round_topics(attempt.version) if t not in asked],
+    }
 
 
 def requirement_index(version):
@@ -170,13 +190,22 @@ def finish_interview(attempt: StudentAttempt, confirm_pending: bool) -> dict:
         raise InterviewError("La entrevista ya terminó.")
     if not attempt.log_entries.exists():
         raise InterviewError("Haz al menos una pregunta antes de terminar la entrevista.")
-    p = progress(attempt)
-    pending = p["max"] - p["asked"]
+    t = evaluate_threshold(attempt)
+    pending = t["max"] - t["asked"]
     if pending and not confirm_pending:
+        topics = ", ".join(t["pending_topics"])
+        if t["reached"]:
+            title = "¿Terminar la entrevista?"
+            message = (f"Aún te quedan {pending} pregunta(s) disponibles. Las rondas que no uses no sumarán puntos. "
+                       f"Temas sin explorar: {topics}. ¿Deseas terminar de todos modos?")
+        else:
+            title = "Entrevista incompleta"
+            message = (f"Solo has hecho {t['asked']} de {t['max']} preguntas; se recomiendan al menos {t['minimum']} "
+                       f"para reunir requisitos suficientes. Temas sin explorar: {topics}. "
+                       "Las rondas que no uses no sumarán puntos. ¿Deseas terminar de todos modos?")
         return {
-            "needs_confirmation": True,
-            "message": f"Aún te quedan {pending} pregunta(s) disponibles. Las rondas que no uses no sumarán puntos. ¿Deseas terminar de todos modos?",
-            "pending": pending,
+            "needs_confirmation": True, "title": title, "message": message, "pending": pending,
+            "below_threshold": not t["reached"], "minimum": t["minimum"], "pending_topics": t["pending_topics"],
         }
     _close(attempt, premature=bool(pending))
     return {"needs_confirmation": False, "summary": summary(attempt)}
