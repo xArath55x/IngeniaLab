@@ -47,6 +47,7 @@ def interview(request, attempt_id):
         "entries": entries,
         "options": services.serialize_options(services.current_options(attempt)),
         "progress": services.progress(attempt),
+        "topics": services.round_topics(attempt.version),
         "finished": finished,
         "summary": services.summary(attempt) if finished else None,
     })

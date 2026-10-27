@@ -188,6 +188,53 @@ class InterviewTests(BaseCase):
         self.assertContains(r, "90</b> / 90 pts")
         self.assertContains(r, "Entrevistador(a) experto(a)")
 
+    def test_cu01_log_persists_in_chronological_order_after_reload(self):
+        attempt = self.new_attempt()
+        self.ask_rounds(attempt, rounds=3)
+        r = self.client.get(f"/elicitacion/intento/{attempt.id}/")
+        topics = interview_services.round_topics(self.version)
+        self.assertEqual([e["topic"] for e in r.context["entries"]], topics[:3])
+        self.assertContains(r, 'class="log-item"', count=3)
+        for e in r.context["entries"]:
+            self.assertContains(r, f'<span class="log-q">{e["question"]}</span>', html=True)
+            answer = " ".join(s["text"] for s in e["segments"])
+            self.assertContains(r, f"<p>{answer}</p>", html=True)
+        self.assertEqual(r.context["topics"], topics)
+
+    def test_cu01_e1_below_threshold_warns_with_pending_topics(self):
+        attempt = self.new_attempt()
+        self.ask_rounds(attempt, rounds=2)
+        r = self.post(f"/elicitacion/api/intento/{attempt.id}/finalizar/", {"confirm": False}).json()
+        topics = interview_services.round_topics(self.version)
+        self.assertTrue(r["below_threshold"])
+        self.assertEqual(r["minimum"], 6)
+        self.assertEqual(r["title"], "Entrevista incompleta")
+        self.assertEqual(r["pending_topics"], topics[2:])
+        self.assertIn(topics[2], r["message"])
+        attempt.refresh_from_db()
+        self.assertEqual(attempt.status, StudentAttempt.INTERVIEWING)  # sin confirmar no se cierra
+
+    def test_cu01_e1_threshold_reached_asks_simple_confirmation(self):
+        attempt = self.new_attempt()
+        self.ask_rounds(attempt, rounds=5)
+        self.assertFalse(interview_services.evaluate_threshold(attempt)["reached"])
+        self.ask_rounds(attempt, rounds=6)
+        t = interview_services.evaluate_threshold(attempt)
+        self.assertTrue(t["reached"])
+        r = self.post(f"/elicitacion/api/intento/{attempt.id}/finalizar/", {"confirm": False}).json()
+        self.assertFalse(r["below_threshold"])
+        self.assertEqual(r["title"], "¿Terminar la entrevista?")
+        self.assertEqual(r["pending"], 3)
+
+    def test_cu01_results_screen_after_premature_finish(self):
+        attempt = self.new_attempt()
+        self.ask_rounds(attempt, rounds=2)
+        self.post(f"/elicitacion/api/intento/{attempt.id}/finalizar/", {"confirm": True})
+        r = self.client.get(f"/elicitacion/intento/{attempt.id}/")
+        self.assertContains(r, "20</b> / 90 pts")
+        self.assertContains(r, "Terminaste con 2 de 9 preguntas")
+        self.assertNotContains(r, 'id="log"')  # la bitácora en vivo se sustituye por el resumen
+
 
 @override_settings(INGENIALAB_MODULES=["interviews"])
 class ModuleGateTests(BaseCase):
