@@ -104,6 +104,9 @@ class UseCaseLesson(models.Model):
     mistakes = models.PositiveIntegerField(default=0)
     status = models.CharField(max_length=12, choices=STATUSES, default=IN_PROGRESS)
     xp = models.PositiveIntegerField(default=0)
+    # Caso de uso guardado al terminar la lección; evita guardarlo dos veces.
+    use_case = models.ForeignKey(UseCaseSpecification, on_delete=models.SET_NULL, null=True, blank=True,
+                                 related_name="lessons")
     started_at = models.DateTimeField(auto_now_add=True)
     finished_at = models.DateTimeField(null=True, blank=True)
 

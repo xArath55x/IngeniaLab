@@ -9,6 +9,20 @@
   const checkBtn = $("btn-check");
   let answer = null, pendingNext = null, busy = false;
 
+  /* Tarjeta «Tu caso de uso»: cada acierto llena su parte; lo pendiente se muestra vacío. */
+  let filled = new Set();
+  function renderBuilt() {
+    $("built").replaceChildren(...state.built.flatMap((part) => {
+      const isNew = part.values && !filled.has(part.id);
+      const dd = IL.el("dd", { class: `built-item${part.values ? "" : " empty"}${isNew ? " new" : ""}` });
+      if (!part.values) dd.textContent = "Por construir";
+      else if (part.id === "main_flow") dd.append(IL.el("ol", {}, part.values.map((v) => IL.el("li", { text: v }))));
+      else dd.textContent = part.values.join(" · ");
+      return [IL.el("dt", { text: part.label }), dd];
+    }));
+    filled = new Set(state.built.filter((p) => p.values).map((p) => p.id));
+  }
+
   function renderHeader() {
     $("progress").style.width = `${Math.round(100 * state.solved / state.total)}%`;
     const lives = $("lives");
@@ -93,20 +107,39 @@
     $("ex-prompt").focus?.();
   }
 
+  async function saveUseCase() {
+    const btn = $("finish-save");
+    btn.disabled = true; $("finish-status").textContent = "Generando el diagrama UML…";
+    const r = await IL.api(root.dataset.saveUrl, {});
+    if (!r.ok) {
+      btn.disabled = false; $("finish-status").textContent = r.message || "No se pudo generar el diagrama. Intenta de nuevo.";
+      return;
+    }
+    $("finish-diagram").innerHTML = r.svg;
+    $("finish-status").textContent = r.engine === "plantuml"
+      ? "✔ Guardado en tus casos de uso." : "✔ Guardado en tus casos de uso (vista simplificada, no es PlantUML).";
+    btn.hidden = true;
+    $("finish-view").href = r.edit_url; $("finish-view").hidden = false;
+    IL.showBadges(r.badges);
+  }
+
   function renderFinish() {
     $("exercise").hidden = true; $("footer").hidden = true; $("finish").hidden = false;
-    $("finish-back").href = root.dataset.lessonsUrl;
+    $("finish-back").href = $("finish-back-done").href = root.dataset.lessonsUrl;
     if (state.lesson_status === "completed") {
       $("finish-icon").textContent = "🏆";
-      $("finish-title").textContent = "¡Lección completada!";
+      $("finish-title").textContent = "¡Construiste tu caso de uso!";
       $("finish-text").textContent = `Ganaste ${state.xp} XP con ${state.lives} ${state.lives === 1 ? "vida" : "vidas"} restante(s). ` +
-        "Abre el caso de uso en el editor para generar su diagrama UML y guardarlo.";
-      $("finish-editor").href = root.dataset.editorUrl; $("finish-editor").hidden = false;
+        "Revisa la tarjeta de la derecha y genera su diagrama UML: quedará guardado en Modelado.";
+      $("finish-editor").href = root.dataset.editorUrl;
+      $("finish-done").hidden = false;
+      $("finish-save").addEventListener("click", saveUseCase);
+      if (state.saved) saveUseCase();  // ya guardado: solo vuelve a mostrar el diagrama
     } else {
       $("finish-icon").textContent = "💔";
       $("finish-title").textContent = "Te quedaste sin vidas";
       $("finish-text").textContent = "Repasa las explicaciones y vuelve a intentarlo: la lección empieza de nuevo.";
-      $("finish-retry").hidden = false;
+      $("finish-failed").hidden = false;
     }
   }
 
@@ -136,10 +169,10 @@
     if (!r.ok) { IL.toast(r.message || "No se pudo registrar la respuesta.", "bad"); window.location.reload(); return; }
     $("ex-area").querySelectorAll("button").forEach((b) => (b.disabled = true));
     pendingNext = r;
-    state = { ...state, lives: r.lives, solved: r.solved }; renderHeader();
+    state = { ...state, lives: r.lives, solved: r.solved, built: r.built }; renderHeader(); renderBuilt();
     showFeedback(r);
   });
 
-  renderHeader();
+  renderHeader(); renderBuilt();
   state.lesson_status === "in_progress" ? renderExercise(state.current) : renderFinish();
 })();

@@ -17,4 +17,5 @@ urlpatterns = [
     path("lecciones/<int:ref_id>/iniciar/", views.lesson_start, name="lesson_start"),
     path("leccion/<uuid:lesson_id>/", views.lesson_view, name="lesson"),
     path("api/leccion/<uuid:lesson_id>/responder/", views.api_lesson_answer, name="api_lesson_answer"),
+    path("api/leccion/<uuid:lesson_id>/guardar/", views.api_lesson_save, name="api_lesson_save"),
 ]

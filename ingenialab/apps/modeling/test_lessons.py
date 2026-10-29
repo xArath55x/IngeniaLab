@@ -165,6 +165,47 @@ class LessonTests(BaseCase):
         self.assertEqual(r.context["form_data"]["attempt_id"], str(attempt.id))
         self.assertContains(r, "Prellenado con tu lección")
 
+    def test_use_case_card_shows_only_solved_parts(self):
+        attempt = self.ready_attempt()
+        self.start(attempt, self.reference())
+        lesson = UseCaseLesson.objects.get()
+        state = lessons.state(lesson)
+        self.assertTrue(all(part["values"] is None for part in state["built"]))
+        first = lesson.queue[0]
+        r = self.reply(lesson, first, next(e for e in lesson.exercises if e["id"] == first)["answer"]).json()
+        solved = {p["id"]: p["values"] for p in r["built"]}
+        self.assertIsNotNone(solved[first])
+        self.assertTrue(all(v is None for k, v in solved.items() if k != first))
+
+    def test_save_use_case_requires_completed_lesson_and_happens_once(self):
+        attempt = self.ready_attempt()
+        self.start(attempt, self.reference())
+        lesson = UseCaseLesson.objects.get()
+        url = f"/modelado/api/leccion/{lesson.id}/guardar/"
+        self.assertEqual(self.post(url).status_code, 400)
+        self.solve(lesson)
+        before = total_points(self.user)
+        r = self.post(url).json()
+        self.assertTrue(r["ok"])
+        self.assertIn("<svg", r["svg"])
+        uc = self.user.use_cases.get()
+        self.assertEqual((uc.name, uc.attempt_id), ("Registrar préstamo", attempt.id))
+        self.assertTrue(hasattr(uc, "diagram"))
+        again = self.post(url).json()
+        self.assertTrue(again["saved_before"])
+        self.assertEqual(again["id"], r["id"])
+        self.assertEqual(self.user.use_cases.count(), 1)
+        self.assertGreater(total_points(self.user), before)
+        self.assertTrue(lessons.state(UseCaseLesson.objects.get())["saved"])
+
+    def test_save_is_private(self):
+        attempt = self.ready_attempt()
+        self.start(attempt, self.reference())
+        lesson = UseCaseLesson.objects.get()
+        self.solve(lesson)
+        self.client.login(username="otro", password="ClaveSegura123")
+        self.assertEqual(self.post(f"/modelado/api/leccion/{lesson.id}/guardar/").status_code, 404)
+
     def test_classification_links_to_lessons(self):
         attempt = self.ready_attempt()
         r = self.client.get(f"/clasificacion/intento/{attempt.id}/")

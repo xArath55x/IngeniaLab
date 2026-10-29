@@ -17,6 +17,12 @@ from .models import UseCaseLesson
 LIVES = 3
 XP_BASE = 10
 XP_PER_LIFE = 5
+# Parte del caso de uso que construye cada ejercicio, en el orden de la tarjeta «Tu caso de uso».
+PARTS = {
+    "name": "Nombre", "primary_actor": "Actor principal", "secondary_actors": "Actores secundarios",
+    "preconditions": "Precondición", "main_flow": "Flujo principal", "alternate_flows": "Flujo alterno",
+    "postconditions": "Postcondición", "relations": "Relaciones",
+}
 
 
 class LessonError(Exception):
@@ -152,6 +158,13 @@ def start(user, attempt, reference):
     return lesson
 
 
+def built(lesson):
+    """Partes del caso de uso ya construidas; las no resueltas van vacías para no adelantar respuestas."""
+    solved = set(lesson.solved)
+    return [{"id": e["id"], "label": PARTS[e["id"]], "values": solution_text(e) if e["id"] in solved else None}
+            for e in lesson.exercises]
+
+
 def state(lesson):
     # «lesson_status» y no «status»: IL.api (static/js/app.js) usa «status» para el código HTTP.
     by_id = {e["id"]: e for e in lesson.exercises}
@@ -159,6 +172,7 @@ def state(lesson):
         "lesson_status": lesson.status, "lives": lesson.lives, "max_lives": LIVES, "xp": lesson.xp,
         "mistakes": lesson.mistakes, "solved": len(lesson.solved), "total": len(lesson.exercises),
         "current": public(by_id[lesson.queue[0]]) if lesson.status == UseCaseLesson.IN_PROGRESS else None,
+        "built": built(lesson), "saved": bool(lesson.use_case_id),
     }
 
 

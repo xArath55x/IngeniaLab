@@ -320,3 +320,39 @@ def api_lesson_answer(request, lesson_id):
         return fail(str(e))
     return ok(**result)
 
+
+@require_POST
+def api_lesson_save(request, lesson_id):
+    """Genera el diagrama del caso de uso construido en la lección y lo guarda una sola vez (CU-02)."""
+    with transaction.atomic():
+        lesson = get_object_or_404(
+            UseCaseLesson.objects.select_for_update().select_related("reference", "attempt"),
+            id=lesson_id, user=request.user)
+        if lesson.status != UseCaseLesson.COMPLETED:
+            return fail("Termina la lección para guardar su caso de uso.")
+        if lesson.use_case_id:
+            uc = UseCaseSpecification.objects.select_related("diagram").get(id=lesson.use_case_id)
+            return ok(id=str(uc.id), svg=uc.diagram.svg, engine=uc.diagram.engine, saved_before=True,
+                      edit_url=reverse("modeling:edit", args=[uc.id]), badges=[])
+        form = UseCaseForm(data={**lesson.reference.spec, "attempt_id": str(lesson.attempt_id)}, user=request.user)
+        if not form.is_valid():
+            return fail(validators.REQUIRED_MESSAGE, errors=form.error_messages())
+        spec = form.cleaned_data
+        code = build_usecase_diagram(spec)
+        try:
+            result = plantuml.render(code)
+        except plantuml.PlantUMLError as e:
+            return fail(str(e), status=e.status, error=e.code)
+        uc = UseCaseSpecification.objects.create(
+            user=request.user, attempt=lesson.attempt, name=spec["name"], system_name=spec["system_name"],
+            actors={"primary": spec["primary_actors"], "secondary": spec["secondary_actors"]},
+            preconditions=spec["preconditions"], main_flow=spec["main_flow"],
+            alternate_flows=spec["alternate_flows"], postconditions=spec["postconditions"],
+            relations=spec["relations"], plantuml_code=code,
+        )
+        GeneratedDiagram.objects.create(use_case=uc, code_hash=result.code_hash, svg=result.svg, engine=result.engine)
+        lesson.use_case = uc
+        lesson.save(update_fields=["use_case"])
+    return ok(id=str(uc.id), svg=result.svg, engine=result.engine, saved_before=False,
+              edit_url=reverse("modeling:edit", args=[uc.id]), badges=evaluate_badges(request.user))
+
