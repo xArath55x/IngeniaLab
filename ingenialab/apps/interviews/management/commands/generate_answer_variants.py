@@ -23,6 +23,8 @@ class Command(BaseCommand):
         parser.add_argument("--scenario", action="append", help="Código del escenario (repetible); por defecto, todos los activos")
         parser.add_argument("--per-question", type=int, default=5, help="Variantes activas por pregunta (default 5)")
         parser.add_argument("--timeout", type=float, default=90, help="Segundos máximos por llamada al LLM")
+        parser.add_argument("--revalidate", action="store_true",
+                            help="Desactiva las variantes activas que ya no pasan la validación vigente antes de completar")
 
     def handle(self, *args, **opts):
         per_question = opts["per_question"]
@@ -34,11 +36,13 @@ class Command(BaseCommand):
         if not versions.exists():
             raise CommandError("No hay escenarios activos con esos códigos.")
         model = settings.INGENIALAB_AI_MODEL
-        totals = {"created": 0, "rejected": 0, "errors": 0}
+        totals = {"created": 0, "rejected": 0, "errors": 0, "deactivated": 0}
         start = time.monotonic()
         for version in versions:
             self.stdout.write(self.style.MIGRATE_HEADING(f"{version} · {version.title}"))
             for question in version.questions.order_by("round_number", "order"):
+                if opts["revalidate"]:
+                    totals["deactivated"] += self._revalidate(question)
                 created, rejected, errors = self._fill(question, per_question, opts["timeout"], model)
                 for key, value in zip(totals, (created, rejected, errors)):
                     totals[key] += value
@@ -46,9 +50,22 @@ class Command(BaseCommand):
                 self.stdout.write(f"  ronda {question.round_number} · {question.get_quality_display():<9} "
                                   f"{have}/{per_question} variantes (+{created}, rechazadas {rejected}, errores {errors})")
         minutes = (time.monotonic() - start) / 60
+        if opts["revalidate"]:
+            self.stdout.write(f"{totals['deactivated']} variantes desactivadas por la validación vigente.")
         self.stdout.write(self.style.SUCCESS(
             f"Listo en {minutes:.1f} min: {totals['created']} variantes nuevas, {totals['rejected']} rechazadas "
             f"por validación, {totals['errors']} errores del proveedor. Revísalas en el admin (Answer variants)."))
+
+    def _revalidate(self, question):
+        deactivated = 0
+        for variant in AnswerVariant.for_question(question).filter(is_active=True):
+            try:
+                dialogue.revalidate_variant(variant.segments, question)
+            except ValueError:
+                variant.is_active = False
+                variant.save(update_fields=["is_active"])
+                deactivated += 1
+        return deactivated
 
     def _fill(self, question, per_question, timeout, model):
         """Genera hasta completar las variantes activas; como máximo el doble de intentos."""

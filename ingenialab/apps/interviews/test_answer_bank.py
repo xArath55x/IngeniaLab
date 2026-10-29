@@ -95,6 +95,18 @@ class AnswerBankTests(BaseCase):
             call_command("generate_answer_variants", scenario=["ESC-BIBLIOTECA-01"], per_question=1, stdout=out)
         self.assertIn("1 rechazadas", out.getvalue())
 
+    def test_revalidate_deactivates_variants_that_no_longer_pass(self):
+        low = self.version.questions.get(round_number=services.rounds(self.version)[0], quality=InterviewQuestion.LOW)
+        bad = self.variant(low, self.version.summary)
+        with mock.patch("integrations.ai.dialogue._request", side_effect=fake_llm):
+            out = StringIO()
+            call_command("generate_answer_variants", scenario=["ESC-BIBLIOTECA-01"], per_question=1,
+                         revalidate=True, stdout=out)
+        bad.refresh_from_db()
+        self.assertFalse(bad.is_active)
+        self.assertIn("1 variantes desactivadas", out.getvalue())
+        self.assertEqual(AnswerVariant.for_question(low).filter(is_active=True).count(), 1)
+
     def test_command_requires_provider(self):
         with self.settings(INGENIALAB_AI_ENDPOINT=""), self.assertRaisesMessage(CommandError, "INGENIALAB_AI_ENDPOINT"):
             call_command("generate_answer_variants", scenario=["ESC-BIBLIOTECA-01"], per_question=1, stdout=StringIO())

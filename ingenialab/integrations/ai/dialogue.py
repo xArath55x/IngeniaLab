@@ -136,8 +136,12 @@ def _key_figures(fact):
     return figures
 
 
-def _validate_free(data, catalog, facts):
-    """Arma intro + enunciados textuales + cierre; la conversación no puede contar hechos del escenario."""
+def _validate_free(data, catalog, facts, summary=''):
+    """Arma intro + enunciados textuales + cierre; la conversación no puede contar hechos del escenario.
+
+    Si la respuesta no lleva enunciados (pregunta poco útil o sin aporte), tampoco puede limitarse a
+    recitar el resumen del escenario en lugar de responder lo que se preguntó.
+    """
     if not isinstance(data, dict) or 'intro' not in data or set(data) - {'intro', 'closing'}:
         raise ValueError('Contrato de respuesta libre invalido')
     intro = ' '.join(str(data['intro']).split())
@@ -155,6 +159,10 @@ def _validate_free(data, catalog, facts):
         padded = ' ' + ' '.join(_tokens(text)) + ' '
         if any(f' {figure} ' in padded for figure in figures):
             raise ValueError('La conversacion revela una cifra del escenario')
+    summary_words = _words(summary)
+    if summary_words and not any(s.get('req') for s in catalog):
+        if len(summary_words & _words(f'{intro} {closing}')) / len(summary_words) >= 0.3:
+            raise ValueError('Recita el escenario en lugar de responder la pregunta')
     segments = [{'text': intro, 'req': None}]
     segments += [{'text': s['text'], 'req': s['req']} for s in catalog if s.get('req')]
     if closing:
@@ -172,13 +180,15 @@ def _free_payload(question, catalog):
     facts = [r.statement_text for r in version.requirements.all()]
     needs_follow = any(s.get('req') for s in catalog)
     payload = {
-        'scenario': version.title, 'summary': version.summary,
+        'scenario': version.title,
         'client': f'{version.client_name}, {version.client_role}', 'topic': question.topic,
         'question': question.text, 'needs_follow': needs_follow,
     }
     if needs_follow:
+        payload['summary'] = version.summary
         payload['current_situation'] = ' '.join(s['text'] for s in catalog if not s.get('req'))
     else:
+        # Sin el resumen: el modelo lo recitaba en lugar de responder preguntas sin relación con el sistema.
         payload['reference_answer'] = ' '.join(s['text'] for s in catalog)
         payload['scenario_facts'] = facts
     return payload, facts
@@ -197,7 +207,20 @@ def generate_variant(question, timeout, temperature=0.9):
     catalog = deepcopy(question.answer_segments)
     payload, facts = _free_payload(question, catalog)
     value = _request(payload, endpoint, settings.INGENIALAB_AI_API_KEY, model, timeout, SYSTEM_FREE, temperature)
-    return _validate_free(value, catalog, facts)
+    return _validate_free(value, catalog, facts, question.version.summary)
+
+
+def revalidate_variant(segments, question):
+    """Vuelve a aplicar la validación vigente a una variante guardada; lanza ValueError si ya no pasa."""
+    conversation = [s['text'] for s in segments if not s.get('req')]
+    has_statements = any(s.get('req') for s in segments)
+    data = {'intro': conversation[0] if conversation else '',
+            'closing': conversation[1] if has_statements and len(conversation) > 1 else ''}
+    if len(conversation) > (2 if has_statements else 1):
+        raise ValueError('Estructura de variante invalida')
+    catalog = deepcopy(question.answer_segments)
+    _, facts = _free_payload(question, catalog)
+    return _validate_free(data, catalog, facts, question.version.summary)
 
 
 def answer(question):
@@ -256,7 +279,8 @@ def answer(question):
         reason = 'timeout' if isinstance(value, TimeoutError) or isinstance(getattr(value, 'reason', None), TimeoutError) else 'unavailable'
         return fallback(reason)
     try:
-        segments = _validate_free(value, catalog, facts) if free else _validate(value, catalog)
+        segments = (_validate_free(value, catalog, facts, question.version.summary) if free
+                    else _validate(value, catalog))
         return DialogueResult(segments, 'ai')
     except (ValueError, TypeError):
         return fallback('invalid_response')

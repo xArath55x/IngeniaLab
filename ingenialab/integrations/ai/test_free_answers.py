@@ -73,6 +73,9 @@ class FreeAnswerTests(SimpleTestCase):
         result = dialogue.answer(question(vague))
         self.assertEqual(result.source, "ai")
         self.assertEqual([s["req"] for s in result.segments], [None])
+        # Pregunta sin relación respondida recitando el escenario: se rechaza.
+        request.return_value = {"intro": "En la biblioteca escolar llevamos los préstamos a mano, es tedioso.", "closing": ""}
+        self.assertEqual(dialogue.answer(question(vague)).reason, "invalid_response")
 
     @patch("integrations.ai.dialogue._request")
     def test_payload_hides_statements_when_they_follow(self, request):
@@ -86,6 +89,7 @@ class FreeAnswerTests(SimpleTestCase):
         # Un modelo pequeño repite los enunciados si los ve; solo la validación los usa.
         self.assertNotIn("préstamo con el alumno", str(payload))
         self.assertNotIn("scenario_facts", payload)
+        self.assertIn("summary", payload)
 
     @patch("integrations.ai.dialogue._request")
     def test_payload_for_vague_answer_includes_facts(self, request):
@@ -95,6 +99,7 @@ class FreeAnswerTests(SimpleTestCase):
         self.assertFalse(payload["needs_follow"])
         self.assertEqual(payload["reference_answer"], "Pues sí, supongo.")
         self.assertEqual(payload["scenario_facts"], [B01, B04])
+        self.assertNotIn("summary", payload)
 
     @patch("integrations.ai.dialogue._request")
     def test_free_mode_has_its_own_timeout_limit(self, request):
