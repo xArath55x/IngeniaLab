@@ -56,3 +56,19 @@ jobs:
 
       - name: Ejecutar pruebas
         run: python manage.py test apps
+
+      # ACT-214C: recorrido de los cinco casos de uso sobre una BD de staging.
+      # Sin Java/Graphviz en el runner, el diagrama usa el respaldo SVG.
+      - name: Prueba end-to-end en staging
+        run: python scripts/e2e_staging.py --allow-plantuml-fallback
+
+      - name: Publicar evidencia end-to-end
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-staging-py${{ matrix.python-version }}
+          path: |
+            ingenialab/var/staging/e2e_report.json
+            ingenialab/var/staging/reporte_e2e.pdf
+            ingenialab/var/staging/server.log
+          if-no-files-found: ignore
