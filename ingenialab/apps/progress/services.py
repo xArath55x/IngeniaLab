@@ -3,7 +3,7 @@
 Los puntos se derivan siempre del estado guardado de cada práctica, por lo que
 reclasificar o reintentar nunca duplica puntaje.
 """
-from django.db.models import Sum
+from django.db.models import Max, Sum
 
 from .models import UserBadge
 
@@ -31,8 +31,10 @@ BADGES = {
 def total_points(user):
     attempts = user.attempts.aggregate(i=Sum("interview_score"), c=Sum("classification_score"))
     inspections = user.inspections.filter(concluded_at__isnull=False).aggregate(s=Sum("score"))
+    # Lecciones de casos de uso: cuenta el mejor XP de cada caso de uso, así repetir no acumula puntos.
+    lessons = user.lessons.filter(status="completed").values("reference").annotate(best=Max("xp"))
     return ((attempts["i"] or 0) + (attempts["c"] or 0) + (inspections["s"] or 0)
-            + user.use_cases.count() * USE_CASE_POINTS)
+            + user.use_cases.count() * USE_CASE_POINTS + sum(row["best"] for row in lessons))
 
 
 def level_for(points):

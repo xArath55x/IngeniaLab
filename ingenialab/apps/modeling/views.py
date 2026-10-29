@@ -9,16 +9,18 @@ from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.views.decorators.http import require_POST
 
-from apps.accounts.api import fail, ok
+from apps.accounts.api import fail, ok, read_json
 from apps.interviews.models import StudentAttempt
 from apps.progress.services import evaluate_badges
 from integrations.plantuml import service as plantuml
 from integrations.plantuml.builder import build_usecase_diagram
 
+from . import lessons as lesson_engine
 from . import validators
-from .models import GeneratedDiagram, UseCaseSpecification
+from .models import GeneratedDiagram, ReferenceUseCase, UseCaseLesson, UseCaseSpecification
 from .forms import UseCaseForm
 
 
@@ -43,6 +45,15 @@ def editor(request, uc_id=None):
         return redirect("modeling:list")
     uc = get_object_or_404(UseCaseSpecification, id=uc_id, user=request.user) if uc_id else None
     reference = uc.attempt if uc and uc.attempt_id else attempts.first()
+    # Al terminar una lección, el editor se abre con el caso de uso que se armó en ella.
+    lesson = None
+    if not uc and request.GET.get("leccion"):
+        try:
+            lesson = UseCaseLesson.objects.select_related("reference", "attempt").get(
+                id=request.GET["leccion"], user=request.user, status=UseCaseLesson.COMPLETED)
+            reference = lesson.attempt
+        except (UseCaseLesson.DoesNotExist, ValidationError):
+            lesson = None
     if not uc and request.GET.get("attempt"):
         try:
             reference = get_object_or_404(attempts, id=request.GET["attempt"])
@@ -61,7 +72,9 @@ def editor(request, uc_id=None):
         })
     return render(request, "modeling/editor.html", {
         "uc": uc,
-        "form_data": uc.as_form_data() if uc else None,
+        "form_data": uc.as_form_data() if uc else (
+            {**lesson.reference.spec, "attempt_id": str(lesson.attempt_id)} if lesson else None),
+        "lesson": lesson,
         "svg": uc.diagram.svg if uc and hasattr(uc, "diagram") else "",
         "guide": guide,
         "reference_attempt": reference,
@@ -242,3 +255,68 @@ def download_diagram(request, uc_id, format):
     response["X-Diagram-Duration-Ms"] = str(result.duration_ms)
     response["X-Diagram-Total-Duration-Ms"] = str(result.total_duration_ms)
     return response
+
+
+# Lecciones guiadas de casos de uso (CU-02, estilo Duolingo).
+
+@login_required
+def lesson_list(request):
+    attempts = _finished_attempts(request.user)
+    if not attempts.exists():
+        messages.warning(request, "Para las lecciones primero completa una entrevista y clasifica sus requisitos.")
+        return redirect("modeling:list")
+    selected = attempts.first()
+    if request.GET.get("attempt"):
+        try:
+            selected = get_object_or_404(attempts, id=request.GET["attempt"])
+        except ValidationError:
+            return HttpResponse("La entrevista seleccionada no es válida.", status=400)
+    mine = list(UseCaseLesson.objects.filter(user=request.user, attempt=selected))
+    cards = []
+    for ref in ReferenceUseCase.objects.filter(version=selected.version):
+        lessons = [lesson for lesson in mine if lesson.reference_id == ref.id]
+        completed = [lesson for lesson in lessons if lesson.status == UseCaseLesson.COMPLETED]
+        cards.append({
+            "ref": ref, **lesson_engine.lesson_status(selected, ref),
+            "current": next((lesson for lesson in lessons if lesson.status == UseCaseLesson.IN_PROGRESS), None),
+            "completed": completed[0] if completed else None,
+            "best_xp": max((lesson.xp for lesson in completed), default=None),
+        })
+    return render(request, "modeling/lessons.html", {"attempts": attempts, "selected": selected, "cards": cards,
+                                                     "lives": lesson_engine.LIVES})
+
+
+@login_required
+@require_POST
+def lesson_start(request, ref_id):
+    ref = get_object_or_404(ReferenceUseCase, id=ref_id)
+    try:
+        attempt = get_object_or_404(_finished_attempts(request.user), id=request.POST.get("attempt"),
+                                    version_id=ref.version_id)
+    except ValidationError:
+        return HttpResponse("La entrevista seleccionada no es válida.", status=400)
+    try:
+        lesson = lesson_engine.start(request.user, attempt, ref)
+    except lesson_engine.LessonError as e:
+        messages.error(request, str(e))
+        return redirect(f"{reverse('modeling:lessons')}?attempt={attempt.id}")
+    return redirect("modeling:lesson", lesson_id=lesson.id)
+
+
+@login_required
+def lesson_view(request, lesson_id):
+    lesson = get_object_or_404(UseCaseLesson.objects.select_related("reference", "attempt"),
+                               id=lesson_id, user=request.user)
+    return render(request, "modeling/lesson.html", {"lesson": lesson, "state": lesson_engine.state(lesson)})
+
+
+@require_POST
+def api_lesson_answer(request, lesson_id):
+    lesson = get_object_or_404(UseCaseLesson, id=lesson_id, user=request.user)
+    data = read_json(request)
+    try:
+        result = lesson_engine.answer(lesson, data.get("exercise_id"), data.get("answer"))
+    except lesson_engine.LessonError as e:
+        return fail(str(e))
+    return ok(**result)
+

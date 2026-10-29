@@ -18,6 +18,8 @@
   --shadow: 0 1px 2px rgba(16, 42, 56, .06), 0 2px 8px rgba(16, 42, 56, .05);
 }
 * { box-sizing: border-box; }
+/* El atributo hidden siempre oculta, aunque la clase del elemento defina display. */
+[hidden] { display: none !important; }
 html, body { margin: 0; }
 body { font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); }
 a { color: var(--accent); }
@@ -227,3 +229,46 @@ details.advanced { margin-top: .75rem; }
 .auth-card .brand { color: var(--accent-dark); }
 .auth-card .brand-mark { background: var(--accent); color: #fff; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* Lecciones guiadas de casos de uso (CU-02) */
+.lesson-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 1rem; }
+.lesson-grid .card + .card { margin-top: 0; }
+.lesson-card { display: flex; flex-direction: column; gap: .35rem; }
+.lesson-card h2 { margin: 0; }
+.lesson-card.locked { background: #f6f8f9; }
+.lesson-card.locked h2 { color: var(--muted); }
+.lesson-card .btn-row { margin-top: auto; }
+.lesson-icon { font-size: 1.8rem; line-height: 1; }
+.lock-list { margin: 0 0 .5rem; padding-left: 1.1rem; color: var(--muted); }
+.lesson { max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 1rem; }
+.lesson-top { display: flex; align-items: center; gap: .8rem; }
+.lesson-bar { flex: 1; height: 14px; }
+.lives { font-size: 1.15rem; letter-spacing: .1rem; white-space: nowrap; }
+.lesson-body { padding: 1.5rem; }
+.lesson-kicker { margin: 0 0 .3rem; text-transform: uppercase; letter-spacing: .05em; }
+.lesson-prompt { font-size: 1.3rem; margin-bottom: .8rem; }
+.lesson-context { margin: 0 0 1rem; padding: 0; list-style: none; display: grid; gap: .4rem; }
+.lesson-context li { background: #e3edfb; color: #1f4f8f; border-radius: 8px; padding: .55rem .75rem; font-size: .92rem; }
+.lesson-context li::before { content: "RF · "; font-weight: 700; }
+.lesson-options { display: grid; gap: .55rem; }
+.lesson-option, .lesson-tile { text-align: left; font: inherit; padding: .75rem .9rem; border: 2px solid var(--border);
+  border-bottom-width: 4px; border-radius: 12px; background: #fff; color: var(--text); cursor: pointer; }
+.lesson-option:hover:not(:disabled), .lesson-tile:hover:not(:disabled) { border-color: #9fc3c1; }
+.lesson-option.selected { border-color: var(--accent); background: var(--accent-soft); }
+.lesson-option.small { padding: .45rem .7rem; font-size: .88rem; }
+.lesson-option:disabled, .lesson-tile:disabled { cursor: default; opacity: .85; }
+.lesson-sequence { list-style: none; margin: 0 0 .9rem; padding: .6rem; min-height: 3.2rem; border: 2px dashed var(--border);
+  border-radius: 12px; display: grid; gap: .45rem; }
+.lesson-pool { display: grid; gap: .45rem; }
+.lesson-tile.placed { width: 100%; border-color: var(--accent); background: var(--accent-soft); }
+.lesson-classify { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; padding: .5rem 0; border-bottom: 1px dashed var(--border); }
+.lesson-classify-item { flex: 1 1 200px; font-weight: 600; }
+.lesson-footer { display: flex; gap: 1rem; align-items: center; justify-content: space-between; padding: 1rem 1.25rem;
+  border-radius: var(--radius); background: var(--card); border: 1px solid var(--border); position: sticky; bottom: 1rem; }
+.lesson-footer.ok { background: var(--ok-bg); border-color: #b5dcc2; color: #14532a; }
+.lesson-footer.bad { background: var(--bad-bg); border-color: #efc2bd; color: #7a1b15; }
+.lesson-feedback { flex: 1; }
+.lesson-feedback p, .lesson-feedback ul { margin: .25rem 0 0; }
+.lesson-finish { text-align: center; }
+.lesson-finish .lesson-icon { font-size: 3rem; margin-bottom: .5rem; }
+@media (max-width: 760px) { .lesson-footer { flex-direction: column; align-items: stretch; } }

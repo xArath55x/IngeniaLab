@@ -60,7 +60,7 @@
         <tbody id="rows"></tbody>
       </table></div>
       <div class="btn-row" style="margin-top:1rem">
-        <a class="btn secondary" href="{% url 'modeling:new' %}?attempt={{ attempt.id }}">Modelar casos de uso →</a>
+        <a class="btn secondary" href="{% url 'modeling:lessons' %}?attempt={{ attempt.id }}">Modelar casos de uso →</a>
         <a class="btn ghost" href="{% url 'interviews:interview' attempt.id %}">Volver a la entrevista</a>
         {% if "reports" in modules %}<a class="btn ghost" href="{% url 'progress:reports' %}">Exportar reporte</a>{% endif %}
       </div>

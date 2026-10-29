@@ -3,7 +3,10 @@
 {% block content %}
 <div class="page-head">
   <div><h1>Modelado de casos de uso</h1><p class="muted">Estructura casos de uso con una plantilla guiada y genera su diagrama UML con PlantUML.</p></div>
-  {% if can_model %}<a class="btn" href="{% url 'modeling:new' %}">+ Nuevo caso de uso</a>{% endif %}
+  {% if can_model %}<div class="btn-row">
+    <a class="btn" href="{% url 'modeling:lessons' %}">🎓 Lecciones guiadas</a>
+    <a class="btn secondary" href="{% url 'modeling:new' %}">+ Nuevo caso de uso</a>
+  </div>{% endif %}
 </div>
 {% if not can_model %}
 <div class="card"><p class="empty">🔒 Para modelar casos de uso primero completa al menos una entrevista en <a href="{% url 'interviews:scenarios' %}">Elicitación</a>.</p></div>

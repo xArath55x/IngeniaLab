@@ -13,4 +13,8 @@ urlpatterns = [
     path("api/validar/", views.api_validate, name="api_validate"),
     path("api/generar/", views.api_generate, name="api_generate"),
     path("api/guardar/", views.api_save, name="api_save"),
+    path("lecciones/", views.lesson_list, name="lessons"),
+    path("lecciones/<int:ref_id>/iniciar/", views.lesson_start, name="lesson_start"),
+    path("leccion/<uuid:lesson_id>/", views.lesson_view, name="lesson"),
+    path("api/leccion/<uuid:lesson_id>/responder/", views.api_lesson_answer, name="api_lesson_answer"),
 ]

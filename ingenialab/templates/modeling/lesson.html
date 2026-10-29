@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Lección · {{ lesson.reference.spec.name }}{% endblock %}
+{% block content %}
+<div class="lesson" id="lesson"
+     data-answer-url="{% url 'modeling:api_lesson_answer' lesson.id %}"
+     data-editor-url="{% url 'modeling:new' %}?leccion={{ lesson.id }}"
+     data-lessons-url="{% url 'modeling:lessons' %}?attempt={{ lesson.attempt_id }}">
+  <div class="lesson-top">
+    <a class="icon-btn" href="{% url 'modeling:lessons' %}?attempt={{ lesson.attempt_id }}" aria-label="Salir de la lección" title="Salir">✕</a>
+    <div class="bar lesson-bar" role="progressbar" aria-label="Avance de la lección"><span id="progress"></span></div>
+    <div class="lives" id="lives" aria-live="polite"></div>
+  </div>
+
+  <section class="card lesson-body" id="exercise" aria-live="polite">
+    <p class="small muted lesson-kicker" id="ex-title"></p>
+    <h1 class="lesson-prompt" id="ex-prompt"></h1>
+    <ul class="lesson-context" id="ex-context"></ul>
+    <div id="ex-area"></div>
+  </section>
+
+  <section class="card lesson-body lesson-finish" id="finish" hidden>
+    <div class="lesson-icon" id="finish-icon" aria-hidden="true"></div>
+    <h1 id="finish-title"></h1>
+    <p id="finish-text"></p>
+    <div class="btn-row" style="justify-content:center">
+      <a class="btn" id="finish-editor" href="#" hidden>Abrir en el editor</a>
+      <form method="post" action="{% url 'modeling:lesson_start' lesson.reference_id %}" id="finish-retry" hidden>{% csrf_token %}
+        <input type="hidden" name="attempt" value="{{ lesson.attempt_id }}"><button class="btn" type="submit">Intentar de nuevo</button>
+      </form>
+      <a class="btn ghost" id="finish-back" href="#">Volver a las lecciones</a>
+    </div>
+  </section>
+
+  <div class="lesson-footer" id="footer">
+    <div class="lesson-feedback" id="feedback" aria-live="assertive"></div>
+    <button class="btn" type="button" id="btn-check" disabled>Comprobar</button>
+  </div>
+</div>
+{{ state|json_script:"lesson-state" }}
+{% endblock %}
+{% block scripts %}<script src="{% static 'js/lessons.js' %}"></script>{% endblock %}
