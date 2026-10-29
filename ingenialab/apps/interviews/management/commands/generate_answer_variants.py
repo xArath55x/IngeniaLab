@@ -26,6 +26,8 @@ class Command(BaseCommand):
         parser.add_argument("--timeout", type=float, default=90, help="Segundos máximos por llamada al LLM")
         parser.add_argument("--revalidate", action="store_true",
                             help="Desactiva las variantes activas que ya no pasan la validación vigente antes de completar")
+        parser.add_argument("--quality", action="append", choices=["high", "medium", "low"],
+                            help="Calidad de pregunta a procesar (repetible); por defecto, todas")
         parser.add_argument("--no-judge", action="store_true",
                             help="Omite la revisión de relevancia con el LLM (más rápido, menos filtrado)")
 
@@ -44,7 +46,10 @@ class Command(BaseCommand):
         start = time.monotonic()
         for version in versions:
             self.stdout.write(self.style.MIGRATE_HEADING(f"{version} · {version.title}"))
-            for question in version.questions.order_by("round_number", "order"):
+            questions = version.questions.order_by("round_number", "order")
+            if opts["quality"]:
+                questions = questions.filter(quality__in=opts["quality"])
+            for question in questions:
                 if opts["revalidate"]:
                     totals["deactivated"] += self._revalidate(question)
                 self.irrelevant = 0

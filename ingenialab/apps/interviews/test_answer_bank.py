@@ -108,6 +108,13 @@ class AnswerBankTests(BaseCase):
         self.assertIn("(1 por no contestar la pregunta)", out.getvalue())
         self.assertEqual(AnswerVariant.objects.filter(version=self.version).count(), self.version.questions.count())
 
+    def test_quality_option_limits_questions(self):
+        with mock.patch("integrations.ai.dialogue._request", side_effect=fake_llm):
+            call_command("generate_answer_variants", scenario=["ESC-BIBLIOTECA-01"], per_question=1,
+                         quality=["high", "medium"], stdout=StringIO())
+        qualities = set(AnswerVariant.objects.filter(version=self.version).values_list("quality", flat=True))
+        self.assertEqual(qualities, {"high", "medium"})
+
     def test_no_judge_skips_relevance_review(self):
         with mock.patch("integrations.ai.dialogue._request", side_effect=fake_llm) as llm:
             call_command("generate_answer_variants", scenario=["ESC-BIBLIOTECA-01"], per_question=1, no_judge=True,
