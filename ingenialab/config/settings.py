@@ -115,10 +115,10 @@ if not DEBUG:
     SECURE_HSTS_SECONDS = 31536000
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
-# ACT-211A1: entrevistas, clasificación y modelado habilitados por defecto; los demás pueden
-# reactivarse con, p. ej., INGENIALAB_MODULES=interviews,classification,modeling,inspection,reports,progress
+# ACT-211A2: los seis módulos (CU-01 a CU-05 y tablero) están habilitados por defecto. Para limitar
+# una instalación, define p. ej. INGENIALAB_MODULES=interviews,classification,modeling
 ALL_MODULES = ["interviews", "classification", "modeling", "inspection", "reports", "progress"]
-INGENIALAB_MODULES = [m for m in os.environ.get("INGENIALAB_MODULES", "interviews,classification,modeling").split(",") if m]
+INGENIALAB_MODULES = [m for m in os.environ.get("INGENIALAB_MODULES", ",".join(ALL_MODULES)).split(",") if m]
 
 # SCI-05: integración PlantUML (SDS §3.2).
 PLANTUML_JAR = os.environ.get("PLANTUML_JAR", str(BASE_DIR / "vendor" / "plantuml.jar"))

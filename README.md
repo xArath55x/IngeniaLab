@@ -20,8 +20,8 @@ reciban retroalimentación inmediata.
 - **Inspección:** detección de defectos en especificaciones, con pistas y precisión.
 - **Progreso y reportes:** puntos, niveles, insignias y reporte descargable en PDF.
 
-> **Versión piloto:** solo el módulo de entrevistas está habilitado por defecto. Los demás se activan con la variable de
-> entorno `INGENIALAB_MODULES` (ver abajo).
+> **Módulos:** desde ACT-211A2 los seis módulos están habilitados por defecto. La variable de entorno
+> `INGENIALAB_MODULES` permite limitar una instalación (ver [ingenialab/README.md](ingenialab/README.md)).
 
 **Tecnologías:** Python 3.11+, Django 5.1, SQLite (desarrollo) / PostgreSQL (producción), PlantUML, ReportLab.
 

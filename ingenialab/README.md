@@ -29,7 +29,7 @@ Pruebas automatizadas (evidencia para VR-01):
 .venv/bin/python manage.py test apps integrations
 ```
 
-## Flujo del estudiante (piloto: entrevistas y modelado)
+## Flujo del estudiante
 
 Con ACT-207A están habilitados **entrevistas (CU-01)** y **modelado (CU-02)**. Para utilizar el formulario de modelado es necesario terminar al menos una entrevista:
 
@@ -40,11 +40,12 @@ Con ACT-207A están habilitados **entrevistas (CU-01)** y **modelado (CU-02)**. 
 4. Al final se muestra el puntaje (máx. 90), una calificación formativa y la explicación de cada elección,
    con la mejor opción de cada ronda.
 
-Los demás módulos (clasificación, inspección, reportes y tablero de progreso) siguen en el código y se
-reactivan con la variable de entorno:
+Desde ACT-211A2 los seis módulos (entrevistas, clasificación, modelado, inspección, reportes y tablero de
+progreso) están habilitados por defecto. Para limitar una instalación, define la variable de entorno con los
+módulos deseados, por ejemplo:
 
 ```bash
-INGENIALAB_MODULES=interviews,classification,modeling,inspection,reports,progress
+INGENIALAB_MODULES=interviews,classification,modeling
 ```
 
 ## Arquitectura (SDS §2)
@@ -190,3 +191,17 @@ y modelado están habilitados por defecto. Antes de ejecutar esta versión,
 aplica `manage.py migrate` para preservar las respuestas en snapshots de
 bitácora. La IA es opcional mediante Chat Completions compatible y conserva
 un fallback local al catálogo.
+
+## ACT-211A2 — Ensamble de inspección, PDF y tablero
+
+Inspección (CU-04), reporte PDF (CU-05) y tablero de progreso quedan habilitados por defecto junto con
+CU-01 a CU-03 y modelado; la navegación lateral enlaza los seis módulos. Todas las vistas filtran por el
+usuario autenticado: el tablero suma puntos de entrevistas, clasificación, casos de uso e inspecciones
+concluidas de esa cuenta, y el reporte PDF solo incluye sus actividades. Una variable
+`INGENIALAB_MODULES` ya definida en el entorno sigue teniendo prioridad. No hay migraciones nuevas.
+
+Pruebas específicas:
+
+```bash
+.venv/bin/python manage.py test apps.progress.test_integration
+```
