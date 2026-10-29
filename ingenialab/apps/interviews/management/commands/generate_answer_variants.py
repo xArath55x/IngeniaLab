@@ -70,8 +70,12 @@ class Command(BaseCommand):
             "Revísalas en el admin (Answer variants)."))
 
     def _relevant(self, question, text):
-        """True/False según el LLM; None si no se pudo revisar (red o veredicto ilegible)."""
-        if not self.judge:
+        """True/False según el LLM; None si no se pudo revisar (red o veredicto ilegible).
+
+        Las respuestas que llevan enunciados evaluables no se revisan: esos enunciados ya garantizan que
+        contestan el tema, y el revisor las rechazaba por no «describir todo el proceso» en la introducción.
+        """
+        if not self.judge or any(s.get("req") for s in question.answer_segments):
             return True
         try:
             ok, _reason = dialogue.judge_relevance(question.text, text, self.timeout)

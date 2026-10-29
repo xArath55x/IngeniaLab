@@ -89,9 +89,11 @@ class AnswerBankTests(BaseCase):
             call_command("generate_answer_variants", scenario=["ESC-BIBLIOTECA-01"], per_question=2, stdout=StringIO())
             questions = self.version.questions.count()
             self.assertEqual(len(generation_calls(llm)), questions * 2)
-            self.assertEqual(llm.call_count, questions * 4)  # cada variante pasa por la revisión de relevancia
+            # Solo las respuestas sin enunciados evaluables pasan por la revisión de relevancia.
+            vague = sum(not any(s.get("req") for s in q.answer_segments) for q in self.version.questions.all())
+            self.assertEqual(llm.call_count, questions * 2 + vague * 2)
             call_command("generate_answer_variants", scenario=["ESC-BIBLIOTECA-01"], per_question=2, stdout=StringIO())
-            self.assertEqual(llm.call_count, questions * 4)
+            self.assertEqual(llm.call_count, questions * 2 + vague * 2)
         self.assertEqual(AnswerVariant.objects.filter(version=self.version, is_active=True).count(), questions * 2)
         self.assertEqual(generation_calls(llm)[0].args[-1], 0.9)
 
@@ -114,6 +116,12 @@ class AnswerBankTests(BaseCase):
                          quality=["high", "medium"], stdout=StringIO())
         qualities = set(AnswerVariant.objects.filter(version=self.version).values_list("quality", flat=True))
         self.assertEqual(qualities, {"high", "medium"})
+
+    def test_answers_with_statements_skip_relevance_review(self):
+        with mock.patch("integrations.ai.dialogue._request", side_effect=fake_llm) as llm:
+            call_command("generate_answer_variants", scenario=["ESC-BIBLIOTECA-01"], per_question=1,
+                         quality=["high"], stdout=StringIO())
+        self.assertEqual(len(generation_calls(llm)), llm.call_count)
 
     def test_no_judge_skips_relevance_review(self):
         with mock.patch("integrations.ai.dialogue._request", side_effect=fake_llm) as llm:
