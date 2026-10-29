@@ -1,0 +1,442 @@
+{
+  "use_cases": [
+    {
+      "scenario": "ESC-BIBLIOTECA-01",
+      "version": "2.0",
+      "key": "UC-B1",
+      "requirements": ["B01", "B04"],
+      "spec": {
+        "name": "Registrar préstamo",
+        "system_name": "Sistema de Préstamos de la Biblioteca",
+        "primary_actors": ["Bibliotecario"],
+        "secondary_actors": [],
+        "preconditions": "El bibliotecario inició sesión en el sistema y el alumno presenta su credencial.",
+        "main_flow": [
+          "El bibliotecario captura la matrícula del alumno.",
+          "El sistema muestra los datos del alumno y sus préstamos activos.",
+          "El bibliotecario captura el código del libro.",
+          "El sistema verifica que el alumno tenga menos de tres libros prestados.",
+          "El sistema registra el préstamo con el alumno, el libro y la fecha de devolución.",
+          "El sistema muestra la fecha de devolución al bibliotecario."
+        ],
+        "alternate_flows": [
+          "FA-1 (paso 4): Si el alumno ya tiene tres libros prestados, el sistema rechaza el préstamo e indica que primero debe devolver uno."
+        ],
+        "postconditions": "El préstamo queda registrado con el alumno, el libro y su fecha de devolución.",
+        "relations": [{"type": "include", "target": "Verificar límite de préstamos"}]
+      },
+      "exercises": {
+        "name": {
+          "distractors": ["Sistema de préstamos", "Libreta de préstamos", "El bibliotecario presta libros"],
+          "explanation": "Un caso de uso se nombra con un verbo en infinitivo y un objeto que expresa la meta del actor: «Registrar préstamo». «Sistema de préstamos» es todo el sistema, «Libreta de préstamos» es un objeto y una oración completa no es un nombre."
+        },
+        "primary_actor": {
+          "distractors": ["Alumno", "Sistema de Préstamos de la Biblioteca", "Libro"],
+          "explanation": "El actor principal es quien usa el sistema para lograr la meta: el bibliotecario captura el préstamo en el mostrador (B01). El alumno presenta su credencial pero no opera el sistema, y ni el sistema ni el libro son actores."
+        },
+        "preconditions": {
+          "distractors": ["El préstamo queda registrado con su fecha de devolución.", "El alumno tiene menos de tres libros prestados."],
+          "explanation": "La precondición es lo que debe ser cierto antes de empezar. Que el préstamo quede registrado es el resultado (postcondición), y el límite de tres libros se verifica durante el flujo, no se supone de antemano."
+        },
+        "main_flow": {
+          "explanation": "El flujo alterna actor y sistema: el bibliotecario captura la matrícula, el sistema muestra sus préstamos, el bibliotecario captura el libro, el sistema verifica el límite (B04) y registra el préstamo con su fecha (B01)."
+        },
+        "alternate_flows": {
+          "distractors": [
+            "FA-1 (paso 1): Si el bibliotecario no inició sesión, el sistema registra el préstamo de todos modos.",
+            "FA-1 (paso 5): Si el libro es muy solicitado, el sistema cobra una multa al prestarlo."
+          ],
+          "explanation": "El flujo alterno sale de la regla B04: con tres libros prestados el sistema impide el préstamo. Las otras opciones contradicen la precondición o inventan una regla que la cliente no pidió."
+        },
+        "postconditions": {
+          "distractors": ["El alumno devolvió el libro a tiempo.", "El bibliotecario inició sesión en el sistema."],
+          "explanation": "La postcondición describe el estado al terminar con éxito: el préstamo registrado con su fecha (B01). La devolución es otro caso de uso y el inicio de sesión es una precondición."
+        },
+        "relations": {
+          "explanation": "«include»: verificar el límite de préstamos se ejecuta SIEMPRE como parte de registrar un préstamo, por eso se incluye."
+        }
+      }
+    },
+    {
+      "scenario": "ESC-BIBLIOTECA-01",
+      "version": "2.0",
+      "key": "UC-B2",
+      "requirements": ["B05"],
+      "spec": {
+        "name": "Registrar devolución",
+        "system_name": "Sistema de Préstamos de la Biblioteca",
+        "primary_actors": ["Bibliotecario"],
+        "secondary_actors": [],
+        "preconditions": "El bibliotecario inició sesión en el sistema y el alumno entrega un libro prestado.",
+        "main_flow": [
+          "El bibliotecario captura el código del libro devuelto.",
+          "El sistema muestra el préstamo y su fecha de devolución.",
+          "El bibliotecario confirma la devolución.",
+          "El sistema registra la fecha de entrega y marca el libro como disponible."
+        ],
+        "alternate_flows": [
+          "FA-1 (paso 4): Si la entrega es posterior a la fecha de devolución, el sistema calcula automáticamente la multa y la muestra al bibliotecario."
+        ],
+        "postconditions": "El libro queda disponible y, si hubo retraso, la multa queda registrada.",
+        "relations": [{"type": "extend", "target": "Calcular multa"}]
+      },
+      "exercises": {
+        "name": {
+          "distractors": ["Calcular multa", "Devoluciones de libros", "Multa por retraso"],
+          "explanation": "La meta del bibliotecario es registrar que el libro regresó: «Registrar devolución». «Calcular multa» es otro caso de uso que solo ocurre cuando hay retraso, y «Devoluciones de libros» o «Multa por retraso» no tienen verbo."
+        },
+        "primary_actor": {
+          "distractors": ["Alumno", "Servicio de correo", "Multa"],
+          "explanation": "Quien opera el sistema en el mostrador es el bibliotecario. El servicio de correo participa en los recordatorios (B06), no en la devolución, y la multa es un dato, no un actor."
+        },
+        "preconditions": {
+          "distractors": ["El sistema ya calculó la multa del alumno.", "El libro está disponible en el catálogo."],
+          "explanation": "Antes de empezar, el bibliotecario debe haber iniciado sesión y tener el libro en la mano. La multa se calcula durante el caso de uso y la disponibilidad es el resultado al terminar."
+        },
+        "main_flow": {
+          "explanation": "El bibliotecario captura el libro, el sistema muestra el préstamo, el bibliotecario confirma y el sistema registra la entrega y libera el libro."
+        },
+        "alternate_flows": {
+          "distractors": [
+            "FA-1 (paso 1): Si el alumno tiene tres libros prestados, el sistema rechaza la devolución.",
+            "FA-1 (paso 4): Si el libro se devuelve a tiempo, el sistema cobra una multa reducida."
+          ],
+          "explanation": "La regla B05 indica que la multa se calcula automáticamente cuando la devolución es tardía. El límite de tres libros aplica a los préstamos, no a las devoluciones, y una entrega a tiempo no genera multa."
+        },
+        "postconditions": {
+          "distractors": ["El alumno pidió un nuevo préstamo.", "El sistema envió un recordatorio dos días antes."],
+          "explanation": "Al terminar, el libro vuelve a estar disponible y, si hubo retraso, la multa queda registrada. Un nuevo préstamo o el recordatorio (B06) pertenecen a otros casos de uso."
+        },
+        "relations": {
+          "explanation": "«extend»: calcular la multa es comportamiento opcional que solo se agrega cuando la devolución es tardía, por eso extiende a «Registrar devolución»."
+        }
+      }
+    },
+    {
+      "scenario": "ESC-BIBLIOTECA-01",
+      "version": "2.0",
+      "key": "UC-B3",
+      "requirements": ["B02"],
+      "spec": {
+        "name": "Consultar catálogo",
+        "system_name": "Sistema de Préstamos de la Biblioteca",
+        "primary_actors": ["Alumno"],
+        "secondary_actors": [],
+        "preconditions": "El alumno abrió el catálogo en línea desde un navegador.",
+        "main_flow": [
+          "El alumno escribe el título, el autor o el tema del libro.",
+          "El sistema muestra los libros que coinciden con la búsqueda.",
+          "El alumno selecciona un libro.",
+          "El sistema muestra los datos del libro e indica si está disponible."
+        ],
+        "alternate_flows": [
+          "FA-1 (paso 2): Si ningún libro coincide, el sistema informa que no hay resultados y sugiere intentar otra búsqueda."
+        ],
+        "postconditions": "El alumno sabe si el libro que busca está disponible.",
+        "relations": []
+      },
+      "exercises": {
+        "name": {
+          "distractors": ["Catálogo en línea", "Responder en menos de dos segundos", "Base de datos de libros"],
+          "explanation": "El alumno quiere consultar el catálogo (B02). «Responder en menos de dos segundos» es un requisito no funcional (B07): una cualidad que debe cumplir el caso de uso, no un caso de uso. Los otros dos son objetos sin verbo."
+        },
+        "primary_actor": {
+          "distractors": ["Bibliotecario", "Navegador del teléfono", "Coordinadora de la biblioteca"],
+          "explanation": "Quien consulta el catálogo es el alumno (B02). El navegador es el medio desde el que accede (B11), no un actor, y el personal de la biblioteca no inicia esta consulta."
+        },
+        "preconditions": {
+          "distractors": ["El alumno sabe que el libro está disponible.", "El alumno ya tiene tres libros prestados."],
+          "explanation": "Antes de empezar, el alumno solo necesita tener abierto el catálogo. Saber si el libro está disponible es el resultado, y el número de préstamos no tiene relación con consultar."
+        },
+        "main_flow": {
+          "explanation": "El alumno busca, el sistema muestra coincidencias, el alumno elige un libro y el sistema muestra si está disponible (B02)."
+        },
+        "alternate_flows": {
+          "distractors": [
+            "FA-1 (paso 1): Si el alumno no es hábil con la computadora, el sistema le bloquea la búsqueda.",
+            "FA-1 (paso 2): Si hay más de 200 usuarios conectados, el sistema deja de responder."
+          ],
+          "explanation": "Un flujo alterno describe qué pasa si la búsqueda no encuentra resultados. Las otras opciones contradicen los requisitos no funcionales: el sistema debe ser fácil de aprender (B03) y responder aun con 200 usuarios (B07)."
+        },
+        "postconditions": {
+          "distractors": ["El libro quedó prestado al alumno.", "El alumno abrió el catálogo en línea."],
+          "explanation": "Al terminar, el alumno conoce la disponibilidad del libro. Consultar no presta el libro, y abrir el catálogo es la precondición."
+        }
+      }
+    },
+    {
+      "scenario": "ESC-BIBLIOTECA-01",
+      "version": "2.0",
+      "key": "UC-B4",
+      "requirements": ["B10"],
+      "spec": {
+        "name": "Generar reporte mensual",
+        "system_name": "Sistema de Préstamos de la Biblioteca",
+        "primary_actors": ["Coordinadora de la biblioteca"],
+        "secondary_actors": [],
+        "preconditions": "La coordinadora inició sesión en el sistema.",
+        "main_flow": [
+          "La coordinadora elige generar el reporte mensual.",
+          "El sistema solicita el mes del reporte.",
+          "La coordinadora selecciona el mes.",
+          "El sistema genera el reporte de los libros más prestados del mes.",
+          "La coordinadora descarga el reporte."
+        ],
+        "alternate_flows": [
+          "FA-1 (paso 4): Si no hubo préstamos en el mes seleccionado, el sistema informa que no hay datos para el reporte."
+        ],
+        "postconditions": "La coordinadora obtiene el reporte de los libros más prestados del mes.",
+        "relations": []
+      },
+      "exercises": {
+        "name": {
+          "distractors": ["Reporte", "Libros más prestados", "Estadísticas de la dirección"],
+          "explanation": "El caso de uso expresa la acción: «Generar reporte mensual» (B10). Las demás opciones son objetos o temas sin verbo."
+        },
+        "primary_actor": {
+          "distractors": ["Dirección de la Facultad", "Alumno", "Reporte mensual"],
+          "explanation": "La coordinadora genera el reporte que le pide la dirección. La dirección recibe el reporte pero no usa el sistema, y el reporte es el resultado, no un actor."
+        },
+        "preconditions": {
+          "distractors": ["La coordinadora descargó el reporte del mes.", "Existe un reporte del mes anterior."],
+          "explanation": "Para empezar basta con que la coordinadora haya iniciado sesión. Descargar el reporte es el final del flujo y no se requiere un reporte previo."
+        },
+        "main_flow": {
+          "explanation": "La coordinadora pide el reporte, el sistema solicita el mes, la coordinadora lo elige, el sistema genera el reporte (B10) y la coordinadora lo descarga."
+        },
+        "alternate_flows": {
+          "distractors": [
+            "FA-1 (paso 4): Si la coordinadora no es hábil con la computadora, el sistema envía el reporte a la dirección.",
+            "FA-1 (paso 2): Si es fin de mes, el sistema borra los préstamos registrados."
+          ],
+          "explanation": "El caso alterno razonable es que no haya datos en el mes elegido. Las otras opciones inventan comportamientos que nadie pidió y que incluso dañarían la información."
+        },
+        "postconditions": {
+          "distractors": ["La coordinadora inició sesión en el sistema.", "Todos los libros fueron devueltos."],
+          "explanation": "Al terminar, la coordinadora tiene el reporte de los libros más prestados. El inicio de sesión es la precondición y las devoluciones no dependen de este caso de uso."
+        }
+      }
+    },
+    {
+      "scenario": "ESC-CAFETERIA-01",
+      "version": "2.0",
+      "key": "UC-C1",
+      "requirements": ["C01", "C04"],
+      "spec": {
+        "name": "Hacer pedido",
+        "system_name": "App de Pedidos de la Cafetería",
+        "primary_actors": ["Estudiante"],
+        "secondary_actors": ["Servicio de pagos"],
+        "preconditions": "El estudiante inició sesión en la aplicación.",
+        "main_flow": [
+          "El estudiante consulta el menú del día.",
+          "El sistema muestra los platillos con su precio y disponibilidad.",
+          "El estudiante elige los platillos y confirma el pedido.",
+          "El sistema cobra el pedido con tarjeta de débito o crédito.",
+          "El sistema confirma el pedido y muestra su número."
+        ],
+        "alternate_flows": [
+          "FA-1 (paso 4): Si el servicio de pagos rechaza la tarjeta, el sistema informa el motivo y permite usar otra tarjeta."
+        ],
+        "postconditions": "El pedido queda pagado y registrado para su preparación.",
+        "relations": [{"type": "include", "target": "Pagar con tarjeta"}]
+      },
+      "exercises": {
+        "name": {
+          "distractors": ["Menú del día", "Pagar con tarjeta", "Pedido desde la aplicación"],
+          "explanation": "La meta del estudiante es «Hacer pedido» (C01). «Pagar con tarjeta» es parte de ese caso de uso (se incluye), y las otras opciones no tienen verbo."
+        },
+        "primary_actor": {
+          "distractors": ["Encargado de la cafetería", "Servicio de pagos", "Platillo"],
+          "explanation": "Quien inicia el pedido desde la aplicación es el estudiante (C01). El servicio de pagos participa como actor secundario y el platillo es un dato."
+        },
+        "secondary_actors": {
+          "distractors": ["Encargado de la cafetería", "Menú del día", "Tarjeta de crédito"],
+          "explanation": "El servicio de pagos es un sistema externo que participa al cobrar (C04). El encargado no interviene al hacer el pedido, y el menú y la tarjeta son datos, no actores."
+        },
+        "preconditions": {
+          "distractors": ["El pedido quedó pagado.", "Todos los platillos del menú están agotados."],
+          "explanation": "Antes de pedir, el estudiante solo necesita haber iniciado sesión. El pago es el resultado y un menú agotado impediría el caso de uso."
+        },
+        "main_flow": {
+          "explanation": "El estudiante consulta el menú, el sistema lo muestra, el estudiante elige y confirma (C01), el sistema cobra con tarjeta (C04) y confirma el pedido."
+        },
+        "alternate_flows": {
+          "distractors": [
+            "FA-1 (paso 4): Si el pago es aprobado, el sistema guarda el número completo de la tarjeta para la próxima vez.",
+            "FA-1 (paso 3): Si el estudiante tarda en elegir, el sistema cancela todos los pedidos del día."
+          ],
+          "explanation": "Un rechazo de la tarjeta es la excepción natural al pagar. Guardar el número completo de la tarjeta viola el requisito no funcional C05, y cancelar todos los pedidos es una regla inventada."
+        },
+        "postconditions": {
+          "distractors": ["El estudiante recogió su pedido.", "El estudiante inició sesión en la aplicación."],
+          "explanation": "Al terminar, el pedido está pagado y listo para prepararse. Recogerlo ocurre después, en otro momento, y el inicio de sesión es la precondición."
+        },
+        "relations": {
+          "explanation": "«include»: el pago con tarjeta SIEMPRE ocurre al confirmar el pedido (C04), por eso «Hacer pedido» lo incluye."
+        }
+      }
+    },
+    {
+      "scenario": "ESC-CAFETERIA-01",
+      "version": "2.0",
+      "key": "UC-C2",
+      "requirements": ["C02", "C03"],
+      "spec": {
+        "name": "Actualizar menú del día",
+        "system_name": "App de Pedidos de la Cafetería",
+        "primary_actors": ["Encargado de la cafetería"],
+        "secondary_actors": [],
+        "preconditions": "El encargado inició sesión con su cuenta de administración.",
+        "main_flow": [
+          "El encargado abre la administración del menú.",
+          "El sistema muestra los platillos registrados.",
+          "El encargado agrega un platillo nuevo o modifica uno existente.",
+          "El sistema guarda los cambios y actualiza el menú para los estudiantes."
+        ],
+        "alternate_flows": [
+          "FA-1 (paso 3): Si un platillo se agota, el encargado lo marca como agotado y el sistema lo muestra como no disponible."
+        ],
+        "postconditions": "El menú publicado refleja los platillos del día y su disponibilidad.",
+        "relations": []
+      },
+      "exercises": {
+        "name": {
+          "distractors": ["Menú del día", "Platillos agotados", "Encargado del menú"],
+          "explanation": "La meta del encargado es «Actualizar menú del día» (C02). Las demás opciones son objetos o personas, no acciones."
+        },
+        "primary_actor": {
+          "distractors": ["Estudiante", "Servicio de pagos", "Platillo"],
+          "explanation": "El encargado da de alta y modifica los platillos (C02). El estudiante solo ve el menú y el servicio de pagos no participa aquí."
+        },
+        "preconditions": {
+          "distractors": ["El menú publicado ya tiene los platillos del día.", "El estudiante confirmó su pedido."],
+          "explanation": "Para empezar, el encargado debe haber entrado con su cuenta. El menú actualizado es el resultado y los pedidos pertenecen a otro caso de uso."
+        },
+        "main_flow": {
+          "explanation": "El encargado abre la administración, el sistema muestra los platillos, el encargado agrega o modifica (C02) y el sistema publica el menú actualizado."
+        },
+        "alternate_flows": {
+          "distractors": [
+            "FA-1 (paso 3): Si un platillo se agota, el sistema lo elimina del historial de ventas.",
+            "FA-1 (paso 4): Si el encargado modifica un precio, el sistema cancela los pedidos pagados."
+          ],
+          "explanation": "La regla C03 dice que los platillos agotados se muestran como no disponibles. Borrar ventas o cancelar pedidos pagados son efectos que nadie pidió."
+        },
+        "postconditions": {
+          "distractors": ["El estudiante recibió su pedido.", "El encargado inició sesión con su cuenta."],
+          "explanation": "Al terminar, el menú publicado muestra los platillos y cuáles están disponibles. Lo demás pertenece a otros casos de uso o a la precondición."
+        }
+      }
+    },
+    {
+      "scenario": "ESC-CAFETERIA-01",
+      "version": "2.0",
+      "key": "UC-C3",
+      "requirements": ["C11"],
+      "spec": {
+        "name": "Cancelar pedido",
+        "system_name": "App de Pedidos de la Cafetería",
+        "primary_actors": ["Estudiante"],
+        "secondary_actors": [],
+        "preconditions": "El estudiante tiene un pedido confirmado en la aplicación.",
+        "main_flow": [
+          "El estudiante abre sus pedidos activos.",
+          "El sistema muestra los pedidos y su estado.",
+          "El estudiante selecciona el pedido y elige cancelarlo.",
+          "El sistema verifica que el pedido no se haya empezado a preparar.",
+          "El sistema cancela el pedido y muestra la confirmación."
+        ],
+        "alternate_flows": [
+          "FA-1 (paso 4): Si el pedido ya se empezó a preparar, el sistema rechaza la cancelación e informa el motivo."
+        ],
+        "postconditions": "El pedido queda cancelado y no se prepara.",
+        "relations": []
+      },
+      "exercises": {
+        "name": {
+          "distractors": ["Pedido cancelado", "Hacer pedido", "Botón de cancelar"],
+          "explanation": "La meta es «Cancelar pedido» (C11). «Pedido cancelado» es el resultado, «Hacer pedido» es otro caso de uso y un botón es un elemento de la interfaz."
+        },
+        "primary_actor": {
+          "distractors": ["Encargado de la cafetería", "Pedido", "Aplicación"],
+          "explanation": "Quien cancela es el estudiante (C11). El encargado no inicia la cancelación, el pedido es un dato y la aplicación es el sistema."
+        },
+        "preconditions": {
+          "distractors": ["El pedido ya está cancelado.", "El pedido ya se empezó a preparar."],
+          "explanation": "Para cancelar debe existir un pedido confirmado. Si ya se empezó a preparar, la cancelación no procede: eso es el flujo alterno, no la precondición."
+        },
+        "main_flow": {
+          "explanation": "El estudiante abre sus pedidos, el sistema los muestra, el estudiante elige cancelar, el sistema verifica que no se esté preparando (C11) y cancela."
+        },
+        "alternate_flows": {
+          "distractors": [
+            "FA-1 (paso 4): Si el pedido ya se está preparando, el sistema lo cancela de todos modos.",
+            "FA-1 (paso 3): Si el estudiante tiene clase, el sistema cancela el pedido automáticamente."
+          ],
+          "explanation": "La regla C11 permite cancelar solo mientras no se haya empezado a preparar; por eso el sistema rechaza la cancelación en ese caso."
+        },
+        "postconditions": {
+          "distractors": ["El estudiante recogió su pedido.", "El estudiante tiene un pedido confirmado."],
+          "explanation": "Al terminar, el pedido está cancelado y no se prepara. Tener un pedido confirmado es la precondición."
+        }
+      }
+    },
+    {
+      "scenario": "ESC-CAFETERIA-01",
+      "version": "2.0",
+      "key": "UC-C4",
+      "requirements": ["C06"],
+      "spec": {
+        "name": "Marcar pedido como listo",
+        "system_name": "App de Pedidos de la Cafetería",
+        "primary_actors": ["Encargado de la cafetería"],
+        "secondary_actors": ["Servicio de notificaciones"],
+        "preconditions": "El encargado inició sesión y hay pedidos en preparación.",
+        "main_flow": [
+          "El encargado consulta los pedidos en preparación.",
+          "El sistema muestra los pedidos en orden de llegada.",
+          "El encargado marca un pedido como listo.",
+          "El sistema notifica al estudiante que su pedido está listo para recoger."
+        ],
+        "alternate_flows": [
+          "FA-1 (paso 4): Si la notificación no se puede enviar, el sistema muestra el pedido como listo dentro de la aplicación del estudiante."
+        ],
+        "postconditions": "El estudiante sabe que su pedido está listo para recoger.",
+        "relations": []
+      },
+      "exercises": {
+        "name": {
+          "distractors": ["Notificación", "Pedido listo", "Gritar el nombre del estudiante"],
+          "explanation": "La meta del encargado es «Marcar pedido como listo» y, con eso, avisar al estudiante (C06). «Gritar el nombre» es justo el problema actual que el sistema reemplaza."
+        },
+        "primary_actor": {
+          "distractors": ["Estudiante", "Servicio de notificaciones", "Pedido"],
+          "explanation": "El encargado inicia el caso de uso al marcar el pedido. El estudiante recibe el aviso, el servicio de notificaciones apoya como actor secundario y el pedido es un dato."
+        },
+        "secondary_actors": {
+          "distractors": ["Servicio de pagos", "Menú del día", "Platillo"],
+          "explanation": "El servicio de notificaciones es el sistema externo que envía el aviso (C06). El servicio de pagos no participa aquí, y el menú y el platillo son datos."
+        },
+        "preconditions": {
+          "distractors": ["El estudiante ya recogió su pedido.", "El estudiante canceló su pedido."],
+          "explanation": "Para marcar un pedido como listo deben existir pedidos en preparación. Recogerlo ocurre después, y un pedido cancelado ya no se prepara."
+        },
+        "main_flow": {
+          "explanation": "El encargado consulta los pedidos, el sistema los muestra, el encargado marca uno como listo y el sistema notifica al estudiante (C06)."
+        },
+        "alternate_flows": {
+          "distractors": [
+            "FA-1 (paso 4): Si la notificación falla, el sistema cancela el pedido y cobra una multa.",
+            "FA-1 (paso 3): Si el pedido está listo, el sistema pide al estudiante pagar otra vez."
+          ],
+          "explanation": "Si el aviso no llega, lo razonable es mostrar el estado dentro de la aplicación. Cancelar, multar o volver a cobrar son reglas inventadas."
+        },
+        "postconditions": {
+          "distractors": ["El estudiante pagó su pedido.", "Hay pedidos en preparación."],
+          "explanation": "Al terminar, el estudiante sabe que puede recoger su pedido. El pago ocurrió al hacer el pedido y los pedidos en preparación son la precondición."
+        }
+      }
+    }
+  ]
+}

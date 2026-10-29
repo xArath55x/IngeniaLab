@@ -1,4 +1,5 @@
-"""Carga idempotente de escenarios (data/interviews.json) e inspecciones (data/inspections.json)."""
+"""Carga idempotente de escenarios (data/interviews.json), inspecciones (data/inspections.json) y casos de
+uso de referencia para las lecciones de CU-02 (data/usecases.json)."""
 import json
 
 from django.conf import settings
@@ -7,6 +8,8 @@ from django.db import transaction
 
 from apps.inspection.models import InspectionExercise, InspectionFragment
 from apps.interviews.models import InterviewQuestion, MasterRequirement, ScenarioVersion
+from apps.modeling.forms import UseCaseForm
+from apps.modeling.models import ReferenceUseCase
 
 
 class Command(BaseCommand):
@@ -15,6 +18,7 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument("--interviews", default=str(settings.BASE_DIR / "data" / "interviews.json"))
         parser.add_argument("--inspections", default=str(settings.BASE_DIR / "data" / "inspections.json"))
+        parser.add_argument("--usecases", default=str(settings.BASE_DIR / "data" / "usecases.json"))
 
     @transaction.atomic
     def handle(self, *args, **opts):
@@ -22,6 +26,8 @@ class Command(BaseCommand):
             scenarios = json.load(fh)["scenarios"]
         with open(opts["inspections"], encoding="utf-8") as fh:
             inspections = json.load(fh)["inspections"]
+        with open(opts["usecases"], encoding="utf-8") as fh:
+            use_cases = json.load(fh)["use_cases"]
 
         for sc in scenarios:
             version, created = ScenarioVersion.objects.update_or_create(
@@ -70,3 +76,40 @@ class Command(BaseCommand):
                     defect_type=fr["defect"], explanation=fr["explanation"], hint=fr.get("hint", ""),
                 )
             self.stdout.write(self.style.SUCCESS(f"Inspección {exercise.code}: {exercise.defect_count} defectos"))
+
+        for order, uc in enumerate(use_cases):
+            version = ScenarioVersion.objects.filter(scenario_code=uc["scenario"], version_number=uc["version"]).first()
+            if version is None:
+                raise ValueError(f"{uc['key']}: no existe el escenario {uc['scenario']} v{uc['version']}")
+            _check_use_case(uc, version)
+            # Las lecciones guardan copia de sus ejercicios, así que actualizar la referencia no las altera.
+            ReferenceUseCase.objects.update_or_create(version=version, key=uc["key"], defaults={
+                "order": order, "requirement_keys": uc["requirements"], "spec": uc["spec"], "exercises": uc["exercises"],
+            })
+            self.stdout.write(self.style.SUCCESS(f"Caso de uso {uc['key']} ({version.scenario_code}): {uc['spec']['name']}"))
+
+
+def _check_use_case(uc, version):
+    """Contenido coherente: requisitos RF existentes, especificación válida para el editor y ejercicios completos."""
+    key, spec, exercises = uc["key"], uc["spec"], uc["exercises"]
+    types = dict(version.requirements.filter(key__in=uc["requirements"]).values_list("key", "expected_type"))
+    for req in uc["requirements"]:
+        if types.get(req) != MasterRequirement.RF:
+            raise ValueError(f"{key}: {req} debe ser un requisito funcional de {version.scenario_code}")
+    form = UseCaseForm(data=spec)
+    if not form.is_valid():
+        raise ValueError(f"{key}: la especificación no pasa el editor: {form.error_messages()}")
+    needed = {"name", "primary_actor", "preconditions", "main_flow", "postconditions"}
+    needed |= {"secondary_actors"} if spec["secondary_actors"] else set()
+    needed |= {"alternate_flows"} if spec["alternate_flows"] else set()
+    needed |= {"relations"} if spec["relations"] else set()
+    if needed - set(exercises):
+        raise ValueError(f"{key}: faltan ejercicios {sorted(needed - set(exercises))}")
+    correct = {"name": [spec["name"]], "primary_actor": spec["primary_actors"][:1],
+               "secondary_actors": spec["secondary_actors"], "preconditions": [spec["preconditions"]],
+               "alternate_flows": spec["alternate_flows"][:1], "postconditions": [spec["postconditions"]]}
+    for name, answers in correct.items():
+        distractors = exercises.get(name, {}).get("distractors", [])
+        if name in needed and (len(distractors) < 2 or set(distractors) & set(answers)):
+            raise ValueError(f"{key}: {name} necesita al menos 2 opciones incorrectas distintas de la respuesta")
+

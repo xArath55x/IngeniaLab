@@ -3,7 +3,7 @@ import uuid
 from django.conf import settings
 from django.db import models
 
-from apps.interviews.models import StudentAttempt
+from apps.interviews.models import ScenarioVersion, StudentAttempt
 
 
 class UseCaseSpecification(models.Model):
@@ -57,3 +57,56 @@ class GeneratedDiagram(models.Model):
     svg = models.TextField()
     engine = models.CharField(max_length=20)
     generated_at = models.DateTimeField(auto_now=True)
+
+
+class ReferenceUseCase(models.Model):
+    """Caso de uso de referencia de un escenario (data/usecases.json) para las lecciones guiadas de CU-02.
+
+    requirement_keys enlaza con los requisitos (MasterRequirement.key) que el estudiante debe descubrir
+    y clasificar como RF para desbloquear la lección. spec tiene el formato de UseCaseForm.
+    """
+
+    version = models.ForeignKey(ScenarioVersion, on_delete=models.CASCADE, related_name="reference_use_cases")
+    key = models.CharField(max_length=20)
+    order = models.PositiveIntegerField(default=0)
+    requirement_keys = models.JSONField()
+    spec = models.JSONField()
+    # Opciones incorrectas y explicación de cada ejercicio de la lección.
+    exercises = models.JSONField()
+
+    class Meta:
+        db_table = "reference_use_cases"
+        ordering = ["version", "order"]
+        unique_together = ("version", "key")
+
+    def __str__(self):
+        return f"{self.key} · {self.spec['name']}"
+
+
+class UseCaseLesson(models.Model):
+    """Lección tipo Duolingo que construye un caso de uso de referencia ejercicio por ejercicio.
+
+    exercises es una copia con las respuestas (solo servidor); queue lleva los ids pendientes y los
+    ejercicios fallados se repiten al final. Con 0 vidas la lección falla y se reinicia desde cero.
+    """
+
+    IN_PROGRESS, COMPLETED, FAILED = "in_progress", "completed", "failed"
+    STATUSES = [(IN_PROGRESS, "En curso"), (COMPLETED, "Completada"), (FAILED, "Sin vidas")]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="lessons")
+    attempt = models.ForeignKey(StudentAttempt, on_delete=models.CASCADE, related_name="lessons")
+    reference = models.ForeignKey(ReferenceUseCase, on_delete=models.CASCADE, related_name="lessons")
+    exercises = models.JSONField()
+    queue = models.JSONField()
+    solved = models.JSONField(default=list)
+    lives = models.PositiveSmallIntegerField(default=3)
+    mistakes = models.PositiveIntegerField(default=0)
+    status = models.CharField(max_length=12, choices=STATUSES, default=IN_PROGRESS)
+    xp = models.PositiveIntegerField(default=0)
+    started_at = models.DateTimeField(auto_now_add=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "usecase_lessons"
+        ordering = ["-started_at"]
