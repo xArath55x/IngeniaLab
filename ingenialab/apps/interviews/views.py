@@ -1,4 +1,5 @@
 from django.conf import settings
+from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
@@ -34,6 +35,19 @@ def start_attempt(request, version_id):
     version = get_object_or_404(ScenarioVersion, id=version_id, is_active=True)
     attempt = StudentAttempt.objects.create(user=request.user, version=version)
     return redirect("interviews:interview", attempt_id=attempt.id)
+
+
+@login_required
+@require_POST
+def discard_attempt(request, attempt_id):
+    attempt = _own_attempt(request, attempt_id)
+    try:
+        services.discard_interview(attempt)
+    except services.InterviewError as e:
+        messages.error(request, str(e))
+    else:
+        messages.success(request, f"Se descartó la entrevista de «{attempt.version.title}».")
+    return redirect("progress:dashboard")
 
 
 @login_required

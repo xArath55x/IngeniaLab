@@ -162,7 +162,8 @@
           if (parseError || !data || typeof data !== "object" || Array.isArray(data) || typeof data.ok !== "boolean") {
             resolve({ ok: false, status: res.status, error: "invalid_response", message: "El servidor devolvió una respuesta no válida. Tus datos en pantalla se conservan." }); return;
           }
-          resolve({ ...data, ok: res.status >= 200 && res.status < 300 && data.ok, status: res.status });
+          // Conserva el «status» propio de la respuesta (p. ej. «correct» en inspección); el HTTP va en http_status.
+          resolve({ ...data, ok: res.status >= 200 && res.status < 300 && data.ok, http_status: res.status, status: data.status ?? res.status });
         } catch (error) {
           showNetBanner(error.name === "AbortError"
             ? "El servidor tardó demasiado. El resultado puede haberse guardado; reintenta la misma operación para comprobarlo."

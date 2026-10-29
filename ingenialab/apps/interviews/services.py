@@ -212,6 +212,13 @@ def finish_interview(attempt: StudentAttempt, confirm_pending: bool) -> dict:
 
 
 @transaction.atomic
+def discard_interview(attempt: StudentAttempt):
+    """Elimina una entrevista en curso que el estudiante abandonó; las concluidas se conservan."""
+    if attempt.status != StudentAttempt.INTERVIEWING:
+        raise InterviewError("Solo puede descartarse una entrevista en curso.")
+    attempt.delete()
+
+
 def reset_interview(attempt: StudentAttempt):
     """Vacía la conversación y vuelve a la primera ronda (CU-01 FA-1)."""
     if attempt.status != StudentAttempt.INTERVIEWING:

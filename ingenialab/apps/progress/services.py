@@ -3,7 +3,7 @@
 Los puntos se derivan siempre del estado guardado de cada práctica, por lo que
 reclasificar o reintentar nunca duplica puntaje.
 """
-from django.db.models import Sum
+from django.db.models import Count, Max, Sum
 
 from .models import UserBadge
 
@@ -25,14 +25,50 @@ BADGES = {
     "auditor": ("🔍", "Ojo de auditor", "Encontraste todos los defectos de una inspección."),
     "no_hints": ("💡", "Sin ayuda", "Concluiste una inspección sin solicitar pistas."),
     "reporter": ("📄", "Documentador", "Exportaste tu primer reporte técnico en PDF."),
+    "guided": ("🎓", "Modelador guiado", "Completaste una lección guiada de casos de uso sin perder vidas."),
 }
 
 
 def total_points(user):
     attempts = user.attempts.aggregate(i=Sum("interview_score"), c=Sum("classification_score"))
     inspections = user.inspections.filter(concluded_at__isnull=False).aggregate(s=Sum("score"))
+    # Lecciones de casos de uso: cuenta el mejor XP de cada caso de uso, así repetir no acumula puntos.
+    lessons = user.lessons.filter(status="completed").values("reference").annotate(best=Max("xp"))
     return ((attempts["i"] or 0) + (attempts["c"] or 0) + (inspections["s"] or 0)
-            + user.use_cases.count() * USE_CASE_POINTS)
+            + user.use_cases.count() * USE_CASE_POINTS + sum(row["best"] for row in lessons))
+
+
+def open_interviews(user):
+    """Entrevistas en curso agrupadas por escenario: la más reciente visible y las demás aparte."""
+    from apps.interviews.models import StudentAttempt
+    from apps.interviews.services import rounds
+
+    attempts = (user.attempts.filter(status=StudentAttempt.INTERVIEWING).select_related("version")
+                .annotate(asked=Count("log_entries")).order_by("-started_at"))
+    groups, totals = {}, {}
+    for a in attempts:  # ordenadas de la más reciente a la más antigua
+        if a.version_id not in totals:
+            totals[a.version_id] = len(rounds(a.version))
+        a.total_rounds = totals[a.version_id]
+        groups.setdefault(a.version_id, []).append(a)
+    return [{"latest": g[0], "older": g[1:]} for g in groups.values()]
+
+
+def lesson_summary(user):
+    """Lecciones guiadas en curso (una por caso de uso) y cuántos casos de uso ya se completaron."""
+    from apps.modeling.models import ReferenceUseCase, UseCaseLesson
+
+    active = {"reference__version__is_active": True}
+    in_progress, seen = [], set()
+    for lesson in (user.lessons.filter(status=UseCaseLesson.IN_PROGRESS, **active)
+                   .select_related("reference", "attempt__version")):
+        if lesson.reference_id not in seen:
+            seen.add(lesson.reference_id)
+            in_progress.append(lesson)
+    completed = (user.lessons.filter(status=UseCaseLesson.COMPLETED, **active)
+                 .values("reference").distinct().count())
+    total = ReferenceUseCase.objects.filter(version__is_active=True).count()
+    return {"in_progress": in_progress, "completed": completed, "total": total}
 
 
 def level_for(points):
@@ -69,6 +105,9 @@ def _earned_codes(user):
             codes.add("no_hints")
     if user.reports.exists():
         codes.add("reporter")
+    from apps.modeling.lessons import LIVES
+    if user.lessons.filter(status="completed", lives=LIVES).exists():
+        codes.add("guided")
     return codes
 
 

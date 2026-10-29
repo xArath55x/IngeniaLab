@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Lecciones de casos de uso{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <p class="small muted" style="margin:0"><a href="{% url 'modeling:list' %}">Modelado</a> / Lecciones</p>
+    <h1>Lecciones de casos de uso</h1>
+    <p class="muted" style="margin:0">Construye cada caso de uso paso a paso con los requisitos que descubriste y clasificaste.</p>
+  </div>
+  {% if attempts|length > 1 %}
+  <form method="get" class="field" style="margin:0">
+    <label for="attempt">Entrevista</label>
+    <select id="attempt" name="attempt" onchange="this.form.submit()">
+      {% for a in attempts %}<option value="{{ a.id }}" {% if a.id == selected.id %}selected{% endif %}>{{ a.version.title }} ({{ a.started_at|date:"d/m/Y" }})</option>{% endfor %}
+    </select>
+  </form>
+  {% endif %}
+</div>
+
+<div class="instructions">
+  Cada lección tiene ejercicios cortos: nombre, actores, precondición, flujo, excepciones, postcondición y relaciones.
+  Tienes <b>{{ lives }} vidas</b> ❤️ por lección; los ejercicios que falles se repiten al final. Al terminar, abre el caso
+  de uso en el editor para generar su diagrama UML y guardarlo.
+</div>
+
+<div class="lesson-grid">
+  {% for c in cards %}
+  <article class="card lesson-card {% if not c.unlocked %}locked{% endif %}">
+    <div class="lesson-icon" aria-hidden="true">{% if c.completed %}✅{% elif c.unlocked %}🎓{% else %}🔒{% endif %}</div>
+    <h2>{{ c.ref.spec.name }}</h2>
+    <p class="small muted">{{ c.ref.key }} · {{ c.ref.requirement_keys|join:", " }}</p>
+    {% if c.unlocked %}
+      {% if c.best_xp is not None %}<p class="small"><span class="tag ok">Completada</span> Mejor resultado: <b>{{ c.best_xp }} XP</b></p>{% endif %}
+      <div class="btn-row">
+        <form method="post" action="{% url 'modeling:lesson_start' c.ref.id %}">{% csrf_token %}
+          <input type="hidden" name="attempt" value="{{ selected.id }}">
+          <button class="btn{% if c.completed and not c.current %} secondary{% endif %}" type="submit">
+            {% if c.current %}Continuar{% elif c.completed %}Repetir{% else %}Empezar{% endif %}</button>
+        </form>
+        {% if c.completed %}<a class="btn ghost" href="{% url 'modeling:new' %}?leccion={{ c.completed.id }}">Abrir en el editor</a>{% endif %}
+      </div>
+    {% else %}
+      <p class="small" style="margin-bottom:.3rem">Para desbloquearla:</p>
+      <ul class="small lock-list">
+        {% for topic in c.not_discovered %}<li>Te faltó descubrir un requisito del tema <b>{{ topic }}</b> en la entrevista.</li>{% endfor %}
+        {% for s in c.not_classified %}<li>Clasifica como requisito funcional: «{{ s }}»</li>{% endfor %}
+      </ul>
+      {% if c.not_classified %}<a class="btn small secondary" href="{% url 'classification:classify' selected.id %}">Ir a clasificación</a>{% endif %}
+    {% endif %}
+  </article>
+  {% empty %}
+  <div class="card"><p class="empty">Este escenario todavía no tiene lecciones.</p></div>
+  {% endfor %}
+</div>
+<p class="small" style="margin-top:1rem"><a href="{% url 'modeling:wizard' %}?attempt={{ selected.id }}">✍️ Crear mi propio caso de uso paso a paso →</a></p>
+{% endblock %}
