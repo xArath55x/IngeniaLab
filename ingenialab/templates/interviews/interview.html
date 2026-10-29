@@ -178,9 +178,15 @@
   async function ask(option) {
     setBusy(true);
     bubble("out", option.text, now(), entries.length + 1);
-    const request = IL.api(BASE + "preguntar/", { question_id: option.id });
+    const request = IL.api(BASE + "preguntar/", { question_id: option.id }, { timeoutMs: {{ ask_timeout_ms }} });
     optionsBox.innerHTML = "";
+    // Con respuesta libre el cliente puede tardar varios segundos: se muestra que está escribiendo.
+    statusEl.textContent = "escribiendo…";
+    chat.insertAdjacentHTML("beforeend", '<div class="msg in" id="waiting"><div class="bubble typing"><i></i><i></i><i></i></div></div>');
+    chat.scrollTop = chat.scrollHeight;
     const r = await request;
+    document.getElementById("waiting").remove();
+    statusEl.textContent = "en línea";
     if (!r.ok) { IL.toast(r.message, "bad"); window.location.reload(); return; }
     for (const s of r.entry.segments) {
       await typing(s.text);
