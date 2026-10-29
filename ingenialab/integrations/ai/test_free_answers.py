@@ -28,7 +28,8 @@ def question(segments=CATALOG):
         title="Biblioteca", summary="Préstamos de la biblioteca escolar.", client_name="Lic. Ana", client_role="Coordinadora",
         requirements=SimpleNamespace(all=lambda: [SimpleNamespace(statement_text=s) for s in (B01, B04)]),
     )
-    return SimpleNamespace(text="¿Cuál es el problema principal?", version=version, answer_segments=deepcopy(segments))
+    return SimpleNamespace(text="¿Cuál es el problema principal?", topic="Objetivo", version=version,
+                           answer_segments=deepcopy(segments))
 
 
 OK = {"intro": "Mire, todo lo anotamos a mano y cada mes se nos pierden ejemplares.", "closing": ""}
@@ -74,15 +75,26 @@ class FreeAnswerTests(SimpleTestCase):
         self.assertEqual([s["req"] for s in result.segments], [None])
 
     @patch("integrations.ai.dialogue._request")
-    def test_payload_and_prompt(self, request):
+    def test_payload_hides_statements_when_they_follow(self, request):
         request.return_value = OK
         dialogue.answer(question())
         payload, *_, system = request.call_args.args
-        self.assertEqual(set(payload), {"scenario", "summary", "client", "question", "reference_answer",
-                                        "required_statements", "scenario_facts"})
-        self.assertEqual(payload["required_statements"], [{"req": "B01", "text": B01}])
-        self.assertEqual(payload["scenario_facts"], [B01, B04])
         self.assertEqual(system, dialogue.SYSTEM_FREE)
+        self.assertTrue(payload["needs_follow"])
+        self.assertEqual(payload["current_situation"], "Hoy llevamos los préstamos en libretas.")
+        self.assertEqual(payload["topic"], "Objetivo")
+        # Un modelo pequeño repite los enunciados si los ve; solo la validación los usa.
+        self.assertNotIn("préstamo con el alumno", str(payload))
+        self.assertNotIn("scenario_facts", payload)
+
+    @patch("integrations.ai.dialogue._request")
+    def test_payload_for_vague_answer_includes_facts(self, request):
+        request.return_value = {"intro": "Pues que funcione bien.", "closing": ""}
+        dialogue.answer(question([{"text": "Pues sí, supongo.", "req": None}]))
+        payload = request.call_args.args[0]
+        self.assertFalse(payload["needs_follow"])
+        self.assertEqual(payload["reference_answer"], "Pues sí, supongo.")
+        self.assertEqual(payload["scenario_facts"], [B01, B04])
 
     @patch("integrations.ai.dialogue._request")
     def test_free_mode_has_its_own_timeout_limit(self, request):

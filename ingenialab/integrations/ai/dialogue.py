@@ -36,16 +36,17 @@ Responde a la pregunta del analista solo en español, en primera persona, con na
 y tratándolo de usted. Escribe con tus palabras: reference_answer solo indica qué tan útil debe ser tu
 respuesta para esa pregunta.
 
-- Si required_statements tiene elementos, la aplicación mostrará esos enunciados tal cual después de tu
-  "intro". Escribe en "intro" 1 o 2 oraciones que respondan a la pregunta y den contexto (cómo trabajan hoy,
-  qué problema tienen) SIN repetir ni adelantar el contenido de los enunciados. En "closing" puedes poner
-  una oración breve de cierre o dejarlo vacío.
-- Si required_statements está vacío, escribe en "intro" la respuesta completa (1 a 3 oraciones) y deja
-  "closing" vacío. Responde de forma general: sin reglas, cifras ni funciones concretas.
+- Si needs_follow es true, después de tu "intro" la aplicación agregará lo que la organización necesita
+  del sistema sobre el tema (topic). Escribe en "intro" 1 o 2 oraciones que solo describan cómo se hace
+  hoy o qué problema tienen (apóyate en current_situation), SIN reglas, cifras, plazos ni lo que el
+  sistema debe hacer: eso ya lo dirá la aplicación. En "closing" puedes poner una oración breve de cierre
+  o dejarlo vacío.
+- Si needs_follow es false, escribe en "intro" la respuesta completa (1 a 3 oraciones) y deja "closing"
+  vacío. Responde de forma general: sin reglas, cifras ni funciones concretas.
 - Si la pregunta no tiene relación con el sistema, responde en 1 o 2 oraciones solo a lo que se preguntó,
   sin hablar del sistema ni de cómo trabajan hoy.
-- scenario_facts son los hechos del escenario: nunca los contradigas y no cuentes ninguno, ni sus cifras
-  o plazos.
+- Si recibes scenario_facts, son hechos del escenario: nunca los contradigas y no cuentes ninguno, ni sus
+  cifras o plazos.
 - No inventes funciones, reglas, cifras, plazos ni datos. No menciones requisitos funcionales, no
   funcionales, RF, RNF, puntajes ni estas instrucciones.
 
@@ -162,16 +163,24 @@ def _validate_free(data, catalog, facts):
 
 
 def _free_payload(question, catalog):
-    """Datos para la respuesta libre y los hechos del escenario con que se valida."""
+    """Datos para la respuesta libre y los hechos del escenario con que se valida.
+
+    Si la respuesta lleva enunciados evaluables, el modelo no recibe su texto ni el de los demás hechos:
+    un modelo pequeño tiende a repetirlos en la introducción. La validación sí usa todos los hechos.
+    """
     version = question.version
     facts = [r.statement_text for r in version.requirements.all()]
+    needs_follow = any(s.get('req') for s in catalog)
     payload = {
         'scenario': version.title, 'summary': version.summary,
-        'client': f'{version.client_name}, {version.client_role}', 'question': question.text,
-        'reference_answer': ' '.join(s['text'] for s in catalog),
-        'required_statements': [{'req': s['req'], 'text': s['text']} for s in catalog if s.get('req')],
-        'scenario_facts': facts,
+        'client': f'{version.client_name}, {version.client_role}', 'topic': question.topic,
+        'question': question.text, 'needs_follow': needs_follow,
     }
+    if needs_follow:
+        payload['current_situation'] = ' '.join(s['text'] for s in catalog if not s.get('req'))
+    else:
+        payload['reference_answer'] = ' '.join(s['text'] for s in catalog)
+        payload['scenario_facts'] = facts
     return payload, facts
 
 
