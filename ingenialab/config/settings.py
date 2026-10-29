@@ -149,6 +149,10 @@ try:
 except ValueError:
     INGENIALAB_AI_FREE_TIMEOUT = 0
 
+# Banco de respuestas pregeneradas (manage.py generate_answer_variants): si hay variantes activas para
+# una pregunta, se usan al instante en lugar de llamar al LLM durante la entrevista.
+INGENIALAB_AI_ANSWER_BANK = os.environ.get("INGENIALAB_AI_ANSWER_BANK", "1") == "1"
+
 # ACT-211C: los errores CSRF de API mantienen el contrato JSON.
 CSRF_FAILURE_VIEW = "apps.accounts.views.csrf_failure"
 

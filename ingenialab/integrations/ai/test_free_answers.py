@@ -31,49 +31,51 @@ def question(segments=CATALOG):
     return SimpleNamespace(text="¿Cuál es el problema principal?", version=version, answer_segments=deepcopy(segments))
 
 
+OK = {"intro": "Mire, todo lo anotamos a mano y cada mes se nos pierden ejemplares.", "closing": ""}
+
+
 @FREE
 class FreeAnswerTests(SimpleTestCase):
     @patch("integrations.ai.dialogue._request")
-    def test_new_conversation_keeps_statement_verbatim(self, request):
-        request.return_value = {"segments": [
-            {"text": "Mire, todo lo anotamos a mano y cada mes se nos pierden ejemplares.", "req": None},
-            {"text": "Necesitamos registrar cada préstamo con alumno, libro y fecha.", "req": "B01"},
-        ]}
+    def test_conversation_wraps_statement_verbatim(self, request):
+        request.return_value = {**OK, "closing": "Ojalá eso nos ayude a no perder más."}
         result = dialogue.answer(question())
         self.assertEqual(result.source, "ai")
-        self.assertEqual(result.segments[0]["text"], "Mire, todo lo anotamos a mano y cada mes se nos pierden ejemplares.")
-        self.assertEqual(result.segments[1], {"text": B01, "req": "B01"})
+        self.assertEqual(result.segments, [
+            {"text": OK["intro"], "req": None}, {"text": B01, "req": "B01"},
+            {"text": "Ojalá eso nos ayude a no perder más.", "req": None},
+        ])
 
     @patch("integrations.ai.dialogue._request")
     def test_invalid_answers_fall_back_to_catalog(self, request):
         cases = {
-            "falta el enunciado": [{"text": "Se nos pierden libros.", "req": None}],
-            "enunciado repetido": [{"text": B01, "req": "B01"}, {"text": B01, "req": "B01"}],
-            "clave inventada": [{"text": B01, "req": "B01"}, {"text": "Otra cosa.", "req": "B99"}],
-            "lo cuenta sin marcar": [{"text": B01, "req": None}, {"text": B01, "req": "B01"}],
-            "filtra otro requisito": [{"text": B01, "req": "B01"},
-                                      {"text": "Y no prestamos si el alumno ya tiene tres libros prestados.", "req": None}],
-            "sin segmentos": [],
-            "otro idioma": [{"text": "Es特别地，我们希望每月都能收到报告。", "req": None}, {"text": B01, "req": "B01"}],
+            "formato anterior": {"segments": deepcopy(CATALOG)},
+            "sin intro": {"intro": "  ", "closing": ""},
+            "claves extra": {**OK, "req": "B99"},
+            "repite el enunciado": {"intro": B01, "closing": ""},
+            "filtra otro requisito": {"intro": "Y no prestamos si el alumno ya tiene tres libros prestados.", "closing": ""},
+            "revela una cifra con otras palabras": {"intro": "Hay alumnos que se llevan hasta tres libros a la vez.", "closing": ""},
+            "otro idioma": {"intro": "Es特别地，我们希望每月都能收到报告。", "closing": ""},
+            "cierre demasiado largo": {**OK, "closing": "x" * 401},
         }
-        for name, segments in cases.items():
+        for name, response in cases.items():
             with self.subTest(name):
-                request.return_value = {"segments": segments}
+                request.return_value = response
                 result = dialogue.answer(question())
                 self.assertEqual((result.source, result.reason), ("catalog", "invalid_response"))
                 self.assertEqual(result.segments, CATALOG)
 
     @patch("integrations.ai.dialogue._request")
-    def test_vague_answer_cannot_mark_requirements(self, request):
+    def test_vague_answer_has_no_statements(self, request):
         vague = [{"text": "Pues que funcione bien, supongo.", "req": None}]
-        request.return_value = {"segments": [{"text": "Algo general.", "req": None}, {"text": B01, "req": "B01"}]}
-        self.assertEqual(dialogue.answer(question(vague)).reason, "invalid_response")
-        request.return_value = {"segments": [{"text": "Que sea práctico para todos, nada más.", "req": None}]}
-        self.assertEqual(dialogue.answer(question(vague)).source, "ai")
+        request.return_value = {"intro": "Que sea práctico para todos, a las dos de la tarde lo platicamos.", "closing": ""}
+        result = dialogue.answer(question(vague))
+        self.assertEqual(result.source, "ai")
+        self.assertEqual([s["req"] for s in result.segments], [None])
 
     @patch("integrations.ai.dialogue._request")
     def test_payload_and_prompt(self, request):
-        request.return_value = {"segments": deepcopy(CATALOG)}
+        request.return_value = OK
         dialogue.answer(question())
         payload, *_, system = request.call_args.args
         self.assertEqual(set(payload), {"scenario", "summary", "client", "question", "reference_answer",
@@ -84,10 +86,10 @@ class FreeAnswerTests(SimpleTestCase):
 
     @patch("integrations.ai.dialogue._request")
     def test_free_mode_has_its_own_timeout_limit(self, request):
-        request.return_value = {"segments": deepcopy(CATALOG)}
-        with self.settings(INGENIALAB_AI_FREE_TIMEOUT=8, INGENIALAB_AI_TIMEOUT=0):
+        request.return_value = OK
+        with self.settings(INGENIALAB_AI_FREE_TIMEOUT=30, INGENIALAB_AI_TIMEOUT=0):
             self.assertEqual(dialogue.answer(question()).source, "ai")
-        with self.settings(INGENIALAB_AI_FREE_TIMEOUT=9):
+        with self.settings(INGENIALAB_AI_FREE_TIMEOUT=31):
             self.assertEqual(dialogue.answer(question()).reason, "configuration")
         with self.settings(INGENIALAB_AI_FREE_ANSWERS=False, INGENIALAB_AI_TIMEOUT=8):
             self.assertEqual(dialogue.answer(question()).reason, "configuration")
@@ -99,8 +101,7 @@ class FreeAnswerInterviewTests(BaseCase):
         attempt = self.new_attempt()
         high = self.version.questions.filter(quality=InterviewQuestion.HIGH).first()
         required = [s for s in high.answer_segments if s.get("req")]
-        llm = {"segments": [{"text": "Le cuento con calma cómo trabajamos hoy en la biblioteca.", "req": None},
-                            *({"text": "versión libre", "req": s["req"]} for s in required)]}
+        llm = {"intro": "Le cuento con calma cómo trabajamos hoy en la biblioteca.", "closing": ""}
         with patch("integrations.ai.dialogue._request", return_value=llm):
             r = self.ask(attempt, high).json()
         self.assertEqual(r["entry"]["source"], "ai")
@@ -109,3 +110,10 @@ class FreeAnswerInterviewTests(BaseCase):
         self.assertEqual([s["text"] for s in entry.response_segments if s["req"]], [s["text"] for s in required])
         page = self.client.get(f"/elicitacion/intento/{attempt.id}/")
         self.assertContains(page, "Le cuento con calma")
+
+    def test_browser_waits_longer_only_in_free_mode(self):
+        attempt = self.new_attempt()
+        with self.settings(INGENIALAB_AI_FREE_TIMEOUT=20):
+            self.assertEqual(self.client.get(f"/elicitacion/intento/{attempt.id}/").context["ask_timeout_ms"], 25000)
+        with self.settings(INGENIALAB_AI_FREE_ANSWERS=False):
+            self.assertEqual(self.client.get(f"/elicitacion/intento/{attempt.id}/").context["ask_timeout_ms"], 10000)
