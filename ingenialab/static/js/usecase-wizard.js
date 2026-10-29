@@ -10,7 +10,7 @@
   const guide = JSON.parse($("guide-data").textContent);
   const rules = JSON.parse($("validation-rules").textContent);
   const data = {
-    attempt_id: root.dataset.selected, origin: "", name: "", system_name: "", primary_actors: [],
+    attempt_id: root.dataset.selected, covers: [], name: "", system_name: "", primary_actors: [],
     secondary_actors: [], preconditions: "", main_flow: [], alternate_flows: [], postconditions: "", relations: [],
   };
   let step = 0, saved = null;
@@ -18,9 +18,16 @@
   data.system_name = current().system;
 
   function payload() {
-    const { origin, ...rest } = data;
+    const { covers, ...rest } = data;
     return rest;
   }
+
+  /* Requisitos que, según los casos de uso de referencia del escenario, son parte de otro caso de uso
+   * (una regla, un paso o un caso incluido) y no la meta de un usuario. */
+  const isRule = (statement) => {
+    const req = current().requirements.find((r) => r.statement === statement);
+    return Boolean(req && (current().part_of || []).includes(req.key));
+  };
 
   function input(value, placeholder, onInput, multiline) {
     const node = el(multiline ? "textarea" : "input", { type: "text", placeholder, class: "wizard-input" });
@@ -44,23 +51,33 @@
   /* ---------- Pasos ---------- */
   const STEPS = [
     {
-      kicker: "Punto de partida", title: "¿De qué requisito sale tu caso de uso?",
-      help: "Un caso de uso suele salir de un requisito funcional (RF): algo que el sistema debe hacer para un usuario. Elige uno de los que clasificaste (opcional).",
+      kicker: "Punto de partida", title: "¿Qué requisitos cubre tu caso de uso?",
+      help: "Un caso de uso agrupa varios requisitos funcionales: uno es la meta del usuario (registrar, consultar, pedir…) y otros son reglas que se vuelven pasos o excepciones. Selecciona los que vas a modelar.",
       fields: ["attempt_id"],
       render(area) {
         if (guide.length > 1) {
           const select = el("select", { class: "wizard-input", "aria-label": "Entrevista" },
             guide.map((g) => el("option", { value: g.id, text: g.label })));
           select.value = data.attempt_id;
-          select.addEventListener("change", () => { data.attempt_id = select.value; data.system_name = current().system; data.origin = ""; show(); });
+          select.addEventListener("change", () => { data.attempt_id = select.value; data.system_name = current().system; data.covers = []; show(); });
           area.append(el("label", { class: "small muted", text: "Entrevista" }), select);
         }
         const rfs = current().requirements.filter((r) => r.category === "RF");
         if (!rfs.length) area.append(el("p", { class: "muted", text: "No clasificaste requisitos funcionales en esta entrevista; puedes continuar de todos modos." }));
-        area.append(el("div", { class: "lesson-options" }, rfs.map((r) => el("button", {
-          type: "button", class: `lesson-option${data.origin === r.statement ? " selected" : ""}`, text: r.statement,
-          onclick: () => { data.origin = data.origin === r.statement ? "" : r.statement; show(); },
-        }))));
+        area.append(el("div", { class: "lesson-options" }, rfs.map((r) => {
+          const on = data.covers.includes(r.statement);
+          const b = el("button", {
+            type: "button", class: `lesson-option${on ? " selected" : ""}`, "aria-pressed": String(on),
+            onclick: () => { data.covers = on ? data.covers.filter((s) => s !== r.statement) : [...data.covers, r.statement]; show(); },
+          }, [el("span", { text: r.statement })]);
+          if (isRule(r.statement)) b.append(el("span", { class: "tag hint", style: "margin-left:.5rem", text: "regla o paso" }));
+          return b;
+        })));
+        if (data.covers.length && data.covers.every(isRule)) {
+          area.append(el("div", { class: "feedback hint" }, [el("span", { class: "icon", text: "💡" }), el("div", {
+            text: "Lo que elegiste es una regla o un paso de otro caso de uso, no la meta de un usuario. ¿A qué acción pertenece? Por ejemplo, «impedir el préstamo si…» es parte de registrar un préstamo: selecciona también ese requisito.",
+          })]));
+        }
       },
     },
     {
@@ -100,7 +117,7 @@
     },
     {
       kicker: "Flujo principal", title: "¿Qué pasa, paso a paso?",
-      help: "Describe el camino normal, sin errores. Alterna lo que hace el actor y lo que responde el sistema. Necesitas al menos 2 pasos.",
+      help: "Describe el camino normal, sin errores. Alterna lo que hace el actor y lo que responde el sistema. Necesitas al menos 2 pasos; revisa que tus pasos cubran los requisitos de arriba.",
       fields: ["main_flow"],
       render(area) {
         if (data.main_flow.length) area.append(editableList(data.main_flow));
@@ -118,6 +135,10 @@
       help: "Un flujo alterno indica en qué paso puede cambiar el camino, la condición y cómo responde el sistema. Por ejemplo: si el alumno ya tiene tres libros, el sistema rechaza el préstamo.",
       fields: ["alternate_flows"], optional: true,
       render(area) {
+        const ruleReqs = data.covers.filter(isRule);
+        if (ruleReqs.length) area.append(el("div", { class: "feedback hint" }, [el("span", { class: "icon", text: "💡" }), el("div", {},
+          [el("strong", { text: "Estos requisitos son reglas o pasos: suelen escribirse como un paso de verificación, un flujo alterno o un caso de uso incluido:" }),
+           el("ul", { class: "small" }, ruleReqs.map((s) => el("li", { text: s })))])]));
         if (data.alternate_flows.length) area.append(editableList(data.alternate_flows));
         if (!data.main_flow.length) return area.append(el("p", { class: "muted", text: "Primero escribe el flujo principal." }));
         const at = el("select", { class: "wizard-input", "aria-label": "Paso" }, data.main_flow.map((s, i) => el("option", { value: i + 1, text: `Paso ${i + 1}: ${s}` })));
@@ -220,22 +241,25 @@
 
   /* ---------- Tarjeta y navegación ---------- */
   function renderBuilt() {
+    // [etiqueta, valores, paso en que se llena, lista numerada]
     const parts = [
-      ["Requisito de origen", data.origin ? [data.origin] : null],
-      ["Nombre", data.name.trim() ? [data.name.trim()] : null],
-      ["Actor principal", data.primary_actors.length ? data.primary_actors : null],
-      ["Actores secundarios", data.secondary_actors.length ? data.secondary_actors : null],
-      ["Precondición", data.preconditions.trim() ? [data.preconditions.trim()] : null],
-      ["Flujo principal", data.main_flow.length ? data.main_flow : null, true],
-      ["Flujos alternos", data.alternate_flows.length ? data.alternate_flows : null],
-      ["Postcondición", data.postconditions.trim() ? [data.postconditions.trim()] : null],
-      ["Relaciones", data.relations.length ? data.relations.map((r) => `«${r.type}» ${r.target}`) : null],
+      ["Requisitos que cubre", data.covers, 0],
+      ["Nombre", data.name.trim() ? [data.name.trim()] : [], 1],
+      ["Actor principal", data.primary_actors, 2],
+      ["Actores secundarios", data.secondary_actors, 2],
+      ["Precondición", data.preconditions.trim() ? [data.preconditions.trim()] : [], 3],
+      ["Flujo principal", data.main_flow, 4, true],
+      ["Flujos alternos", data.alternate_flows, 5],
+      ["Postcondición", data.postconditions.trim() ? [data.postconditions.trim()] : [], 6],
+      ["Relaciones", data.relations.map((r) => `«${r.type}» ${r.target}`), 7],
     ];
-    $("built").replaceChildren(...parts.flatMap(([label, values, ordered]) => {
-      const dd = el("dd", { class: values ? "" : "empty" });
-      if (!values) dd.textContent = "Por construir";
-      else if (ordered) dd.append(el("ol", {}, values.map((v) => el("li", { text: v }))));
-      else dd.textContent = values.join(" · ");
+    // Solo se muestra lo construido y, vacío, lo que corresponde al paso actual.
+    const visible = parts.filter(([label, values, at]) => values.length || (at === step && label !== "Actores secundarios"));
+    $("built").replaceChildren(...(visible.length ? visible : [["Requisitos que cubre", [], 0]]).flatMap(([label, values, , ordered]) => {
+      const dd = el("dd", { class: values.length ? "" : "empty" });
+      if (!values.length) dd.textContent = "Por construir";
+      else if (ordered || values.length > 1) dd.append(el(ordered ? "ol" : "ul", {}, values.map((v) => el("li", { text: v }))));
+      else dd.textContent = values[0];
       return [el("dt", { text: label }), dd];
     }));
   }
@@ -245,7 +269,7 @@
     $("step-kicker").textContent = s.kicker;
     $("step-title").textContent = s.title;
     $("step-help").textContent = s.help;
-    $("step-context").replaceChildren(...(data.origin && step > 0 && step < STEPS.length - 1 ? [el("li", { text: data.origin })] : []));
+    $("step-context").replaceChildren(...(step > 0 && step < STEPS.length - 1 ? data.covers.map((s) => el("li", { text: s })) : []));
     $("step-error").replaceChildren();
     const area = $("step-area"); area.replaceChildren(); s.render(area);
     $("progress").style.width = `${Math.round(100 * step / (STEPS.length - 1))}%`;

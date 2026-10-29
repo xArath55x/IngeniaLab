@@ -43,7 +43,8 @@ def _guide(attempts):
         "label": f"{a.version.title} ({a.started_at:%d/%m/%Y})",
         "system": a.version.title,
         "requirements": [
-            {"statement": c.master_requirement.statement_text, "category": c.selected_category}
+            {"key": c.master_requirement.key, "statement": c.master_requirement.statement_text,
+             "category": c.selected_category}
             for c in a.classifications.select_related("master_requirement")
         ],
     } for a in attempts]
@@ -368,12 +369,15 @@ def wizard(request):
         messages.warning(request, "Para modelar casos de uso primero completa al menos una entrevista en el módulo de Elicitación.")
         return redirect("modeling:list")
     guide = _guide(attempts)
-    # Actores que aparecen en los casos de uso de referencia del escenario, como sugerencias.
-    actors = {}
+    # De los casos de uso de referencia del escenario salen las sugerencias de actores y qué requisitos son
+    # parte de otro caso de uso (todos menos el primero de cada referencia, que es la meta del usuario).
+    actors, part_of = {}, {}
     for ref in ReferenceUseCase.objects.filter(version__in={a.version_id for a in attempts}):
         actors.setdefault(ref.version_id, set()).update(ref.spec["primary_actors"] + ref.spec["secondary_actors"])
+        part_of.setdefault(ref.version_id, set()).update(ref.requirement_keys[1:])
     for item, attempt in zip(guide, attempts):
         item["actors"] = sorted(actors.get(attempt.version_id, ()))
+        item["part_of"] = sorted(part_of.get(attempt.version_id, ()))
     selected = request.GET.get("attempt", "")
     return render(request, "modeling/wizard.html", {
         "guide": guide, "validation_rules": validators.RULES,

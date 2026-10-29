@@ -250,7 +250,7 @@ details.advanced { margin-top: .75rem; }
 .built-list dd { margin: .2rem 0 0; font-size: .9rem; padding: .45rem .6rem; border-radius: 8px; background: var(--accent-soft); }
 .built-list dd.empty { background: transparent; border: 1px dashed var(--border); color: var(--muted); font-style: italic; }
 .built-list dd.new { animation: built-in .9s ease; }
-.built-list dd ol { margin: 0; padding-left: 1.1rem; }
+.built-list dd ol, .built-list dd ul { margin: 0; padding-left: 1.1rem; }
 @keyframes built-in { from { background: #b9e6c9; transform: scale(1.02); } to { background: var(--accent-soft); transform: none; } }
 .lesson-diagram { margin: .5rem 0; min-height: 220px; }
 @media (max-width: 1000px) { .lesson-layout { grid-template-columns: 1fr; } .built-card { position: static; } }

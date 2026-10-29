@@ -19,6 +19,10 @@ class WizardTests(BaseCase):
         self.assertEqual(r.context["selected"], str(attempt.id))
         guide = r.context["guide"][0]
         self.assertIn("Bibliotecario", guide["actors"])
+        # B04 (impedir con tres libros) es regla de «Registrar préstamo»; B01 y B02 son metas.
+        self.assertIn("B04", guide["part_of"])
+        self.assertNotIn("B01", guide["part_of"])
+        self.assertNotIn("B02", guide["part_of"])
         self.assertEqual(r.context["validation_rules"]["min_steps"], 2)
 
     def test_unknown_attempt_falls_back_to_first(self):
