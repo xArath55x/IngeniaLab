@@ -53,10 +53,9 @@ Rutas raíz (`config/urls.py`): `/cuentas/`, `/elicitacion/`, `/clasificacion/`,
 
 ## Cosas no obvias
 
-- **Módulos deshabilitados por defecto.** `interviews`, `classification` y `modeling` están activos. `ModuleGateMiddleware` redirige los demás
-  a la lista de escenarios (o responde 404 JSON en `/api/`). Para probarlos:
-  `INGENIALAB_MODULES=interviews,classification,modeling,inspection,reports,progress`.
-  Las pruebas ejercitan todos los módulos, así que no asumas que el código inactivo está muerto.
+- **Módulos habilitables.** Desde ACT-211A2 los seis módulos están activos por defecto. Si `INGENIALAB_MODULES`
+  limita la lista (p. ej. `interviews,classification,modeling`), `ModuleGateMiddleware` redirige los demás
+  a la lista de escenarios (o responde 404 JSON en `/api/`). Una variable ya definida en el entorno tiene prioridad.
 - **Endpoints JSON bajo `/api/`.** Cualquier ruta que contenga `/api/` y no tenga sesión recibe un **401 JSON**
   (no una redirección), para que `static/js/app.js` muestre el modal de reautenticación (RF-12).
   Mantén esa convención en endpoints nuevos.
