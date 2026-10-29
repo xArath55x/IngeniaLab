@@ -255,7 +255,7 @@ class Flow:
 
 
 def run(cmd, env, log=None):
-    result = subprocess.run(cmd, cwd=ROOT, env=env, capture_output=True, text=True)
+    result = subprocess.run(cmd, cwd=ROOT, env=env, capture_output=True, encoding="utf-8", errors="replace")
     if result.returncode != 0:
         print(result.stdout + result.stderr, file=sys.stderr)
         raise SystemExit(f"Falló: {' '.join(cmd[1:])}")
@@ -268,6 +268,9 @@ def main():
     parser.add_argument("--allow-plantuml-fallback", action="store_true",
                         help="acepta el respaldo SVG si no hay Java/Graphviz (no vale como integración real)")
     args = parser.parse_args()
+    # En Windows la consola suele ser cp1252 y no tiene caracteres como «→»: se sustituyen en vez de abortar.
+    for stream in (sys.stdout, sys.stderr):
+        stream.reconfigure(errors="replace")
 
     STAGING.mkdir(parents=True, exist_ok=True)
     db = STAGING / "staging.sqlite3"
@@ -280,13 +283,15 @@ def main():
         "INGENIALAB_SQLITE_PATH": str(db), "INGENIALAB_MODULES": MODULES, "INGENIALAB_DEBUG": "1",
         "INGENIALAB_AI_MODE": "catalog", "PLANTUML_CACHE_DIR": str(STAGING / "diagram_cache"),
         "PLANTUML_ALLOW_FALLBACK": "1" if args.allow_plantuml_fallback else "0",
+        # Los subprocesos escriben UTF-8 sin importar la codificación del sistema.
+        "PYTHONIOENCODING": "utf-8",
     })
     python = sys.executable
     run([python, "manage.py", "migrate", "--noinput"], env)
     seed = run([python, "manage.py", "seed_ingenialab"], env).strip().splitlines()
 
     base = f"http://127.0.0.1:{args.port}"
-    log = open(STAGING / "server.log", "w")
+    log = open(STAGING / "server.log", "w", encoding="utf-8")
     server = subprocess.Popen([python, "manage.py", "runserver", f"127.0.0.1:{args.port}", "--noreload"],
                               cwd=ROOT, env=env, stdout=log, stderr=subprocess.STDOUT)
     steps = []
@@ -337,7 +342,7 @@ def main():
         "seed": seed, "plantuml_fallback_permitido": args.allow_plantuml_fallback,
         "resultado": "PASA" if passed else "FALLA", "pasos": steps,
     }
-    (STAGING / "e2e_report.json").write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n")
+    (STAGING / "e2e_report.json").write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(f"\n{'PASA' if passed else 'FALLA'}: {sum(s['ok'] for s in steps)}/{len(plan)} pasos · "
           f"evidencia en var/staging/e2e_report.json")
     return 0 if passed else 1
