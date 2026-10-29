@@ -56,7 +56,8 @@ def register_finding(attempt: InspectionAttempt, fragment_id, defect_type: str) 
         raise AuditError("Selecciona una sección del documento.")
 
     if attempt.findings.filter(fragment=fragment, is_correct=True).exists():
-        return {"status": "already_found", "message": "Ya identificaste este defecto.",
+        return {"status": "already_found",
+                "message": f"Ya identificaste este defecto: {DEFECT_LABELS[fragment.defect_type]}.",
                 "explanation": fragment.explanation, "summary": summary(attempt)}
 
     attempt.registrations += 1

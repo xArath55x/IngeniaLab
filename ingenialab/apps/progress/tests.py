@@ -380,6 +380,14 @@ class InspectionTests(BaseCase):
         self.assertEqual(r["message"], "El fragmento no contiene defectos conforme a la clave.")
         self.assertEqual(r["summary"]["wrong"], 1)
 
+    def test_cu04_repeated_finding_names_the_defect_type(self):
+        fr = self.exercise.fragments.exclude(defect_type="").first()
+        self.post(self.base + "hallazgo/", {"fragment_id": str(fr.id), "defect_type": fr.defect_type})
+        r = self.post(self.base + "hallazgo/", {"fragment_id": str(fr.id), "defect_type": fr.defect_type}).json()
+        self.assertEqual(r["status"], "already_found")
+        self.assertIn(fr.get_defect_type_display(), r["message"])
+        self.assertEqual(r["summary"]["registrations"], 1)
+
     def test_cu04_fa1_hint_penalty(self):
         r = self.post(self.base + "pista/").json()
         self.assertTrue(r["hint"].startswith("Revisa la sección"))
