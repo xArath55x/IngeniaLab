@@ -21,7 +21,8 @@ python3 -m venv .venv
 ```
 
 Abre http://127.0.0.1:8000, regístrate como estudiante y comienza en **Elicitación**.
-La base de datos de desarrollo incluida trae un usuario de demostración: `demo` / `demo12345`.
+`db.sqlite3` no se versiona: en un clon limpio no hay usuarios, así que registra una cuenta.
+Para levantar todo en un paso, ver [ACT-214](#act-214--demo-release-v20).
 
 Pruebas automatizadas (evidencia para VR-01):
 
@@ -205,3 +206,17 @@ Pruebas específicas:
 ```bash
 .venv/bin/python manage.py test apps.progress.test_integration
 ```
+
+## ACT-214 — Demo release v2.0
+
+Levantamiento en un paso desde `ingenialab/`: prepara `.venv` si no existe (con `setup_local.py`), aplica
+migraciones, carga `seed_ingenialab` y arranca el servidor en http://127.0.0.1:8000 con los seis módulos.
+
+```bash
+sh scripts/demo.sh                          # macOS / Linux
+powershell -File scripts\demo.ps1           # Windows
+```
+
+Requiere Python 3.12, Java 17+ y Graphviz, igual que el inicio rápido. Después de `git pull` basta con repetir el
+comando: las migraciones y la carga del contenido son idempotentes. Opciones: `--port 8001` y
+`--allow-plantuml-fallback` (respaldo SVG en un equipo sin Java/Graphviz; no cuenta como integración real).
