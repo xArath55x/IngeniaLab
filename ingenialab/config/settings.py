@@ -141,6 +141,14 @@ try:
 except ValueError:
     INGENIALAB_AI_TIMEOUT = 0
 
+# Respuesta libre del cliente virtual: el LLM redacta la respuesta y los enunciados evaluables
+# se conservan textuales. Requiere chat_completions; si la respuesta no es válida, catálogo.
+INGENIALAB_AI_FREE_ANSWERS = os.environ.get("INGENIALAB_AI_FREE_ANSWERS", "0") == "1"
+try:
+    INGENIALAB_AI_FREE_TIMEOUT = float(os.environ.get("INGENIALAB_AI_FREE_TIMEOUT", "8"))
+except ValueError:
+    INGENIALAB_AI_FREE_TIMEOUT = 0
+
 # ACT-211C: los errores CSRF de API mantienen el contrato JSON.
 CSRF_FAILURE_VIEW = "apps.accounts.views.csrf_failure"
 
