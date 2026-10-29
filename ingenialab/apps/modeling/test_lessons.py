@@ -224,6 +224,18 @@ class LessonTests(BaseCase):
         self.assertTrue(lessons.is_correct(pre, list(reversed(pre["answer"]))))
         ids = [e["id"] for e in lesson.exercises]
         self.assertLess(ids.index("main_flow_select"), ids.index("main_flow"))
+        # El navegador sabe cuántas marcar, pero no cuáles.
+        shown = lessons.public(pre)
+        self.assertEqual(shown["required"], 2)
+        self.assertNotIn("answer", shown)
+
+    def test_answer_reveals_correct_options_after_grading(self):
+        attempt = self.ready_attempt()
+        self.start(attempt, self.reference())
+        lesson = UseCaseLesson.objects.get()
+        first = next(e for e in lesson.exercises if e["id"] == lesson.queue[0])
+        r = self.reply(lesson, first["id"], -1).json()
+        self.assertEqual(r["correct_ids"], [first["answer"]])
 
 
 class ExerciseTests(SimpleTestCase):

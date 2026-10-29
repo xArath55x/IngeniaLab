@@ -62,7 +62,7 @@ def _multi(rng, ex_id, title, prompt, correct, distractors, explanation):
     options = [*correct, *distractors]
     rng.shuffle(options)
     return {
-        "id": ex_id, "type": "multi", "title": title, "prompt": f"{prompt} Puede haber más de una.", "context": [],
+        "id": ex_id, "type": "multi", "title": title, "prompt": prompt, "context": [],
         "options": [{"id": i, "text": t} for i, t in enumerate(options)],
         "answer": sorted(options.index(c) for c in correct), "explanation": explanation,
         # Orden original de las respuestas correctas, para mostrarlas en la tarjeta (FA-1 antes que FA-2).
@@ -116,8 +116,15 @@ def build_exercises(reference, statements, seed):
 
 
 def public(exercise):
-    """Versión para el navegador: sin respuesta ni explicación."""
-    return {k: v for k, v in exercise.items() if k not in ("answer", "explanation", "order")}
+    """Versión para el navegador: sin respuesta ni explicación.
+
+    En los ejercicios de varias respuestas se indica cuántas son correctas (required), para que el alumno
+    sepa cuántas marcar; se calcula aquí para que también valga en lecciones creadas antes.
+    """
+    data = {k: v for k, v in exercise.items() if k not in ("answer", "explanation", "order")}
+    if exercise["type"] == "multi":
+        data["required"] = len(exercise["answer"])
+    return data
 
 
 def solution_text(exercise):
@@ -207,5 +214,8 @@ def answer(lesson, exercise_id, value):
         lesson.status, lesson.finished_at = UseCaseLesson.COMPLETED, timezone.now()
         lesson.xp = XP_BASE + XP_PER_LIFE * lesson.lives
     lesson.save()
-    return {"correct": correct, "explanation": exercise["explanation"],
-            "solution": solution_text(exercise), **state(lesson)}
+    # Tras responder, las opciones correctas se marcan en pantalla (opción única o múltiple).
+    correct_ids = exercise["answer"] if exercise["type"] == "multi" else (
+        [exercise["answer"]] if exercise["type"] == "choice" else [])
+    return {"correct": correct, "explanation": exercise["explanation"], "solution": solution_text(exercise),
+            "correct_ids": correct_ids, **state(lesson)}

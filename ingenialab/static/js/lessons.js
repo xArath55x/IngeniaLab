@@ -40,25 +40,46 @@
   function setReady(ready) { checkBtn.disabled = !ready || busy; }
 
   function renderChoice(ex, area) {
-    ex.options.forEach((o) => area.append(button(o.text, "lesson-option", (e) => {
-      area.querySelectorAll(".lesson-option").forEach((b) => b.classList.remove("selected"));
-      e.currentTarget.classList.add("selected");
-      answer = o.id; setReady(true);
-    })));
+    ex.options.forEach((o) => {
+      const b = button(o.text, "lesson-option", (e) => {
+        area.querySelectorAll(".lesson-option").forEach((x) => x.classList.remove("selected"));
+        e.currentTarget.classList.add("selected");
+        answer = o.id; setReady(true);
+      });
+      b.dataset.id = o.id;
+      area.append(b);
+    });
   }
 
+  /* Varias respuestas: se indica cuántas marcar y «Comprobar» se habilita al llegar a ese número. */
   function renderMulti(ex, area) {
     const chosen = new Set();
+    const required = ex.required || 0;
+    const counter = IL.el("p", { class: "lesson-counter", "aria-live": "polite" });
+    const sync = () => {
+      counter.textContent = required ? `Elegidas: ${chosen.size} de ${required}` : `Elegidas: ${chosen.size}`;
+      counter.classList.toggle("done", Boolean(required) && chosen.size === required);
+      answer = [...chosen]; setReady(required ? chosen.size === required : chosen.size > 0);
+    };
+    if (required) area.append(IL.el("p", { class: "lesson-hint", text: required === 1
+      ? "Hay 1 respuesta correcta." : `Hay ${required} respuestas correctas: marca ${required}.` }));
     ex.options.forEach((o) => {
       const b = button(o.text, "lesson-option", () => {
+        if (!chosen.has(o.id) && required && chosen.size >= required) {
+          counter.textContent = `Ya elegiste ${required}: quita una para cambiarla.`;
+          return;
+        }
         chosen.has(o.id) ? chosen.delete(o.id) : chosen.add(o.id);
         b.classList.toggle("selected", chosen.has(o.id));
         b.setAttribute("aria-pressed", String(chosen.has(o.id)));
-        answer = [...chosen]; setReady(chosen.size > 0);
+        sync();
       });
+      b.dataset.id = o.id;
       b.setAttribute("aria-pressed", "false");
       area.append(b);
     });
+    area.append(counter);
+    sync();
   }
 
   function renderOrder(ex, area) {
@@ -151,7 +172,8 @@
     const fb = $("feedback");
     const title = r.correct ? "¡Correcto!" : "Respuesta incorrecta";
     const body = IL.el("div", {}, [IL.el("strong", { text: title })]);
-    if (!r.correct) {
+    // En opciones, las correctas ya se marcan en verde; la lista solo hace falta al ordenar o clasificar.
+    if (!r.correct && !(r.correct_ids || []).length) {
       body.append(IL.el("p", { class: "small", text: "Respuesta correcta:" }),
         IL.el("ul", { class: "small" }, r.solution.map((s) => IL.el("li", { text: s }))));
     }
@@ -172,6 +194,13 @@
     busy = false;
     if (!r.ok) { IL.toast(r.message || "No se pudo registrar la respuesta.", "bad"); window.location.reload(); return; }
     $("ex-area").querySelectorAll("button").forEach((b) => (b.disabled = true));
+    $("ex-area").querySelectorAll(".lesson-counter").forEach((c) => c.remove());
+    // Marca en verde las correctas y en rojo las elegidas por error.
+    const right = new Set((r.correct_ids || []).map(String));
+    $("ex-area").querySelectorAll(".lesson-option[data-id]").forEach((b) => {
+      if (right.has(b.dataset.id)) b.classList.add("is-correct");
+      else if (b.classList.contains("selected")) b.classList.add("is-wrong");
+    });
     pendingNext = r;
     state = { ...state, lives: r.lives, solved: r.solved, built: r.built }; renderHeader(); renderBuilt();
     showFeedback(r);

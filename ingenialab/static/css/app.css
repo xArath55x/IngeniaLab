@@ -270,6 +270,11 @@ details.advanced { margin-top: .75rem; }
 .lesson-option.selected { border-color: var(--accent); background: var(--accent-soft); }
 .lesson-option.small { padding: .45rem .7rem; font-size: .88rem; }
 .lesson-option:disabled, .lesson-tile:disabled { cursor: default; opacity: .85; }
+.lesson-option.is-correct { border-color: var(--ok); background: var(--ok-bg); opacity: 1; }
+.lesson-option.is-wrong { border-color: var(--bad); background: var(--bad-bg); opacity: 1; }
+.lesson-hint { margin: 0 0 .2rem; font-weight: 600; color: var(--accent-dark); }
+.lesson-counter { margin: .3rem 0 0; font-size: .88rem; color: var(--muted); }
+.lesson-counter.done { color: var(--ok); font-weight: 600; }
 .lesson-sequence { list-style: none; margin: 0 0 .9rem; padding: .6rem; min-height: 3.2rem; border: 2px dashed var(--border);
   border-radius: 12px; display: grid; gap: .45rem; }
 .lesson-pool { display: grid; gap: .45rem; }
