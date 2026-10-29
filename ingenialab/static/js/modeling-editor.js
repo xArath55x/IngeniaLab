@@ -18,9 +18,24 @@
     main_flow: [rules.max_steps, rules.step], alternate_flows: [rules.max_alternates, rules.alternate],
     relations: [rules.max_relations, rules.name]
   };
+  const saveHint = document.getElementById("save-hint");
+  // Indicador de pasos: 1 llenar, 2 generar, 3 guardar. `done` es el último paso completado.
+  function setStep(done) {
+    document.querySelectorAll("#steps li").forEach(li => {
+      const n = Number(li.dataset.step);
+      li.classList.toggle("done", n <= done); li.classList.toggle("current", n === done + 1);
+      if (n === done + 1) li.setAttribute("aria-current", "step"); else li.removeAttribute("aria-current");
+    });
+    // El botón principal es el del siguiente paso: generar mientras no hay diagrama; después, guardar.
+    document.getElementById("btn-generate").className = "btn" + (done < 2 ? "" : " secondary");
+    saveButton.className = "btn" + (done < 2 ? " secondary" : "");
+    saveHint.textContent = done >= 3 ? "Guardado. Si cambias algo, vuelve a generar el diagrama y guarda de nuevo."
+      : done === 2 ? "El diagrama está listo: ya puedes guardar." : "Genera el diagrama para poder guardar.";
+  }
   function invalidate() {
-    rendered = null; saveButton.disabled = true;
-    validation.innerHTML = IL.feedback("hint", "Cambios pendientes.", " Valida la plantilla y regenera el diagrama antes de guardar.");
+    const hadDiagram = rendered !== null;
+    rendered = null; saveButton.disabled = true; setStep(0);
+    if (hadDiagram) validation.innerHTML = IL.feedback("hint", "Hiciste cambios.", " Vuelve a generar el diagrama para que coincida con la plantilla antes de guardar.");
   }
   function renumber(box) {
     box.querySelectorAll(".list-item").forEach((row, i) => {
@@ -113,6 +128,7 @@
     if (!result.ok) validation.innerHTML = IL.feedback("bad", "Revisa la plantilla.", " Corrige los campos marcados antes de continuar.");
     return result;
   }
+  const TITLES = { validate: "La plantilla está completa.", generate: "Diagrama generado.", save: "Caso de uso guardado." };
   function feedback(result, title) {
     showErrors(result.errors || {}, !result.ok);
     validation.innerHTML = IL.feedback(result.ok ? "ok" : "bad", title, result.message || "") +
@@ -128,6 +144,7 @@
   function setBusy(value) {
     busy = value; form.setAttribute("aria-busy", String(value));
     form.querySelectorAll("input,select,textarea,button").forEach(e => { e.disabled = value; });
+    attempt.disabled = value;
     buttons.forEach(b => { b.disabled = value; });
     document.getElementById("preview-format").disabled = value;
     if (!value) { Object.values(lists).forEach(renumber); saveButton.disabled = !rendered; }
@@ -142,7 +159,7 @@
     try {
       const urls = { validate: form.dataset.validateUrl, generate: form.dataset.generateUrl, save: form.dataset.saveUrl };
       const response = await IL.api(urls[action], { ...result.data, format: document.getElementById("preview-format").value });
-      feedback(response, response.ok ? "Estructura válida." : "No se pudo completar la operación.");
+      feedback(response, response.ok ? TITLES[action] : "No se pudo completar la operación.");
       if (!response.ok) { rendered = null; return; }
       applyNormalized(response.spec);
       if (action !== "validate") {
@@ -153,12 +170,14 @@
         } else diagram.innerHTML = response.svg;
         document.getElementById("preview-format").value = response.image_format || "svg";
         document.getElementById("code").textContent = response.plantuml_code;
-        const tag = document.getElementById("engine-tag"); tag.hidden = false;
-        tag.textContent = response.engine === "plantuml" ? "PlantUML real" : "Vista simplificada (no es PlantUML)";
+        // Solo se avisa cuando no se usó el motor real.
+        const tag = document.getElementById("engine-tag"); tag.hidden = response.engine === "plantuml";
+        tag.textContent = "Vista simplificada (no es PlantUML)";
         const status = document.getElementById("render-status");
-        status.textContent = (response.cached ? "Cache SHA-256: acierto" : "Generacion nueva") +
+        status.textContent = (response.cached ? "Caché SHA-256: acierto" : "Generación nueva") +
           ` · ${response.duration_ms} ms` + (response.cache_warning ? " · " + response.cache_warning : "");
         rendered = signature(CU02Validation.check(payload(), rules).data);
+        setStep(action === "save" ? 3 : 2);
       }
       if (action === "save") {
         // URL absoluta desde el prefijo actual, sin concatenar a /nuevo/.
@@ -174,7 +193,8 @@
     } finally { setBusy(false); }
   }
   form.addEventListener("input", invalidate);
-  form.addEventListener("change", () => { renderGuide(); invalidate(); });
+  form.addEventListener("change", invalidate);
+  attempt.addEventListener("change", () => { renderGuide(); invalidate(); });
   form.addEventListener("submit", event => { event.preventDefault(); submit("validate"); });
   F.name.addEventListener("blur", () => { try { F.name.value = CU02Validation.text(F.name.value, false); } catch (e) { /* se mostrará al validar */ } });
   buttons[0].addEventListener("click", () => submit("validate"));
@@ -185,4 +205,5 @@
     if (checkedInitial.ok) rendered = signature(checkedInitial.data);
   }
   saveButton.disabled = !rendered;
+  setStep(rendered ? 3 : 0);
 })();

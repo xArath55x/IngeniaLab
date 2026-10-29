@@ -103,6 +103,7 @@ textarea { resize: vertical; min-height: 70px; }
 .tag.ok { background: var(--ok-bg); color: var(--ok); }
 .tag.bad { background: var(--bad-bg); color: var(--bad); }
 .tag.hint { background: var(--hint-bg); color: var(--hint); }
+.tag[hidden] { display: none; }
 .feedback { border-radius: 8px; padding: .75rem .9rem; margin-top: .75rem; display: flex; gap: .6rem; border: 1px solid; }
 .feedback .icon { font-size: 1.15rem; line-height: 1.3; }
 .feedback.ok { background: var(--ok-bg); border-color: #b5dcc2; color: #14532a; }
@@ -172,6 +173,21 @@ table.data tr.clickable:hover td { background: #f6fafb; }
 pre.code { background: #10252f; color: #cde7e5; border-radius: 8px; padding: .75rem; font-size: .78rem; overflow: auto; max-height: 260px; margin: 0; }
 details summary { cursor: pointer; font-weight: 600; color: var(--accent); margin: .5rem 0; }
 .guide-req { font-size: .86rem; padding: .35rem 0; border-bottom: 1px dashed var(--border); display: flex; gap: .4rem; align-items: flex-start; }
+.guide-list { max-height: 220px; overflow: auto; }
+.steps { list-style: none; display: flex; gap: .5rem; flex-wrap: wrap; padding: 0; margin: 0 0 1rem; }
+.steps li { display: flex; align-items: center; gap: .45rem; padding: .35rem .8rem; border-radius: 99px; background: #e8eef1; color: var(--muted); font-size: .88rem; }
+.steps li b { display: grid; place-items: center; width: 1.4rem; height: 1.4rem; border-radius: 50%; background: #fff; font-size: .78rem; }
+.steps li.current { background: var(--accent); color: #fff; font-weight: 600; }
+.steps li.current b { color: var(--accent); }
+.steps li.done { background: var(--ok-bg); color: var(--ok); }
+.steps li.done b { background: var(--ok); color: #fff; font-size: 0; }
+.steps li.done b::after { content: "✓"; font-size: .78rem; }
+.save-hint { margin: .3rem 0 0; text-align: right; }
+.form-section { border: 0; border-top: 1px solid var(--border); padding: .9rem 0 0; margin: 0 0 .4rem; min-width: 0; }
+.form-section:first-child { border-top: 0; padding-top: 0; }
+.form-section legend { float: left; width: 100%; font-weight: 700; color: var(--accent-dark); padding: 0; margin-bottom: .5rem; }
+.form-section legend + * { clear: both; }
+details.advanced { margin-top: .75rem; }
 
 /* Tablero */
 .level-card { background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%); color: #fff; border: 0; }
