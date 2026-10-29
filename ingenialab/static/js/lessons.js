@@ -201,6 +201,7 @@
       if (right.has(b.dataset.id)) b.classList.add("is-correct");
       else if (b.classList.contains("selected")) b.classList.add("is-wrong");
     });
+    IL.showBadges(r.badges);
     pendingNext = r;
     state = { ...state, lives: r.lives, solved: r.solved, built: r.built }; renderHeader(); renderBuilt();
     showFeedback(r);

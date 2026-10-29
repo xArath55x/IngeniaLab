@@ -1,0 +1,7 @@
+<li><div><span class="tag hint">Entrevista en curso</span> {{ a.version.title }}<div class="small muted">Pregunta {{ a.asked }} de {{ a.total_rounds }} · iniciada {{ a.started_at|date:"d/m/Y H:i" }}</div></div>
+  <div class="resume-actions">
+    <form method="post" action="{% url 'interviews:discard' a.id %}" onsubmit="return confirm('¿Descartar esta entrevista? Se borrará su bitácora.')">{% csrf_token %}
+      <button type="submit" class="btn small ghost">Descartar</button>
+    </form>
+    <a class="btn small" href="{% url 'interviews:interview' a.id %}">Reanudar</a>
+  </div></li>

@@ -199,7 +199,14 @@ details.advanced { margin-top: .75rem; }
 .badges { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: .6rem; }
 .badge { border: 1px solid var(--border); border-radius: 10px; padding: .7rem; text-align: center; background: #fff; }
 .badge .b-icon { font-size: 1.7rem; }
-.badge.locked { opacity: .45; filter: grayscale(1); }
+.badge.locked { background: var(--bg); border-style: dashed; }
+.badge.locked .b-icon, .badge.locked .b-name { opacity: .5; filter: grayscale(1); }
+.badge .b-how { color: var(--muted); margin-top: .2rem; line-height: 1.35; }
+.resume-actions { display: flex; gap: .4rem; align-items: center; flex-shrink: 0; }
+.resume-actions form { margin: 0; }
+.resume-older details summary { cursor: pointer; color: var(--accent); font-size: .9rem; padding: .2rem 0; }
+.resume-older details[open] summary { margin-bottom: .3rem; }
+.resume-older { display: block !important; }
 .badge .b-name { font-weight: 700; font-size: .85rem; }
 .item-list { list-style: none; padding: 0; margin: 0; }
 .item-list li { display: flex; justify-content: space-between; align-items: center; gap: .5rem; padding: .55rem 0; border-bottom: 1px solid var(--border); }

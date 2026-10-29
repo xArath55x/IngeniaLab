@@ -322,6 +322,8 @@ def api_lesson_answer(request, lesson_id):
         result = lesson_engine.answer(lesson, data.get("exercise_id"), data.get("answer"))
     except lesson_engine.LessonError as e:
         return fail(str(e))
+    if result["lesson_status"] == UseCaseLesson.COMPLETED:
+        result["badges"] = evaluate_badges(request.user)
     return ok(**result)
 
 
