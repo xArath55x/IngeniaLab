@@ -43,6 +43,8 @@ class Command(BaseCommand):
         model = settings.INGENIALAB_AI_MODEL
         totals = {"created": 0, "rejected": 0, "errors": 0, "deactivated": 0, "irrelevant": 0}
         self.timeout, self.judge = opts["timeout"], not opts["no_judge"]
+        # _relevant() lo incrementa también al revalidar, antes del reinicio por pregunta.
+        self.irrelevant = 0
         start = time.monotonic()
         for version in versions:
             self.stdout.write(self.style.MIGRATE_HEADING(f"{version} · {version.title}"))

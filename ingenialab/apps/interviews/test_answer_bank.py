@@ -138,6 +138,25 @@ class AnswerBankTests(BaseCase):
         kept.refresh_from_db()
         self.assertTrue(kept.is_active)
 
+    def test_revalidate_deactivates_variant_rejected_by_judge(self):
+        low = self.version.questions.get(round_number=services.rounds(self.version)[0], quality=InterviewQuestion.LOW)
+        rejected = self.variant(low, "Mire, hoy todo es manual.")
+        verdicts = iter([False] + [True] * 500)
+
+        def llm(payload, *args):
+            if args[4] == dialogue.SYSTEM_JUDGE:
+                return {"answers_question": next(verdicts), "reason": "Cambia de tema."}
+            return fake_llm(payload, *args)
+        out = StringIO()
+        with mock.patch("integrations.ai.dialogue._request", side_effect=llm):
+            call_command("generate_answer_variants", scenario=["ESC-BIBLIOTECA-01"], per_question=1,
+                         quality=["low"], revalidate=True, stdout=out)
+        rejected.refresh_from_db()
+        self.assertFalse(rejected.is_active)
+        self.assertIn("1 variantes desactivadas", out.getvalue())
+        # El rechazo de la revalidación no se cuenta entre las variantes nuevas rechazadas.
+        self.assertIn("(0 por no contestar la pregunta)", out.getvalue())
+
     def test_command_discards_invalid_answers(self):
         generated = []
 
