@@ -372,13 +372,16 @@ def wizard(request):
     # De los casos de uso de referencia del escenario salen las sugerencias de actores y qué requisitos son
     # parte de otro caso de uso (todos menos el primero de cada referencia, que es la meta del usuario).
     actors, part_of = {}, {}
-    for ref in ReferenceUseCase.objects.filter(version__in={a.version_id for a in attempts}):
+    references = list(ReferenceUseCase.objects.filter(version__in={a.version_id for a in attempts}))
+    for ref in references:
         actors.setdefault(ref.version_id, set()).update(ref.spec["primary_actors"] + ref.spec["secondary_actors"])
         part_of.setdefault(ref.version_id, set()).update(ref.requirement_keys[1:])
-    references = list(ReferenceUseCase.objects.filter(version__in={a.version_id for a in attempts}))
     for item, attempt in zip(guide, attempts):
         item["actors"] = sorted(actors.get(attempt.version_id, ()))
         item["part_of"] = sorted(part_of.get(attempt.version_id, ()))
+        # A qué meta pertenece cada regla, para avisar si se mezcla con la meta de otro caso de uso.
+        item["rule_of"] = {k: ref.requirement_keys[0] for ref in references
+                           if ref.version_id == attempt.version_id for k in ref.requirement_keys[1:]}
         # Metas con caso de uso de referencia: el asistente pasa al modo guiado (lección con opciones).
         item["goals"] = {
             ref.requirement_keys[0]: {"start_url": reverse("modeling:lesson_start", args=[ref.id]),

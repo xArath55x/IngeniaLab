@@ -94,7 +94,7 @@
       "exercises": {
         "name": {
           "distractors": ["Calcular multa", "Devoluciones de libros", "Multa por retraso"],
-          "explanation": "La meta del bibliotecario es registrar que el libro regresó: «Registrar devolución». «Calcular multa» es otro caso de uso que solo ocurre cuando hay retraso, y «Devoluciones de libros» o «Multa por retraso» no tienen verbo."
+          "explanation": "El requisito B05 dice qué hace el sistema «al registrar una devolución»: la meta del bibliotecario es registrar que el libro regresó, «Registrar devolución», y el cálculo de la multa ocurre dentro de ella solo cuando hay retraso («Calcular multa» la extiende). «Devoluciones de libros» o «Multa por retraso» no tienen verbo."
         },
         "actors": {
           "distractors": ["Multa", "Servicio de correo", "Sistema de Préstamos de la Biblioteca"],

@@ -277,7 +277,7 @@ details.advanced { margin-top: .75rem; }
 .lesson-classify { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; padding: .5rem 0; border-bottom: 1px dashed var(--border); }
 .lesson-classify-item { flex: 1 1 200px; font-weight: 600; }
 .lesson-footer { display: flex; gap: 1rem; align-items: center; justify-content: space-between; padding: 1rem 1.25rem;
-  border-radius: var(--radius); background: var(--card); border: 1px solid var(--border); position: sticky; bottom: 1rem; }
+  border-radius: var(--radius); background: var(--card); border: 1px solid var(--border); }
 .lesson-footer.ok { background: var(--ok-bg); border-color: #b5dcc2; color: #14532a; }
 .lesson-footer.bad { background: var(--bad-bg); border-color: #efc2bd; color: #7a1b15; }
 .lesson-feedback { flex: 1; }

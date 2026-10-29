@@ -70,15 +70,9 @@
             type: "button", class: `lesson-option${on ? " selected" : ""}`, "aria-pressed": String(on),
             onclick: () => { data.covers = on ? data.covers.filter((s) => s !== r.statement) : [...data.covers, r.statement]; show(); },
           }, [el("span", { text: r.statement })]);
-          if (isRule(r.statement)) b.append(el("span", { class: "tag hint", style: "margin-left:.5rem", text: "regla o paso" }));
-          if (goalOf(r.statement)) b.append(el("span", { class: "tag ok", style: "margin-left:.5rem", text: "con opciones" }));
           return b;
         })));
-        if (data.covers.length && data.covers.every(isRule)) {
-          area.append(el("div", { class: "feedback hint" }, [el("span", { class: "icon", text: "💡" }), el("div", {
-            text: "Lo que elegiste es una regla o un paso de otro caso de uso, no la meta de un usuario. ¿A qué acción pertenece? Por ejemplo, «impedir el préstamo si…» es parte de registrar un préstamo: selecciona también ese requisito.",
-          })]));
-        }
+        // Sin etiquetas: distinguir metas de reglas es lo que se practica; la retroalimentación llega al avanzar.
       },
     },
     {
@@ -232,10 +226,8 @@
   }
 
   /* Modo guiado: si la meta elegida tiene caso de uso de referencia, se construye con opciones (lección). */
-  function goalOf(statement) {
-    const req = current().requirements.find((r) => r.statement === statement);
-    return req && (current().goals || {})[req.key];
-  }
+  const keyOf = (statement) => (current().requirements.find((r) => r.statement === statement) || {}).key;
+  const goalOf = (statement) => (current().goals || {})[keyOf(statement)];
 
   function startGuided(url) {
     const form = el("form", { method: "post", action: url }, [
@@ -246,24 +238,46 @@
     form.submit();
   }
 
-  function showProblem(children) {
-    $("step-error").replaceChildren(el("div", { class: "feedback hint" }, [el("span", { class: "icon", text: "💡" }), el("div", {}, children)]));
+  function showProblem(children, kind = "hint") {
+    $("step-error").replaceChildren(el("div", { class: `feedback ${kind}` },
+      [el("span", { class: "icon", text: kind === "ok" ? "✔" : "💡" }), el("div", {}, children)]));
   }
 
   // Devuelve true si el paso 1 ya decidió qué hacer (iniciar el modo guiado o mostrar un aviso).
   function routeFromOrigin() {
-    const goals = [...new Set(data.covers.map(goalOf).filter(Boolean))];
-    if (goals.length > 1) {
+    if (openMode) return false;
+    if (data.covers.length && data.covers.every(isRule)) {
+      showProblem([el("strong", { text: "Lo que elegiste es una regla o un paso, no la meta de un usuario." }),
+        el("p", { class: "small", text: "¿A qué acción del usuario pertenece? Por ejemplo, «impedir el préstamo si…» ocurre al registrar un préstamo: selecciona también el requisito de esa acción." })]);
+      return true;
+    }
+    const goalKeys = [...new Set(data.covers.map(keyOf).filter((k) => k in (current().goals || {})))];
+    if (goalKeys.length > 1) {
       showProblem([el("strong", { text: "Elegiste la meta de dos casos de uso distintos." }),
         el("p", { class: "small", text: "Un caso de uso tiene una sola meta del usuario: deja solo una y crea el otro después." })]);
       return true;
     }
-    if (!goals.length || openMode) return false;
-    const goal = goals[0];
-    if (goal.unlocked) { startGuided(goal.start_url); return true; }
+    if (!goalKeys.length) return false;
+    // Reglas que pertenecen a la meta de otro caso de uso.
+    const ruleOf = current().rule_of || {};
+    const foreign = data.covers.filter((s) => ruleOf[keyOf(s)] && ruleOf[keyOf(s)] !== goalKeys[0]);
+    if (foreign.length) {
+      showProblem([el("strong", { text: "Estos requisitos son reglas de otro caso de uso, no de este:" }),
+        el("ul", { class: "small" }, foreign.map((s) => el("li", { text: s }))),
+        el("p", { class: "small", text: "Quítalos o cambia la meta que elegiste." })]);
+      return true;
+    }
+    const goal = current().goals[goalKeys[0]];
+    if (goal.unlocked) {
+      showProblem([el("strong", { text: "¡Bien! Elegiste la meta de un caso de uso." }),
+        el("p", { class: "small", text: "Ahora lo construirás con preguntas de opción múltiple…" })], "ok");
+      $("btn-next").disabled = true;
+      setTimeout(() => startGuided(goal.start_url), 900);
+      return true;
+    }
     const missing = [...goal.not_discovered.map((t) => `Descubrir en la entrevista un requisito del tema «${t}».`),
       ...goal.not_classified.map((s) => `Clasificar como RF: «${s}»`)];
-    showProblem([el("strong", { text: "Este caso de uso tiene modo guiado con opciones, pero aún no se desbloquea:" }),
+    showProblem([el("strong", { text: "Este caso de uso tiene un modo guiado con opciones, pero aún no se desbloquea:" }),
       el("ul", { class: "small" }, missing.map((m) => el("li", { text: m }))),
       el("button", { type: "button", class: "btn small secondary", text: "Continuar con respuestas abiertas",
         onclick: () => { openMode = true; step += 1; show(); focusInput(); } })]);
