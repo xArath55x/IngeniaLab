@@ -2,7 +2,8 @@
 
 Se ejecuta antes de las prácticas (puede tardar varios minutos con un modelo local). Completa hasta
 --per-question variantes activas por pregunta, así que puede interrumpirse y reanudarse. Las variantes
-pasan la misma validación que la respuesta libre; las inválidas se descartan.
+pasan la misma validación que la respuesta libre y una revisión de relevancia del propio LLM («¿contesta
+la pregunta?»); las que no pasan se descartan.
 
     INGENIALAB_AI_ENDPOINT=http://127.0.0.1:11434/v1/chat/completions INGENIALAB_AI_MODEL=qwen2.5:7b \\
         python manage.py generate_answer_variants --scenario ESC-BIBLIOTECA-01
@@ -25,6 +26,8 @@ class Command(BaseCommand):
         parser.add_argument("--timeout", type=float, default=90, help="Segundos máximos por llamada al LLM")
         parser.add_argument("--revalidate", action="store_true",
                             help="Desactiva las variantes activas que ya no pasan la validación vigente antes de completar")
+        parser.add_argument("--no-judge", action="store_true",
+                            help="Omite la revisión de relevancia con el LLM (más rápido, menos filtrado)")
 
     def handle(self, *args, **opts):
         per_question = opts["per_question"]
@@ -36,31 +39,51 @@ class Command(BaseCommand):
         if not versions.exists():
             raise CommandError("No hay escenarios activos con esos códigos.")
         model = settings.INGENIALAB_AI_MODEL
-        totals = {"created": 0, "rejected": 0, "errors": 0, "deactivated": 0}
+        totals = {"created": 0, "rejected": 0, "errors": 0, "deactivated": 0, "irrelevant": 0}
+        self.timeout, self.judge = opts["timeout"], not opts["no_judge"]
         start = time.monotonic()
         for version in versions:
             self.stdout.write(self.style.MIGRATE_HEADING(f"{version} · {version.title}"))
             for question in version.questions.order_by("round_number", "order"):
                 if opts["revalidate"]:
                     totals["deactivated"] += self._revalidate(question)
+                self.irrelevant = 0
                 created, rejected, errors = self._fill(question, per_question, opts["timeout"], model)
                 for key, value in zip(totals, (created, rejected, errors)):
                     totals[key] += value
+                totals["irrelevant"] += self.irrelevant
                 have = AnswerVariant.for_question(question).filter(is_active=True).count()
                 self.stdout.write(f"  ronda {question.round_number} · {question.get_quality_display():<9} "
-                                  f"{have}/{per_question} variantes (+{created}, rechazadas {rejected}, errores {errors})")
+                                  f"{have}/{per_question} variantes (+{created}, rechazadas {rejected} "
+                                  f"[{self.irrelevant} sin relación], errores {errors})")
         minutes = (time.monotonic() - start) / 60
         if opts["revalidate"]:
             self.stdout.write(f"{totals['deactivated']} variantes desactivadas por la validación vigente.")
         self.stdout.write(self.style.SUCCESS(
             f"Listo en {minutes:.1f} min: {totals['created']} variantes nuevas, {totals['rejected']} rechazadas "
-            f"por validación, {totals['errors']} errores del proveedor. Revísalas en el admin (Answer variants)."))
+            f"({totals['irrelevant']} por no contestar la pregunta), {totals['errors']} errores del proveedor. "
+            "Revísalas en el admin (Answer variants)."))
+
+    def _relevant(self, question, text):
+        """True/False según el LLM; None si no se pudo revisar (red o veredicto ilegible)."""
+        if not self.judge:
+            return True
+        try:
+            ok, _reason = dialogue.judge_relevance(question.text, text, self.timeout)
+        except Exception:
+            return None
+        if not ok:
+            self.irrelevant += 1
+        return ok
 
     def _revalidate(self, question):
         deactivated = 0
         for variant in AnswerVariant.for_question(question).filter(is_active=True):
             try:
                 dialogue.revalidate_variant(variant.segments, question)
+                # Si la revisión no se pudo hacer (None), la variante se conserva.
+                if self._relevant(question, variant.text) is False:
+                    raise ValueError("No contesta la pregunta")
             except ValueError:
                 variant.is_active = False
                 variant.save(update_fields=["is_active"])
@@ -87,7 +110,8 @@ class Command(BaseCommand):
                 errors += 1
                 continue
             text = " ".join(s["text"] for s in segments)
-            if text in texts:
+            # Una variante que no se pudo revisar (None) se descarta por precaución.
+            if text in texts or not self._relevant(question, text):
                 rejected += 1
                 continue
             texts.add(text)

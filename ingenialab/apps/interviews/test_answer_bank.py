@@ -16,8 +16,14 @@ LLM = override_settings(INGENIALAB_AI_MODE="chat_completions", INGENIALAB_AI_END
                         INGENIALAB_AI_MODEL="prueba", INGENIALAB_AI_FREE_ANSWERS=True, INGENIALAB_AI_FREE_TIMEOUT=2)
 
 
-def fake_llm(*args, **kwargs):
+def fake_llm(payload, endpoint, key, model, timeout, system=None, temperature=None):
+    if system == dialogue.SYSTEM_JUDGE:
+        return {"answers_question": True, "reason": "Contesta."}
     return {"intro": f"Le cuento algo distinto {secrets.token_hex(4)}.", "closing": ""}
+
+
+def generation_calls(llm):
+    return [c for c in llm.call_args_list if c.args[5] == dialogue.SYSTEM_FREE]
 
 
 @LLM
@@ -82,15 +88,51 @@ class AnswerBankTests(BaseCase):
         with mock.patch("integrations.ai.dialogue._request", side_effect=fake_llm) as llm:
             call_command("generate_answer_variants", scenario=["ESC-BIBLIOTECA-01"], per_question=2, stdout=StringIO())
             questions = self.version.questions.count()
-            self.assertEqual(llm.call_count, questions * 2)
+            self.assertEqual(len(generation_calls(llm)), questions * 2)
+            self.assertEqual(llm.call_count, questions * 4)  # cada variante pasa por la revisión de relevancia
             call_command("generate_answer_variants", scenario=["ESC-BIBLIOTECA-01"], per_question=2, stdout=StringIO())
-            self.assertEqual(llm.call_count, questions * 2)
+            self.assertEqual(llm.call_count, questions * 4)
         self.assertEqual(AnswerVariant.objects.filter(version=self.version, is_active=True).count(), questions * 2)
-        self.assertEqual(llm.call_args.args[-2:], (dialogue.SYSTEM_FREE, 0.9))
+        self.assertEqual(generation_calls(llm)[0].args[-1], 0.9)
+
+    def test_command_discards_answers_that_do_not_answer_the_question(self):
+        verdicts = iter([False] + [True] * 500)
+
+        def llm(payload, *args):
+            if args[4] == dialogue.SYSTEM_JUDGE:
+                return {"answers_question": next(verdicts), "reason": "Cambia de tema."}
+            return fake_llm(payload, *args)
+        out = StringIO()
+        with mock.patch("integrations.ai.dialogue._request", side_effect=llm):
+            call_command("generate_answer_variants", scenario=["ESC-BIBLIOTECA-01"], per_question=1, stdout=out)
+        self.assertIn("(1 por no contestar la pregunta)", out.getvalue())
+        self.assertEqual(AnswerVariant.objects.filter(version=self.version).count(), self.version.questions.count())
+
+    def test_no_judge_skips_relevance_review(self):
+        with mock.patch("integrations.ai.dialogue._request", side_effect=fake_llm) as llm:
+            call_command("generate_answer_variants", scenario=["ESC-BIBLIOTECA-01"], per_question=1, no_judge=True,
+                         stdout=StringIO())
+        self.assertEqual(len(generation_calls(llm)), llm.call_count)
+
+    def test_revalidate_keeps_variant_when_review_is_unavailable(self):
+        question = self.high()
+        kept = self.variant(question, "Mire, hoy todo es manual.")
+        with mock.patch("integrations.ai.dialogue._request", side_effect=OSError("sin red")):
+            call_command("generate_answer_variants", scenario=["ESC-BIBLIOTECA-01"], per_question=1,
+                         revalidate=True, stdout=StringIO())
+        kept.refresh_from_db()
+        self.assertTrue(kept.is_active)
 
     def test_command_discards_invalid_answers(self):
-        responses = iter([{"intro": "Hay alumnos con tres libros prestados a la vez.", "closing": ""}] + [fake_llm()] * 200)
-        with mock.patch("integrations.ai.dialogue._request", side_effect=lambda *a: next(responses)):
+        generated = []
+
+        def llm(payload, *args):
+            if args[4] == dialogue.SYSTEM_FREE:
+                generated.append(payload)
+                if len(generated) == 1:  # la primera revela una cifra del escenario
+                    return {"intro": "Hay alumnos con tres libros prestados a la vez.", "closing": ""}
+            return fake_llm(payload, *args)
+        with mock.patch("integrations.ai.dialogue._request", side_effect=llm):
             out = StringIO()
             call_command("generate_answer_variants", scenario=["ESC-BIBLIOTECA-01"], per_question=1, stdout=out)
         self.assertIn("1 rechazadas", out.getvalue())

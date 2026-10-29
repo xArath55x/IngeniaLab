@@ -53,6 +53,16 @@ respuesta para esa pregunta.
 Responde solo con JSON: {"intro": "...", "closing": "..."}"""
 
 
+# Revisión de relevancia del banco: los filtros de palabras no detectan respuestas que se van por otro lado.
+SYSTEM_JUDGE = """Revisas respuestas de un cliente en una práctica de entrevista de requisitos.
+Recibes la pregunta del analista (question) y la respuesta del cliente (answer).
+"answers_question" es true solo si la respuesta contesta directamente lo que se preguntó, aunque sea de forma
+breve, vaga o diciendo que no sabe. Es false si cambia de tema, ignora la pregunta o se pone a describir el
+proyecto o sus problemas sin relación con lo preguntado.
+
+Responde solo con JSON: {"answers_question": true o false, "reason": "una oración"}"""
+
+
 @dataclass
 class DialogueResult:
     segments: list
@@ -208,6 +218,16 @@ def generate_variant(question, timeout, temperature=0.9):
     payload, facts = _free_payload(question, catalog)
     value = _request(payload, endpoint, settings.INGENIALAB_AI_API_KEY, model, timeout, SYSTEM_FREE, temperature)
     return _validate_free(value, catalog, facts, question.version.summary)
+
+
+def judge_relevance(question_text, answer_text, timeout):
+    """Pregunta al LLM si la respuesta contesta la pregunta. Devuelve (bool, motivo); lanza ValueError si
+    la salida no es interpretable. Solo se usa al generar el banco, fuera de la entrevista."""
+    value = _request({'question': question_text, 'answer': answer_text}, settings.INGENIALAB_AI_ENDPOINT,
+                     settings.INGENIALAB_AI_API_KEY, settings.INGENIALAB_AI_MODEL, timeout, SYSTEM_JUDGE, 0)
+    if not isinstance(value, dict) or not isinstance(value.get('answers_question'), bool):
+        raise ValueError('Veredicto de relevancia invalido')
+    return value['answers_question'], str(value.get('reason', ''))[:300]
 
 
 def revalidate_variant(segments, question):
