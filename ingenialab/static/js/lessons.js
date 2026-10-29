@@ -12,12 +12,15 @@
   /* Tarjeta «Tu caso de uso»: cada acierto llena su parte; lo pendiente se muestra vacío. */
   let filled = new Set();
   function renderBuilt() {
-    $("built").replaceChildren(...state.built.flatMap((part) => {
+    // Solo lo construido y, vacío, la parte del ejercicio en pantalla.
+    const currentId = state.lesson_status === "in_progress" && state.current ? state.current.id : null;
+    $("built").replaceChildren(...state.built.filter((part) => part.values || part.id === currentId).flatMap((part) => {
       const isNew = part.values && !filled.has(part.id);
       const dd = IL.el("dd", { class: `built-item${part.values ? "" : " empty"}${isNew ? " new" : ""}` });
       if (!part.values) dd.textContent = "Por construir";
       else if (part.id === "main_flow") dd.append(IL.el("ol", {}, part.values.map((v) => IL.el("li", { text: v }))));
-      else dd.textContent = part.values.join(" · ");
+      else if (part.values.length > 1) dd.append(IL.el("ul", {}, part.values.map((v) => IL.el("li", { text: v }))));
+      else dd.textContent = part.values[0];
       return [IL.el("dt", { text: part.label }), dd];
     }));
     filled = new Set(state.built.filter((p) => p.values).map((p) => p.id));
@@ -125,7 +128,8 @@
 
   function renderFinish() {
     $("exercise").hidden = true; $("footer").hidden = true; $("finish").hidden = false;
-    $("finish-back").href = $("finish-back-done").href = root.dataset.lessonsUrl;
+    $("finish-back").href = root.dataset.lessonsUrl;
+    $("finish-back-done").href = root.dataset.wizardUrl;
     if (state.lesson_status === "completed") {
       $("finish-icon").textContent = "🏆";
       $("finish-title").textContent = "¡Construiste tu caso de uso!";
@@ -159,7 +163,7 @@
 
   checkBtn.addEventListener("click", async () => {
     if (pendingNext) {
-      state = pendingNext; renderHeader();
+      state = pendingNext; renderHeader(); renderBuilt();
       return state.lesson_status === "in_progress" ? renderExercise(state.current) : renderFinish();
     }
     if (answer === null || busy) return;

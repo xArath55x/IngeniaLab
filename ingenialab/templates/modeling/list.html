@@ -5,8 +5,8 @@
   <div><h1>Modelado de casos de uso</h1><p class="muted">Estructura casos de uso con una plantilla guiada y genera su diagrama UML con PlantUML.</p></div>
   {% if can_model %}<div>
     <div class="btn-row">
-      <a class="btn" href="{% url 'modeling:lessons' %}">🎓 Lecciones guiadas</a>
-      <a class="btn secondary" href="{% url 'modeling:wizard' %}">✍️ Crear mi caso de uso</a>
+      <a class="btn" href="{% url 'modeling:wizard' %}">✍️ Crear caso de uso</a>
+      <a class="btn secondary" href="{% url 'modeling:lessons' %}">🎓 Mi avance guiado</a>
     </div>
     <p class="small muted" style="text-align:right;margin:.4rem 0 0"><a href="{% url 'modeling:new' %}">Editor avanzado</a></p>
   </div>{% endif %}

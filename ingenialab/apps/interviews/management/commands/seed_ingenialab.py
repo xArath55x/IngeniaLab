@@ -99,17 +99,25 @@ def _check_use_case(uc, version):
     form = UseCaseForm(data=spec)
     if not form.is_valid():
         raise ValueError(f"{key}: la especificación no pasa el editor: {form.error_messages()}")
-    needed = {"name", "primary_actor", "preconditions", "main_flow", "postconditions"}
-    needed |= {"secondary_actors"} if spec["secondary_actors"] else set()
+    actors = spec["primary_actors"] + spec["secondary_actors"]
+    needed = {"name", "actors", "preconditions", "main_flow", "postconditions"}
+    needed |= {"primary_actor"} if len(actors) > 1 else set()
     needed |= {"alternate_flows"} if spec["alternate_flows"] else set()
     needed |= {"relations"} if spec["relations"] else set()
     if needed - set(exercises):
         raise ValueError(f"{key}: faltan ejercicios {sorted(needed - set(exercises))}")
-    correct = {"name": [spec["name"]], "primary_actor": spec["primary_actors"][:1],
-               "secondary_actors": spec["secondary_actors"], "preconditions": [spec["preconditions"]],
-               "alternate_flows": spec["alternate_flows"][:1], "postconditions": [spec["postconditions"]]}
+    # Las opciones correctas de cada ejercicio deben coincidir con la especificación que se guarda.
+    for name, part in (("preconditions", "preconditions"), ("postconditions", "postconditions")):
+        if " ".join(exercises[name]["correct"]) != spec[part]:
+            raise ValueError(f"{key}: las opciones correctas de {name} no coinciden con la especificación")
+    if spec["alternate_flows"] and exercises["alternate_flows"]["correct"] != spec["alternate_flows"]:
+        raise ValueError(f"{key}: las opciones correctas de alternate_flows no coinciden con la especificación")
+    if spec["relations"] and exercises["relations"]["correct"] != [f"«{r['type']}» {r['target']}" for r in spec["relations"]]:
+        raise ValueError(f"{key}: las opciones correctas de relations no coinciden con la especificación")
+    correct = {"name": [spec["name"]], "actors": actors, "main_flow": spec["main_flow"],
+               **{n: exercises.get(n, {}).get("correct", []) for n in
+                  ("preconditions", "postconditions", "alternate_flows", "relations")}}
     for name, answers in correct.items():
         distractors = exercises.get(name, {}).get("distractors", [])
         if name in needed and (len(distractors) < 2 or set(distractors) & set(answers)):
-            raise ValueError(f"{key}: {name} necesita al menos 2 opciones incorrectas distintas de la respuesta")
-
+            raise ValueError(f"{key}: {name} necesita al menos 2 opciones incorrectas distintas de las correctas")

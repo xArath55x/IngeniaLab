@@ -19,9 +19,11 @@ XP_BASE = 10
 XP_PER_LIFE = 5
 # Parte del caso de uso que construye cada ejercicio, en el orden de la tarjeta «Tu caso de uso».
 PARTS = {
-    "name": "Nombre", "primary_actor": "Actor principal", "secondary_actors": "Actores secundarios",
-    "preconditions": "Precondición", "main_flow": "Flujo principal", "alternate_flows": "Flujo alterno",
-    "postconditions": "Postcondición", "relations": "Relaciones",
+    "name": "Nombre", "actors": "Actores", "primary_actor": "Actor principal", "preconditions": "Precondiciones",
+    "main_flow_select": "Pasos del flujo", "main_flow": "Flujo principal", "alternate_flows": "Flujos alternos",
+    "postconditions": "Postcondiciones", "relations": "Relaciones",
+    # Lecciones creadas con el formato anterior (una sola respuesta por parte).
+    "secondary_actors": "Actores secundarios",
 }
 
 
@@ -55,62 +57,67 @@ def _choice(rng, ex_id, title, prompt, correct, distractors, explanation, contex
     }
 
 
+def _multi(rng, ex_id, title, prompt, correct, distractors, explanation):
+    """Varias respuestas correctas entre opciones mezcladas; se califica el conjunto exacto."""
+    options = [*correct, *distractors]
+    rng.shuffle(options)
+    return {
+        "id": ex_id, "type": "multi", "title": title, "prompt": f"{prompt} Puede haber más de una.", "context": [],
+        "options": [{"id": i, "text": t} for i, t in enumerate(options)],
+        "answer": sorted(options.index(c) for c in correct), "explanation": explanation,
+        # Orden original de las respuestas correctas, para mostrarlas en la tarjeta (FA-1 antes que FA-2).
+        "order": [options.index(c) for c in correct],
+    }
+
+
+def relation_text(relation):
+    return f"«{relation['type']}» {relation['target']}"
+
+
 def build_exercises(reference, statements, seed):
     """Ejercicios de la lección en orden; incluyen la respuesta (solo para el servidor)."""
     rng = random.Random(seed)
     spec, ex = reference.spec, reference.exercises
     name = spec["name"]
+    actors = spec["primary_actors"] + spec["secondary_actors"]
     items = [
         _choice(rng, "name", "Del requisito al caso de uso",
                 "¿Cuál es el nombre correcto del caso de uso que sale de estos requisitos?",
                 name, ex["name"]["distractors"], ex["name"]["explanation"], context=statements),
-        _choice(rng, "primary_actor", "¿Quién participa?", f"¿Quién inicia el caso de uso «{name}»?",
-                spec["primary_actors"][0], ex["primary_actor"]["distractors"], ex["primary_actor"]["explanation"]),
+        _multi(rng, "actors", "¿Quién participa?", f"Marca a todos los actores de «{name}».",
+               actors, ex["actors"]["distractors"], ex["actors"]["explanation"]),
     ]
-    if spec["secondary_actors"]:
-        options = [*spec["secondary_actors"], *ex["secondary_actors"]["distractors"]]
-        rng.shuffle(options)
-        items.append({
-            "id": "secondary_actors", "type": "multi", "title": "¿Quién participa?",
-            "prompt": "Selecciona los actores secundarios: apoyan al sistema, pero no inician el caso de uso.",
-            "context": [], "options": [{"id": i, "text": t} for i, t in enumerate(options)],
-            "answer": sorted(options.index(a) for a in spec["secondary_actors"]),
-            "explanation": ex["secondary_actors"]["explanation"],
-        })
-    items.append(_choice(rng, "preconditions", "¿Qué pasa?", "¿Qué debe ser cierto ANTES de empezar?",
-                         spec["preconditions"], ex["preconditions"]["distractors"], ex["preconditions"]["explanation"]))
+    if len(actors) > 1:
+        items.append(_choice(rng, "primary_actor", "¿Quién participa?", f"De ellos, ¿quién INICIA «{name}»?",
+                             spec["primary_actors"][0], actors[1:], ex["primary_actor"]["explanation"]))
+    items.append(_multi(rng, "preconditions", "Antes de empezar", "Marca lo que debe ser cierto ANTES de empezar.",
+                        ex["preconditions"]["correct"], ex["preconditions"]["distractors"], ex["preconditions"]["explanation"]))
+    items.append(_multi(rng, "main_flow_select", "¿Qué pasa?", "Marca los pasos que SÍ forman parte del flujo principal.",
+                        spec["main_flow"], ex["main_flow"]["distractors"], ex["main_flow"]["explanation"]))
     steps = list(enumerate(spec["main_flow"]))
     while len(steps) > 1 and [i for i, _ in steps] == list(range(len(steps))):
         rng.shuffle(steps)
     items.append({
         "id": "main_flow", "type": "order", "title": "¿Qué pasa?",
-        "prompt": "Ordena los pasos del flujo principal tocándolos en orden.",
+        "prompt": "Ahora ordena esos pasos tocándolos en el orden en que ocurren.",
         "context": [], "options": [{"id": i, "text": t} for i, t in steps],
         "answer": list(range(len(spec["main_flow"]))), "explanation": ex["main_flow"]["explanation"],
     })
     if spec["alternate_flows"]:
-        items.append(_choice(rng, "alternate_flows", "¿Qué pasa si…?",
-                             "¿Qué pasa si algo sale distinto? Elige el flujo alterno correcto.",
-                             spec["alternate_flows"][0], ex["alternate_flows"]["distractors"],
-                             ex["alternate_flows"]["explanation"]))
-    items.append(_choice(rng, "postconditions", "¿Cómo termina?",
-                         "¿Qué queda cierto cuando el caso de uso termina con éxito?",
-                         spec["postconditions"], ex["postconditions"]["distractors"], ex["postconditions"]["explanation"]))
+        items.append(_multi(rng, "alternate_flows", "¿Qué pasa si…?", "Marca las excepciones válidas para este caso de uso.",
+                            ex["alternate_flows"]["correct"], ex["alternate_flows"]["distractors"],
+                            ex["alternate_flows"]["explanation"]))
+    items.append(_multi(rng, "postconditions", "¿Cómo termina?", "Marca lo que queda cierto cuando termina con éxito.",
+                        ex["postconditions"]["correct"], ex["postconditions"]["distractors"], ex["postconditions"]["explanation"]))
     if spec["relations"]:
-        items.append({
-            "id": "relations", "type": "classify", "title": "Relaciones",
-            "prompt": f"¿Qué relación tiene «{name}» con cada caso de uso?", "context": [],
-            "options": [{"id": i, "text": r["target"]} for i, r in enumerate(spec["relations"])],
-            "categories": [{"id": "include", "text": "«include» (siempre)"}, {"id": "extend", "text": "«extend» (opcional)"}],
-            "answer": {str(i): r["type"] for i, r in enumerate(spec["relations"])},
-            "explanation": ex["relations"]["explanation"],
-        })
+        items.append(_multi(rng, "relations", "Relaciones", f"Marca las relaciones correctas de «{name}».",
+                            ex["relations"]["correct"], ex["relations"]["distractors"], ex["relations"]["explanation"]))
     return items
 
 
 def public(exercise):
     """Versión para el navegador: sin respuesta ni explicación."""
-    return {k: v for k, v in exercise.items() if k not in ("answer", "explanation")}
+    return {k: v for k, v in exercise.items() if k not in ("answer", "explanation", "order")}
 
 
 def solution_text(exercise):
@@ -121,7 +128,7 @@ def solution_text(exercise):
     if exercise["type"] == "classify":
         labels = {c["id"]: c["text"] for c in exercise["categories"]}
         return [f"{options[int(i)]}: {labels[t]}" for i, t in answer.items()]
-    return [options[i] for i in answer]
+    return [options[i] for i in exercise.get("order", answer)]
 
 
 def is_correct(exercise, answer):
@@ -161,8 +168,9 @@ def start(user, attempt, reference):
 def built(lesson):
     """Partes del caso de uso ya construidas; las no resueltas van vacías para no adelantar respuestas."""
     solved = set(lesson.solved)
+    # Una vez ordenado el flujo, la lista sin orden de «Pasos del flujo» sobra.
     return [{"id": e["id"], "label": PARTS[e["id"]], "values": solution_text(e) if e["id"] in solved else None}
-            for e in lesson.exercises]
+            for e in lesson.exercises if not (e["id"] == "main_flow_select" and "main_flow" in solved)]
 
 
 def state(lesson):

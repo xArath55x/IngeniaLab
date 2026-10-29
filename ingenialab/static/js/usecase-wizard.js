@@ -13,7 +13,7 @@
     attempt_id: root.dataset.selected, covers: [], name: "", system_name: "", primary_actors: [],
     secondary_actors: [], preconditions: "", main_flow: [], alternate_flows: [], postconditions: "", relations: [],
   };
-  let step = 0, saved = null;
+  let step = 0, saved = null, openMode = false;
   const current = () => guide.find((g) => g.id === data.attempt_id) || guide[0];
   data.system_name = current().system;
 
@@ -59,7 +59,7 @@
           const select = el("select", { class: "wizard-input", "aria-label": "Entrevista" },
             guide.map((g) => el("option", { value: g.id, text: g.label })));
           select.value = data.attempt_id;
-          select.addEventListener("change", () => { data.attempt_id = select.value; data.system_name = current().system; data.covers = []; show(); });
+          select.addEventListener("change", () => { data.attempt_id = select.value; data.system_name = current().system; data.covers = []; openMode = false; show(); });
           area.append(el("label", { class: "small muted", text: "Entrevista" }), select);
         }
         const rfs = current().requirements.filter((r) => r.category === "RF");
@@ -71,6 +71,7 @@
             onclick: () => { data.covers = on ? data.covers.filter((s) => s !== r.statement) : [...data.covers, r.statement]; show(); },
           }, [el("span", { text: r.statement })]);
           if (isRule(r.statement)) b.append(el("span", { class: "tag hint", style: "margin-left:.5rem", text: "regla o paso" }));
+          if (goalOf(r.statement)) b.append(el("span", { class: "tag ok", style: "margin-left:.5rem", text: "con opciones" }));
           return b;
         })));
         if (data.covers.length && data.covers.every(isRule)) {
@@ -230,6 +231,45 @@
     tip.className = `small ${ok ? "ok-text" : "hint-text"}`;
   }
 
+  /* Modo guiado: si la meta elegida tiene caso de uso de referencia, se construye con opciones (lección). */
+  function goalOf(statement) {
+    const req = current().requirements.find((r) => r.statement === statement);
+    return req && (current().goals || {})[req.key];
+  }
+
+  function startGuided(url) {
+    const form = el("form", { method: "post", action: url }, [
+      el("input", { type: "hidden", name: "csrfmiddlewaretoken", value: (document.cookie.match(/(?:^|; )csrftoken=([^;]+)/) || [])[1] || "" }),
+      el("input", { type: "hidden", name: "attempt", value: data.attempt_id }),
+    ]);
+    document.body.append(form);
+    form.submit();
+  }
+
+  function showProblem(children) {
+    $("step-error").replaceChildren(el("div", { class: "feedback hint" }, [el("span", { class: "icon", text: "💡" }), el("div", {}, children)]));
+  }
+
+  // Devuelve true si el paso 1 ya decidió qué hacer (iniciar el modo guiado o mostrar un aviso).
+  function routeFromOrigin() {
+    const goals = [...new Set(data.covers.map(goalOf).filter(Boolean))];
+    if (goals.length > 1) {
+      showProblem([el("strong", { text: "Elegiste la meta de dos casos de uso distintos." }),
+        el("p", { class: "small", text: "Un caso de uso tiene una sola meta del usuario: deja solo una y crea el otro después." })]);
+      return true;
+    }
+    if (!goals.length || openMode) return false;
+    const goal = goals[0];
+    if (goal.unlocked) { startGuided(goal.start_url); return true; }
+    const missing = [...goal.not_discovered.map((t) => `Descubrir en la entrevista un requisito del tema «${t}».`),
+      ...goal.not_classified.map((s) => `Clasificar como RF: «${s}»`)];
+    showProblem([el("strong", { text: "Este caso de uso tiene modo guiado con opciones, pero aún no se desbloquea:" }),
+      el("ul", { class: "small" }, missing.map((m) => el("li", { text: m }))),
+      el("button", { type: "button", class: "btn small secondary", text: "Continuar con respuestas abiertas",
+        onclick: () => { openMode = true; step += 1; show(); focusInput(); } })]);
+    return true;
+  }
+
   function focusInput() { const f = $("step-area").querySelector("input, textarea"); if (f) f.focus(); }
 
   // Errores del servidor: indica en qué paso corregir.
@@ -281,6 +321,7 @@
   }
 
   $("btn-next").addEventListener("click", () => {
+    if (step === 0 && routeFromOrigin()) return;
     const errors = CU02Validation.check(payload(), rules).errors;
     // Mensajes del asistente para los casos más comunes; el resto viene de la validación del editor.
     if (!data.primary_actors.length) errors.primary_actors = "Escribe quién inicia el caso de uso.";

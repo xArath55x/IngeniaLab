@@ -89,6 +89,7 @@ class LessonTests(BaseCase):
         state = json.loads(page.content.decode().split('id="lesson-state" type="application/json">')[1].split("</script>")[0])
         self.assertNotIn("answer", state["current"])
         self.assertNotIn("explanation", state["current"])
+        self.assertNotIn("order", state["current"])
         self.assertEqual(state["lives"], lessons.LIVES)
 
     def test_complete_lesson_awards_best_xp_once(self):
@@ -206,10 +207,23 @@ class LessonTests(BaseCase):
         self.client.login(username="otro", password="ClaveSegura123")
         self.assertEqual(self.post(f"/modelado/api/leccion/{lesson.id}/guardar/").status_code, 404)
 
-    def test_classification_links_to_lessons(self):
+    def test_classification_links_to_use_case_wizard(self):
         attempt = self.ready_attempt()
         r = self.client.get(f"/clasificacion/intento/{attempt.id}/")
-        self.assertContains(r, f"/modelado/lecciones/?attempt={attempt.id}")
+        self.assertContains(r, f"/modelado/asistente/?attempt={attempt.id}")
+
+    def test_multiple_correct_answers_are_graded_as_a_set(self):
+        attempt = self.ready_attempt()
+        self.start(attempt, self.reference())
+        lesson = UseCaseLesson.objects.get()
+        pre = next(e for e in lesson.exercises if e["id"] == "preconditions")
+        self.assertEqual(pre["type"], "multi")
+        self.assertEqual(len(pre["answer"]), 2)
+        self.assertEqual(len(pre["options"]), 5)
+        self.assertFalse(lessons.is_correct(pre, pre["answer"][:1]))
+        self.assertTrue(lessons.is_correct(pre, list(reversed(pre["answer"]))))
+        ids = [e["id"] for e in lesson.exercises]
+        self.assertLess(ids.index("main_flow_select"), ids.index("main_flow"))
 
 
 class ExerciseTests(SimpleTestCase):

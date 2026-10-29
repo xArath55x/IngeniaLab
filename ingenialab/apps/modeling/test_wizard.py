@@ -23,6 +23,10 @@ class WizardTests(BaseCase):
         self.assertIn("B04", guide["part_of"])
         self.assertNotIn("B01", guide["part_of"])
         self.assertNotIn("B02", guide["part_of"])
+        # B01 es la meta de «Registrar préstamo»: tiene modo guiado, bloqueado hasta clasificar B01 y B04.
+        self.assertIn("B01", guide["goals"])
+        self.assertFalse(guide["goals"]["B01"]["unlocked"])
+        self.assertTrue(guide["goals"]["B01"]["start_url"].endswith("/iniciar/"))
         self.assertEqual(r.context["validation_rules"]["min_steps"], 2)
 
     def test_unknown_attempt_falls_back_to_first(self):

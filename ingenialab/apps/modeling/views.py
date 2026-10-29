@@ -375,9 +375,16 @@ def wizard(request):
     for ref in ReferenceUseCase.objects.filter(version__in={a.version_id for a in attempts}):
         actors.setdefault(ref.version_id, set()).update(ref.spec["primary_actors"] + ref.spec["secondary_actors"])
         part_of.setdefault(ref.version_id, set()).update(ref.requirement_keys[1:])
+    references = list(ReferenceUseCase.objects.filter(version__in={a.version_id for a in attempts}))
     for item, attempt in zip(guide, attempts):
         item["actors"] = sorted(actors.get(attempt.version_id, ()))
         item["part_of"] = sorted(part_of.get(attempt.version_id, ()))
+        # Metas con caso de uso de referencia: el asistente pasa al modo guiado (lección con opciones).
+        item["goals"] = {
+            ref.requirement_keys[0]: {"start_url": reverse("modeling:lesson_start", args=[ref.id]),
+                                      **lesson_engine.lesson_status(attempt, ref)}
+            for ref in references if ref.version_id == attempt.version_id
+        }
     selected = request.GET.get("attempt", "")
     return render(request, "modeling/wizard.html", {
         "guide": guide, "validation_rules": validators.RULES,
