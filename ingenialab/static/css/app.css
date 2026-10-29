@@ -285,3 +285,23 @@ details.advanced { margin-top: .75rem; }
 .lesson-finish { text-align: center; }
 .lesson-finish .lesson-icon { font-size: 3rem; margin-bottom: .5rem; }
 @media (max-width: 760px) { .lesson-footer { flex-direction: column; align-items: stretch; } }
+
+/* Asistente paso a paso para crear un caso de uso (CU-02) */
+.wizard-area { display: grid; gap: .6rem; }
+.wizard-input { width: 100%; }
+textarea.wizard-input { min-height: 90px; }
+.wizard-label { font-weight: 600; margin: .4rem 0 0; }
+.wizard-row { display: flex; gap: .5rem; align-items: center; }
+.wizard-row .wizard-input { flex: 1; }
+.wizard-list { margin: 0; padding-left: 1.4rem; display: grid; gap: .35rem; }
+.wizard-list li { padding: .45rem .6rem; background: var(--accent-soft); border-radius: 8px; }
+.wizard-list li span { margin-right: .4rem; }
+.wizard-list li .icon-btn { float: right; }
+.chips { display: flex; flex-wrap: wrap; gap: .4rem; }
+.chip { font: inherit; font-size: .85rem; padding: .3rem .75rem; border-radius: 99px; border: 1px solid var(--border);
+  background: #fff; color: var(--text); cursor: pointer; }
+.chip:hover { border-color: #9fc3c1; }
+.chip.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.ok-text { color: var(--ok); }
+.hint-text { color: var(--hint); }
+

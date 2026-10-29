@@ -52,5 +52,5 @@
   <div class="card"><p class="empty">Este escenario todavía no tiene lecciones.</p></div>
   {% endfor %}
 </div>
-<p class="small" style="margin-top:1rem"><a href="{% url 'modeling:new' %}?attempt={{ selected.id }}">Prefiero escribir el caso de uso en el editor libre →</a></p>
+<p class="small" style="margin-top:1rem"><a href="{% url 'modeling:wizard' %}?attempt={{ selected.id }}">✍️ Crear mi propio caso de uso paso a paso →</a></p>
 {% endblock %}

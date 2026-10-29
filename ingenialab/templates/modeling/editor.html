@@ -21,6 +21,7 @@
   <li data-step="3"><b>3</b> Guarda</li>
 </ol>
 
+{% if not uc and not lesson %}<p class="small" style="margin:-.5rem 0 1rem">¿Prefieres ir paso a paso? <a href="{% url 'modeling:wizard' %}">Usa el asistente ✍️</a></p>{% endif %}
 {% if lesson %}<div class="feedback ok" role="status" style="margin-bottom:1rem"><span class="icon" aria-hidden="true">🎓</span>
   <div><strong>Prellenado con tu lección «{{ lesson.reference.spec.name }}».</strong> Revísalo, genera el diagrama y guárdalo.</div></div>{% endif %}
 <div class="instructions">

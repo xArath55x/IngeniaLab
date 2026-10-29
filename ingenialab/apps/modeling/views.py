@@ -36,6 +36,19 @@ def usecase_list(request):
     })
 
 
+def _guide(attempts):
+    """Requisitos clasificados de cada entrevista terminada, para guiar la redacción del caso de uso."""
+    return [{
+        "id": str(a.id),
+        "label": f"{a.version.title} ({a.started_at:%d/%m/%Y})",
+        "system": a.version.title,
+        "requirements": [
+            {"statement": c.master_requirement.statement_text, "category": c.selected_category}
+            for c in a.classifications.select_related("master_requirement")
+        ],
+    } for a in attempts]
+
+
 @login_required
 def editor(request, uc_id=None):
     attempts = _finished_attempts(request.user)
@@ -59,17 +72,7 @@ def editor(request, uc_id=None):
             reference = get_object_or_404(attempts, id=request.GET["attempt"])
         except ValidationError:
             return HttpResponse("La entrevista seleccionada no es válida.", status=400)
-    guide = []
-    for a in attempts:
-        guide.append({
-            "id": str(a.id),
-            "label": f"{a.version.title} ({a.started_at:%d/%m/%Y})",
-            "system": a.version.title,
-            "requirements": [
-                {"statement": c.master_requirement.statement_text, "category": c.selected_category}
-                for c in a.classifications.select_related("master_requirement")
-            ],
-        })
+    guide = _guide(attempts)
     return render(request, "modeling/editor.html", {
         "uc": uc,
         "form_data": uc.as_form_data() if uc else (
@@ -355,4 +358,25 @@ def api_lesson_save(request, lesson_id):
         lesson.save(update_fields=["use_case"])
     return ok(id=str(uc.id), svg=result.svg, engine=result.engine, saved_before=False,
               edit_url=reverse("modeling:edit", args=[uc.id]), badges=evaluate_badges(request.user))
+
+
+@login_required
+def wizard(request):
+    """Asistente paso a paso para crear un caso de uso propio (CU-02); usa las mismas API que el editor."""
+    attempts = _finished_attempts(request.user)
+    if not attempts.exists():
+        messages.warning(request, "Para modelar casos de uso primero completa al menos una entrevista en el módulo de Elicitación.")
+        return redirect("modeling:list")
+    guide = _guide(attempts)
+    # Actores que aparecen en los casos de uso de referencia del escenario, como sugerencias.
+    actors = {}
+    for ref in ReferenceUseCase.objects.filter(version__in={a.version_id for a in attempts}):
+        actors.setdefault(ref.version_id, set()).update(ref.spec["primary_actors"] + ref.spec["secondary_actors"])
+    for item, attempt in zip(guide, attempts):
+        item["actors"] = sorted(actors.get(attempt.version_id, ()))
+    selected = request.GET.get("attempt", "")
+    return render(request, "modeling/wizard.html", {
+        "guide": guide, "validation_rules": validators.RULES,
+        "selected": selected if any(g["id"] == selected for g in guide) else guide[0]["id"],
+    })
 

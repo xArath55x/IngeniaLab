@@ -7,6 +7,7 @@ app_name = "modeling"
 urlpatterns = [
     path("", views.usecase_list, name="list"),
     path("nuevo/", views.editor, name="new"),
+    path("asistente/", views.wizard, name="wizard"),
     path("<uuid:uc_id>/", views.editor, name="edit"),
     path("<uuid:uc_id>/diagrama/<str:format>/", views.download_diagram, name="download_diagram"),
     path("<uuid:uc_id>/eliminar/", views.delete, name="delete"),
