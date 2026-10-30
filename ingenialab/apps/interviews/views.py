@@ -1,10 +1,12 @@
 from django.conf import settings
+from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
 from apps.accounts.api import fail, ok, read_json
 from apps.progress.services import evaluate_badges
+from integrations.ai import dialogue
 
 from . import services
 from .models import ScenarioVersion, StudentAttempt
@@ -12,6 +14,15 @@ from .models import ScenarioVersion, StudentAttempt
 
 def _badges(user):
     return evaluate_badges(user) if "progress" in settings.INGENIALAB_MODULES else []
+
+
+def _ask_timeout_ms():
+    """Espera del navegador al preguntar: límite del LLM + margen en respuesta libre; 10 s si no."""
+    timeout = getattr(settings, "INGENIALAB_AI_FREE_TIMEOUT", 0)
+    if (getattr(settings, "INGENIALAB_AI_FREE_ANSWERS", False) and settings.INGENIALAB_AI_MODE == "chat_completions"
+            and isinstance(timeout, (int, float)) and 0 < timeout <= dialogue.MAX_FREE_TIMEOUT):
+        return max(10000, int((timeout + 5) * 1000))
+    return 10000
 
 
 def _own_attempt(request, attempt_id):
@@ -37,6 +48,19 @@ def start_attempt(request, version_id):
 
 
 @login_required
+@require_POST
+def discard_attempt(request, attempt_id):
+    attempt = _own_attempt(request, attempt_id)
+    try:
+        services.discard_interview(attempt)
+    except services.InterviewError as e:
+        messages.error(request, str(e))
+    else:
+        messages.success(request, f"Se descartó la entrevista de «{attempt.version.title}».")
+    return redirect("progress:dashboard")
+
+
+@login_required
 def interview(request, attempt_id):
     attempt = _own_attempt(request, attempt_id)
     index = services.requirement_index(attempt.version)
@@ -50,6 +74,7 @@ def interview(request, attempt_id):
         "topics": services.round_topics(attempt.version),
         "finished": finished,
         "summary": services.summary(attempt) if finished else None,
+        "ask_timeout_ms": _ask_timeout_ms(),
     })
 
 

@@ -77,7 +77,8 @@ else:
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.sqlite3",
-            "NAME": BASE_DIR / "db.sqlite3",
+            # ACT-214C: el script E2E apunta a una BD de staging aparte con INGENIALAB_SQLITE_PATH.
+            "NAME": os.environ.get("INGENIALAB_SQLITE_PATH", BASE_DIR / "db.sqlite3"),
         }
     }
 
@@ -140,6 +141,18 @@ try:
     INGENIALAB_AI_TIMEOUT = float(os.environ.get("INGENIALAB_AI_TIMEOUT", "1.2"))
 except ValueError:
     INGENIALAB_AI_TIMEOUT = 0
+
+# Respuesta libre del cliente virtual: el LLM redacta la respuesta y los enunciados evaluables
+# se conservan textuales. Requiere chat_completions; si la respuesta no es válida, catálogo.
+INGENIALAB_AI_FREE_ANSWERS = os.environ.get("INGENIALAB_AI_FREE_ANSWERS", "0") == "1"
+try:
+    INGENIALAB_AI_FREE_TIMEOUT = float(os.environ.get("INGENIALAB_AI_FREE_TIMEOUT", "8"))
+except ValueError:
+    INGENIALAB_AI_FREE_TIMEOUT = 0
+
+# Banco de respuestas pregeneradas (manage.py generate_answer_variants): si hay variantes activas para
+# una pregunta, se usan al instante en lugar de llamar al LLM durante la entrevista.
+INGENIALAB_AI_ANSWER_BANK = os.environ.get("INGENIALAB_AI_ANSWER_BANK", "1") == "1"
 
 # ACT-211C: los errores CSRF de API mantienen el contrato JSON.
 CSRF_FAILURE_VIEW = "apps.accounts.views.csrf_failure"

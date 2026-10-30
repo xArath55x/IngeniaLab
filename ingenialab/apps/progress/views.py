@@ -11,7 +11,7 @@ from apps.inspection.services import summary as inspection_summary
 from integrations.pdf.generator import build_report
 
 from .models import ReportExport
-from .services import badge_list, evaluate_badges, level_for, total_points
+from .services import badge_list, evaluate_badges, lesson_summary, level_for, open_interviews, total_points
 
 
 @login_required
@@ -23,7 +23,8 @@ def dashboard(request):
         "points": points,
         "level": level_for(points),
         "badges": badge_list(user),
-        "open_interviews": attempts.filter(status=StudentAttempt.INTERVIEWING),
+        "interview_groups": open_interviews(user),
+        "lessons": lesson_summary(user),
         "classifying": attempts.filter(status=StudentAttempt.CLASSIFYING)[:5],
         "use_cases": user.use_cases.all()[:5],
         "open_inspections": user.inspections.filter(concluded_at__isnull=True).select_related("exercise"),
