@@ -7,12 +7,13 @@ import math
 import random
 import uuid
 
+from django.conf import settings
 from django.db import transaction, IntegrityError
 from django.utils import timezone
 
 from integrations.ai.dialogue import answer as dialogue_answer
 
-from .models import InterviewLogEntry, InterviewQuestion, StudentAttempt
+from .models import AnswerVariant, InterviewLogEntry, InterviewQuestion, StudentAttempt
 
 MAX_QUESTIONS = 9
 # Fracción mínima de rondas para considerar suficiente la entrevista al terminar antes (CU-01 E-1).
@@ -49,6 +50,14 @@ def current_options(attempt):
     options = list(attempt.version.questions.filter(round_number=r))
     random.Random(f"{attempt.id}:{r}").shuffle(options)
     return options
+
+
+def bank_variant(attempt, question):
+    """Variante activa del banco para la pregunta, estable por intento; None si no hay."""
+    if not getattr(settings, "INGENIALAB_AI_ANSWER_BANK", True):
+        return None
+    variants = list(AnswerVariant.for_question(question).filter(is_active=True).order_by("created_at", "id"))
+    return random.Random(f"{attempt.id}:{question.round_number}:{question.quality}").choice(variants) if variants else None
 
 
 def progress(attempt):
@@ -164,12 +173,18 @@ def get_dialogue(attempt: StudentAttempt, question_id, allow_replay=False) -> di
     question = next((q for q in options if str(q.id) == str(question_id)), None)
     if question is None:
         raise InterviewError("Elige una de las tres preguntas disponibles en esta ronda.")
-    response = dialogue_answer(question)
+    # Banco de respuestas redactadas por el LLM de antemano: se sirven al instante. Si no hay, en vivo o catálogo.
+    variant = bank_variant(attempt, question)
+    if variant is not None:
+        segments, source, reason = variant.segments, "ai_bank", ""
+    else:
+        response = dialogue_answer(question)
+        segments, source, reason = response.segments, response.source, response.reason
     try:
         with transaction.atomic():
             entry = InterviewLogEntry.objects.create(
-                attempt=attempt, question=question, response_segments=response.segments,
-                response_source=response.source, fallback_reason=response.reason,
+                attempt=attempt, question=question, response_segments=segments,
+                response_source=source, fallback_reason=reason,
             )
     except IntegrityError:
         entry = attempt.log_entries.filter(question=question).select_related("question").first()

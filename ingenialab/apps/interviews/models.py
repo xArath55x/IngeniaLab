@@ -1,3 +1,5 @@
+import hashlib
+import json
 import uuid
 
 from django.conf import settings
@@ -63,6 +65,12 @@ class InterviewQuestion(models.Model):
     @property
     def answer_text(self):
         return " ".join(s["text"] for s in self.answer_segments)
+
+    @property
+    def content_hash(self):
+        """Huella del texto y la respuesta del catálogo; si cambian, las variantes del banco ya no aplican."""
+        data = json.dumps([self.text, self.answer_segments], ensure_ascii=False, sort_keys=True)
+        return hashlib.sha256(data.encode("utf-8")).hexdigest()
 
 
 class MasterRequirement(models.Model):
@@ -143,3 +151,40 @@ class InterviewLogEntry(models.Model):
     class Meta:
         ordering = ["created_at", "id"]
         unique_together = ("attempt", "question")
+
+
+class AnswerVariant(models.Model):
+    """Respuesta del cliente redactada por el LLM antes de la práctica (banco de respuestas).
+
+    Se identifica por escenario, ronda y calidad, no por la pregunta: seed_ingenialab recrea las
+    preguntas de las versiones sin prácticas. question_hash descarta las variantes si el contenido
+    del catálogo cambió. Durante la entrevista se sirve al instante, sin llamar al LLM.
+    """
+
+    version = models.ForeignKey(ScenarioVersion, on_delete=models.CASCADE, related_name="answer_variants")
+    round_number = models.PositiveIntegerField()
+    quality = models.CharField(max_length=10, choices=InterviewQuestion.QUALITIES)
+    question_hash = models.CharField(max_length=64)
+    # Mismo formato que InterviewLogEntry.response_segments; los enunciados evaluables son textuales.
+    segments = models.JSONField()
+    model = models.CharField(max_length=100, blank=True)
+    is_active = models.BooleanField(default=True, help_text="Desmárcala para que no se muestre a los estudiantes")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "answer_variants"
+        ordering = ["version", "round_number", "quality", "created_at"]
+        indexes = [models.Index(fields=["version", "round_number", "quality"])]
+
+    def __str__(self):
+        return f"{self.version} · ronda {self.round_number} · {self.quality}"
+
+    @property
+    def text(self):
+        return " ".join(s["text"] for s in self.segments)
+
+    @classmethod
+    def for_question(cls, question):
+        return cls.objects.filter(version_id=question.version_id, round_number=question.round_number,
+                                  quality=question.quality, question_hash=question.content_hash)
+

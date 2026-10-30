@@ -205,3 +205,90 @@ Pruebas específicas:
 ```bash
 .venv/bin/python manage.py test apps.progress.test_integration
 ```
+
+## Respuestas del cliente con LLM (CU-01)
+
+Las preguntas de la entrevista siguen siendo las del catálogo; lo que cambia es la **respuesta del cliente**,
+que puede redactarla un LLM. Los enunciados evaluables (requisitos) nunca los escribe el LLM: la aplicación
+intercala el texto del catálogo, así que la clasificación (CU-03), el puntaje y el reporte no cambian.
+
+Al formular una pregunta, la respuesta sale de la primera opción disponible:
+
+| Orden | Origen | Cuándo se usa | Tiempo |
+| --- | --- | --- | --- |
+| 1 | **Banco de variantes** | Hay variantes activas para esa pregunta | Inmediato |
+| 2 | Respuesta libre en vivo | `INGENIALAB_AI_FREE_ANSWERS=1` | Lo que tarde el LLM (máx. `INGENIALAB_AI_FREE_TIMEOUT`) |
+| 3 | Reformulación restringida (ACT-211A1) | `INGENIALAB_AI_MODE=chat_completions` | Máx. 1.5 s |
+| 4 | Catálogo | Siempre, como respaldo | Inmediato |
+
+Lo recomendado es el **banco**: las variantes se generan antes de la práctica y durante la entrevista no se
+llama al LLM. Sirve cualquier proveedor compatible con Chat Completions; abajo se usa Ollama, local y sin costo.
+
+### 1. Preparar Ollama (una vez por equipo)
+
+```bash
+brew install ollama            # macOS; en Windows/Linux, instalador de https://ollama.com
+ollama serve                   # en otra terminal; debe seguir abierta mientras se genera el banco
+ollama pull qwen2.5:7b         # ~4.7 GB; requiere al menos 8 GB de RAM
+```
+
+### 2. Generar el banco
+
+Desde `ingenialab/`, con `migrate` y `seed_ingenialab` ya aplicados:
+
+```bash
+INGENIALAB_AI_ENDPOINT=http://127.0.0.1:11434/v1/chat/completions INGENIALAB_AI_MODEL=qwen2.5:7b \
+  .venv/bin/python manage.py generate_answer_variants --scenario ESC-BIBLIOTECA-01 \
+  --per-question 5 --quality high --quality medium
+```
+
+En PowerShell, define antes las variables con `$env:INGENIALAB_AI_ENDPOINT="http://127.0.0.1:11434/v1/chat/completions"`
+y `$env:INGENIALAB_AI_MODEL="qwen2.5:7b"`, y usa `.venv\Scripts\python.exe`.
+
+- Completa hasta `--per-question` variantes activas por pregunta. Si se interrumpe, al volver a ejecutarlo
+  solo genera las que faltan. Sin `--scenario` procesa todos los escenarios activos.
+- Cada variante pasa los mismos filtros que la respuesta libre: no cuenta requisitos ni cifras del escenario,
+  está en español y no recita el resumen. En las respuestas sin requisitos, el propio LLM revisa además que
+  contesten la pregunta; `--no-judge` omite esa revisión.
+- `--quality high --quality medium` deja fuera las preguntas que no aportan: con `qwen2.5:7b` casi nunca se
+  contestan bien y quedan con la respuesta del catálogo.
+- `--revalidate` aplica los filtros vigentes a las variantes existentes y desactiva las que ya no pasan.
+- Duración aproximada en un Mac M1 de 8 GB: 10–15 min por escenario.
+
+### 3. Revisar las variantes
+
+Con un superusuario (`manage.py createsuperuser`), abre `/admin/interviews/answervariant/`, filtra por
+escenario, ronda o calidad, y desmarca **Is active** en las que no deban mostrarse. Las variantes
+desactivadas se conservan y se pueden reactivar.
+
+### 4. Usar el banco en la práctica
+
+No requiere configuración: si una pregunta tiene variantes activas, cada intento recibe una al azar y Ollama
+no necesita estar encendido. Con `INGENIALAB_AI_ANSWER_BANK=0` se ignora el banco.
+
+Las variantes viven en la base de datos, no en Git. Para la máquina de la demo hay dos opciones: repetir
+los pasos 1 a 3 en ella, o copiar el `db.sqlite3` donde se generaron, que incluye también usuarios y prácticas.
+No subas `db.sqlite3` al repositorio.
+
+Las variantes se identifican por escenario, ronda y calidad, con una huella del contenido del catálogo:
+`seed_ingenialab` no las borra, y si cambia el texto de una pregunta o de su respuesta en
+`data/interviews.json`, las variantes de esa pregunta dejan de usarse y hay que generarlas de nuevo.
+
+### Respuesta libre en vivo (opcional)
+
+Para preguntas sin variantes en el banco, el LLM puede responder en el momento:
+
+```bash
+INGENIALAB_AI_MODE=chat_completions INGENIALAB_AI_ENDPOINT=http://127.0.0.1:11434/v1/chat/completions \
+INGENIALAB_AI_MODEL=qwen2.5:7b INGENIALAB_AI_FREE_ANSWERS=1 INGENIALAB_AI_FREE_TIMEOUT=20 \
+  .venv/bin/python manage.py runserver
+```
+
+Con un modelo local cada respuesta tarda 8–15 s; mientras tanto, el cliente aparece «escribiendo…». Si no
+responde a tiempo o la respuesta no pasa los filtros, se usa la del catálogo.
+
+Pruebas específicas:
+
+```bash
+.venv/bin/python manage.py test integrations.ai apps.interviews.test_answer_bank
+```

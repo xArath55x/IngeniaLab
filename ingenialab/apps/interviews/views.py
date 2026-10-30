@@ -6,6 +6,7 @@ from django.views.decorators.http import require_POST
 
 from apps.accounts.api import fail, ok, read_json
 from apps.progress.services import evaluate_badges
+from integrations.ai import dialogue
 
 from . import services
 from .models import ScenarioVersion, StudentAttempt
@@ -13,6 +14,15 @@ from .models import ScenarioVersion, StudentAttempt
 
 def _badges(user):
     return evaluate_badges(user) if "progress" in settings.INGENIALAB_MODULES else []
+
+
+def _ask_timeout_ms():
+    """Espera del navegador al preguntar: límite del LLM + margen en respuesta libre; 10 s si no."""
+    timeout = getattr(settings, "INGENIALAB_AI_FREE_TIMEOUT", 0)
+    if (getattr(settings, "INGENIALAB_AI_FREE_ANSWERS", False) and settings.INGENIALAB_AI_MODE == "chat_completions"
+            and isinstance(timeout, (int, float)) and 0 < timeout <= dialogue.MAX_FREE_TIMEOUT):
+        return max(10000, int((timeout + 5) * 1000))
+    return 10000
 
 
 def _own_attempt(request, attempt_id):
@@ -64,6 +74,7 @@ def interview(request, attempt_id):
         "topics": services.round_topics(attempt.version),
         "finished": finished,
         "summary": services.summary(attempt) if finished else None,
+        "ask_timeout_ms": _ask_timeout_ms(),
     })
 
 
