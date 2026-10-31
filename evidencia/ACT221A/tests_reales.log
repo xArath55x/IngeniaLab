@@ -1,0 +1,23 @@
+Creating test database for alias 'default'...
+Found 221 test(s).
+System check identified no issues (0 silenced).
+.................................................................................................Escenario ESC-BIBLIOTECA-01 v2.0: 11 requisitos
+Escenario ESC-CAFETERIA-01 v2.0: 11 requisitos
+Inspección INS-CONTROL-ESCOLAR-01: 6 defectos
+Inspección INS-CASO-USO-SALAS-01: 5 defectos
+Caso de uso UC-B1 (ESC-BIBLIOTECA-01): Registrar préstamo
+Caso de uso UC-B2 (ESC-BIBLIOTECA-01): Registrar devolución
+Caso de uso UC-B3 (ESC-BIBLIOTECA-01): Consultar catálogo
+Caso de uso UC-B4 (ESC-BIBLIOTECA-01): Generar reporte mensual
+Caso de uso UC-C1 (ESC-CAFETERIA-01): Hacer pedido
+Caso de uso UC-C2 (ESC-CAFETERIA-01): Actualizar menú del día
+Caso de uso UC-C3 (ESC-CAFETERIA-01): Cancelar pedido
+Caso de uso UC-C4 (ESC-CAFETERIA-01): Marcar pedido como listo
+...................................................................................................................PlantUML fallo: codigo=1, detalle=syntax error
+...Diagrama generado; no se pudo escribir la cache. Revisa los permisos de var/.
+......
+----------------------------------------------------------------------
+Ran 221 tests in 64.007s
+
+OK
+Destroying test database for alias 'default'...

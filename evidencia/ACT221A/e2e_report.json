@@ -1,0 +1,81 @@
+{
+  "actividad": "ACT-214C",
+  "fecha": "2026-10-31T10:01:40",
+  "commit": "",
+  "python": "3.12.14",
+  "bd": "var/staging/staging.sqlite3",
+  "modulos": [
+    "interviews",
+    "classification",
+    "modeling",
+    "inspection",
+    "reports",
+    "progress"
+  ],
+  "seed": [
+    "Escenario ESC-BIBLIOTECA-01 v2.0: 11 requisitos",
+    "Escenario ESC-CAFETERIA-01 v2.0: 11 requisitos",
+    "Inspección INS-CONTROL-ESCOLAR-01: 6 defectos",
+    "Inspección INS-CASO-USO-SALAS-01: 5 defectos",
+    "Caso de uso UC-B1 (ESC-BIBLIOTECA-01): Registrar préstamo",
+    "Caso de uso UC-B2 (ESC-BIBLIOTECA-01): Registrar devolución",
+    "Caso de uso UC-B3 (ESC-BIBLIOTECA-01): Consultar catálogo",
+    "Caso de uso UC-B4 (ESC-BIBLIOTECA-01): Generar reporte mensual",
+    "Caso de uso UC-C1 (ESC-CAFETERIA-01): Hacer pedido",
+    "Caso de uso UC-C2 (ESC-CAFETERIA-01): Actualizar menú del día",
+    "Caso de uso UC-C3 (ESC-CAFETERIA-01): Cancelar pedido",
+    "Caso de uso UC-C4 (ESC-CAFETERIA-01): Marcar pedido como listo"
+  ],
+  "plantuml_fallback_permitido": false,
+  "resultado": "PASA",
+  "pasos": [
+    {
+      "paso": "CU-01 Entrevista",
+      "ok": true,
+      "detalle": "9 preguntas formuladas; entrevista finalizada",
+      "ms": 888
+    },
+    {
+      "paso": "CU-03 Clasificación RF/RNF",
+      "ok": true,
+      "detalle": "2 declaraciones, 0 reclasificadas sin duplicar; precisión 100 %",
+      "ms": 72
+    },
+    {
+      "paso": "CU-02 Modelado y diagrama",
+      "ok": true,
+      "detalle": "caso de uso guardado; diagrama con motor 'plantuml'",
+      "ms": 806
+    },
+    {
+      "paso": "CU-04 Inspección",
+      "ok": true,
+      "detalle": "9 fragmentos; concluida con precisión 0.0 % y 0 pts",
+      "ms": 115
+    },
+    {
+      "paso": "Tablero de progreso",
+      "ok": true,
+      "detalle": "70 puntos; navegación con los seis módulos",
+      "ms": 28
+    },
+    {
+      "paso": "CU-05 Reporte PDF",
+      "ok": true,
+      "detalle": "PDF de 7 KB guardado en var/staging/reporte_e2e.pdf",
+      "ms": 106
+    },
+    {
+      "paso": "Aislamiento entre cuentas",
+      "ok": true,
+      "detalle": "4 vistas ajenas bloqueadas (404 o redirección), API ajena → 404; tablero y reporte sin datos ajenos",
+      "ms": 326
+    },
+    {
+      "paso": "Sesión y API (RF-12)",
+      "ok": true,
+      "detalle": "sin sesión: tablero → login y /api/ → 401 JSON (RF-12)",
+      "ms": 20
+    }
+  ]
+}

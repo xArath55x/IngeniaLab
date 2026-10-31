@@ -1,0 +1,5 @@
+PASA  CU-01 Entrevista                  763 ms  9 preguntas formuladas; entrevista finalizada
+PASA  CU-03 Clasificación RF/RNF        196 ms  4 declaraciones, 2 reclasificadas sin duplicar; precisión 100 %
+FALLA  CU-02 Modelado y diagrama        1055 ms  guardar caso de uso: 503 {"ok": false, "message": "PlantUML no pudo generar el diagrama. Ejecuta plantuml_check.", "error": "render_failed"}
+
+FALLA: 2/8 pasos · evidencia en var/staging/e2e_report.json

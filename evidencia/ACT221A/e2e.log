@@ -1,0 +1,10 @@
+PASA  CU-01 Entrevista                  888 ms  9 preguntas formuladas; entrevista finalizada
+PASA  CU-03 Clasificación RF/RNF         72 ms  2 declaraciones, 0 reclasificadas sin duplicar; precisión 100 %
+PASA  CU-02 Modelado y diagrama         806 ms  caso de uso guardado; diagrama con motor 'plantuml'
+PASA  CU-04 Inspección                  115 ms  9 fragmentos; concluida con precisión 0.0 % y 0 pts
+PASA  Tablero de progreso                28 ms  70 puntos; navegación con los seis módulos
+PASA  CU-05 Reporte PDF                 106 ms  PDF de 7 KB guardado en var/staging/reporte_e2e.pdf
+PASA  Aislamiento entre cuentas         326 ms  4 vistas ajenas bloqueadas (404 o redirección), API ajena → 404; tablero y reporte sin datos ajenos
+PASA  Sesión y API (RF-12)               20 ms  sin sesión: tablero → login y /api/ → 401 JSON (RF-12)
+
+PASA: 8/8 pasos · evidencia en var/staging/e2e_report.json
