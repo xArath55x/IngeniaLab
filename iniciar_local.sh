@@ -1,16 +1,5 @@
 #!/bin/sh
+# ACT-221A: arranque local de la release 2.0. Delega en scripts/demo.sh (ACT-214), que prepara
+# .venv, PlantUML, migraciones y seed antes de levantar el servidor.
 set -eu
-cd "$(dirname "$0")/ingenialab"
-if [ ! -x .venv/bin/python ]; then
- echo "Prepare el entorno siguiendo LEEME_RELEASE.md."
- exit 1
-fi
-export INGENIALAB_MODULES=interviews,classification,modeling,inspection,reports,progress
-export INGENIALAB_AI_MODE=catalog
-export INGENIALAB_AI_FREE_ANSWERS=0
-export INGENIALAB_AI_ANSWER_BANK=0
-export INGENIALAB_DEBUG=1
-export INGENIALAB_ALLOWED_HOSTS=localhost,127.0.0.1
-unset POSTGRES_DB
-export INGENIALAB_SQLITE_PATH="$PWD/db.sqlite3"
-exec .venv/bin/python manage.py runserver 127.0.0.1:8000
+exec sh "$(dirname "$0")/ingenialab/scripts/demo.sh" "$@"

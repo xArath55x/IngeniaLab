@@ -1,3 +1,3 @@
-IngeniaLab 2.0 revision ACT221A-actualizada
-Base: IngeniaLab(2).zip
-Fecha: 2026-10-30
+IngeniaLab 2.0 (ACT-221A)
+Base: rama it-2 del repositorio
+Fecha: 2026-10-31

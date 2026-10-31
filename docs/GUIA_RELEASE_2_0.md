@@ -1,7 +1,7 @@
-# Guía de operación de la distribución actualizada
+# Guía de operación de la versión 2.0
 
-Referencia: IngeniaLab(2).zip. Este documento aclara la operación de esta
-base; los manuales Word originales se conservan como antecedentes.
+Referencia: rama it-2 (ACT-221A). Este documento aclara la operación de esta
+versión; los manuales Word originales se conservan como antecedentes.
 
 1. Abra el servidor con el lanzador y cree su cuenta.
 2. Entre en Entrevistas, elija Biblioteca o Cafetería, lea el contexto y
@@ -25,11 +25,11 @@ base; los manuales Word originales se conservan como antecedentes.
 
 La versión incluye AnswerVariant, generate_answer_variants y opciones de
 respuesta libre del cliente simulado; no equivalen a una caja de preguntas
-libres para el estudiante. Los lanzadores de este paquete fuerzan catálogo
-y desactivan respuestas en vivo y uso del banco para iniciar sin proveedor.
-La base limpia no copia variantes generadas, cuentas o prácticas de la base
-original. Para generar y usar variantes siga ingenialab/README.md y ejecute
-manualmente el servidor con las variables allí indicadas. No introduzca
+libres para el estudiante. Sin variables definidas, el lanzador arranca en
+modo catálogo y no necesita proveedor; una base nueva no tiene variantes
+generadas, cuentas ni prácticas. Para generar y usar variantes siga
+ingenialab/README.md y defina las variables allí indicadas antes de ejecutar
+el lanzador, que las respeta. No introduzca
 claves en los archivos distribuidos. El modo catálogo no necesita Ollama
 ni API key; el proveedor en vivo no fue conectado al preparar este release.
 
@@ -48,9 +48,10 @@ recargar conserve manualmente el texto pendiente. Ajuste zoom y realice
 pausas; puntajes e insignias son formativos.
 
 Para fallos de diagramación compruebe Java, dot y el JAR con
-manage.py plantuml_check --strict. Un respaldo demostrativo no acredita
+manage.py plantuml_check. Un respaldo demostrativo no acredita
 motor real y el timeout configurado no prueba cumplimiento global de RNF-03.
-Si el puerto 8000 está ocupado, use manualmente otro puerto y abra su URL.
+Si el puerto 8000 está ocupado, ejecute el lanzador con `--port 8001` y abra
+esa URL.
 
 ## Pruebas E2E de la versión actualizada
 
