@@ -17,7 +17,7 @@ Caso de uso UC-C4 (ESC-CAFETERIA-01): Marcar pedido como listo
 ...Diagrama generado; no se pudo escribir la cache. Revisa los permisos de var/.
 ......
 ----------------------------------------------------------------------
-Ran 221 tests in 64.007s
+Ran 221 tests in 30.125s
 
 OK
 Destroying test database for alias 'default'...

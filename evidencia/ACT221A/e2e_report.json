@@ -1,8 +1,8 @@
 {
   "actividad": "ACT-214C",
-  "fecha": "2026-10-31T10:01:40",
-  "commit": "",
-  "python": "3.12.14",
+  "fecha": "2026-10-31T13:21:20",
+  "commit": "bfe07b2",
+  "python": "3.13.3",
   "bd": "var/staging/staging.sqlite3",
   "modulos": [
     "interviews",
@@ -33,49 +33,49 @@
       "paso": "CU-01 Entrevista",
       "ok": true,
       "detalle": "9 preguntas formuladas; entrevista finalizada",
-      "ms": 888
+      "ms": 281
     },
     {
       "paso": "CU-03 Clasificación RF/RNF",
       "ok": true,
-      "detalle": "2 declaraciones, 0 reclasificadas sin duplicar; precisión 100 %",
-      "ms": 72
+      "detalle": "3 declaraciones, 1 reclasificadas sin duplicar; precisión 100 %",
+      "ms": 36
     },
     {
       "paso": "CU-02 Modelado y diagrama",
       "ok": true,
       "detalle": "caso de uso guardado; diagrama con motor 'plantuml'",
-      "ms": 806
+      "ms": 829
     },
     {
       "paso": "CU-04 Inspección",
       "ok": true,
       "detalle": "9 fragmentos; concluida con precisión 0.0 % y 0 pts",
-      "ms": 115
+      "ms": 51
     },
     {
       "paso": "Tablero de progreso",
       "ok": true,
-      "detalle": "70 puntos; navegación con los seis módulos",
-      "ms": 28
+      "detalle": "105 puntos; navegación con los seis módulos",
+      "ms": 10
     },
     {
       "paso": "CU-05 Reporte PDF",
       "ok": true,
       "detalle": "PDF de 7 KB guardado en var/staging/reporte_e2e.pdf",
-      "ms": 106
+      "ms": 35
     },
     {
       "paso": "Aislamiento entre cuentas",
       "ok": true,
       "detalle": "4 vistas ajenas bloqueadas (404 o redirección), API ajena → 404; tablero y reporte sin datos ajenos",
-      "ms": 326
+      "ms": 165
     },
     {
       "paso": "Sesión y API (RF-12)",
       "ok": true,
       "detalle": "sin sesión: tablero → login y /api/ → 401 JSON (RF-12)",
-      "ms": 20
+      "ms": 17
     }
   ]
 }
