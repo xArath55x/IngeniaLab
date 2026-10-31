@@ -1,0 +1,99 @@
+Creating test database for alias 'default'...
+Found 221 test(s).
+System check identified no issues (0 silenced).
+..............................................................PlantUML fallo: codigo=0, detalle=exception java.lang.illegalstateexception
+net.sourceforge.plantuml.dot.unparsablegraphvizexception: java.lang.illegalstateexception
+	at net.sourceforge.plantuml.svek.graphvizimagebuilder.buildimage(graphvizimagebuilder.java:291)
+	at net.sourceforge.plantuml.svek.cucadiagramfilemakersvek.createfileinternal(cucadiagramfilemakersvek.java:104)
+	at net.sourceforge.plantuml.svek.cucadiagramfilemakersvek.createfile(cucadiagramfilemakersvek.java:70)
+	at net.atmp.cucadiagram.exportdiagraminternal(cucadia
+F...........................PlantUML fallo: codigo=0, detalle=exception java.lang.illegalstateexception
+net.sourceforge.plantuml.dot.unparsablegraphvizexception: java.lang.illegalstateexception
+	at net.sourceforge.plantuml.svek.graphvizimagebuilder.buildimage(graphvizimagebuilder.java:291)
+	at net.sourceforge.plantuml.svek.cucadiagramfilemakersvek.createfileinternal(cucadiagramfilemakersvek.java:104)
+	at net.sourceforge.plantuml.svek.cucadiagramfilemakersvek.createfile(cucadiagramfilemakersvek.java:70)
+	at net.atmp.cucadiagram.exportdiagraminternal(cucadia
+F......Escenario ESC-BIBLIOTECA-01 v2.0: 11 requisitos
+Escenario ESC-CAFETERIA-01 v2.0: 11 requisitos
+Inspección INS-CONTROL-ESCOLAR-01: 6 defectos
+Inspección INS-CASO-USO-SALAS-01: 5 defectos
+Caso de uso UC-B1 (ESC-BIBLIOTECA-01): Registrar préstamo
+Caso de uso UC-B2 (ESC-BIBLIOTECA-01): Registrar devolución
+Caso de uso UC-B3 (ESC-BIBLIOTECA-01): Consultar catálogo
+Caso de uso UC-B4 (ESC-BIBLIOTECA-01): Generar reporte mensual
+Caso de uso UC-C1 (ESC-CAFETERIA-01): Hacer pedido
+Caso de uso UC-C2 (ESC-CAFETERIA-01): Actualizar menú del día
+Caso de uso UC-C3 (ESC-CAFETERIA-01): Cancelar pedido
+Caso de uso UC-C4 (ESC-CAFETERIA-01): Marcar pedido como listo
+...................................................................................................................PlantUML fallo: codigo=1, detalle=syntax error
+...Diagrama generado; no se pudo escribir la cache. Revisa los permisos de var/.
+....PlantUML fallo: codigo=0, detalle=exception java.lang.illegalstateexception
+net.sourceforge.plantuml.dot.unparsablegraphvizexception: java.lang.illegalstateexception
+	at net.sourceforge.plantuml.svek.graphvizimagebuilder.buildimage(graphvizimagebuilder.java:291)
+	at net.sourceforge.plantuml.svek.cucadiagramfilemakersvek.createfileinternal(cucadiagramfilemakersvek.java:104)
+	at net.sourceforge.plantuml.svek.cucadiagramfilemakersvek.createfile(cucadiagramfilemakersvek.java:70)
+	at net.atmp.cucadiagram.exportdiagraminternal(cucadia
+EPlantUML fallo: codigo=0, detalle=exception java.lang.illegalstateexception
+net.sourceforge.plantuml.dot.unparsablegraphvizexception: java.lang.illegalstateexception
+	at net.sourceforge.plantuml.svek.graphvizimagebuilder.buildimage(graphvizimagebuilder.java:291)
+	at net.sourceforge.plantuml.svek.cucadiagramfilemakersvek.createfileinternal(cucadiagramfilemakersvek.java:104)
+	at net.sourceforge.plantuml.svek.cucadiagramfilemakersvek.createfile(cucadiagramfilemakersvek.java:70)
+	at net.atmp.cucadiagram.exportdiagraminternal(cucadia
+E
+======================================================================
+ERROR: test_cold_png_certifies_svg (integrations.plantuml.tests.RealEngineTests.test_cold_png_certifies_svg)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/287a924faf56/tmp/221a_actual/release/IngeniaLab/ingenialab/integrations/plantuml/tests.py", line 90, in test_cold_png_certifies_svg
+    image=service.render(CODE,'png');self.assertEqual(image.engine,'plantuml');self.assertLess(image.duration_ms,2000)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/scratch/287a924faf56/tmp/221a_actual/release/IngeniaLab/ingenialab/integrations/plantuml/service.py", line 139, in render
+    certified = render(plantuml_code, "svg")
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/scratch/287a924faf56/tmp/221a_actual/release/IngeniaLab/ingenialab/integrations/plantuml/service.py", line 144, in render
+    data = _execute(plantuml_code, format, remaining)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/scratch/287a924faf56/tmp/221a_actual/release/IngeniaLab/ingenialab/integrations/plantuml/service.py", line 118, in _execute
+    raise PlantUMLError("PlantUML no pudo generar el diagrama. Ejecuta plantuml_check.", "render_failed")
+integrations.plantuml.service.PlantUMLError: PlantUML no pudo generar el diagrama. Ejecuta plantuml_check.
+
+======================================================================
+ERROR: test_real_svg_png_and_cache (integrations.plantuml.tests.RealEngineTests.test_real_svg_png_and_cache)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/287a924faf56/tmp/221a_actual/release/IngeniaLab/ingenialab/integrations/plantuml/tests.py", line 85, in test_real_svg_png_and_cache
+    svg=service.render(CODE);self.assertIn('Bibliotecario',svg.svg);self.assertEqual(svg.engine,'plantuml');self.assertFalse(svg.cached)
+        ^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/scratch/287a924faf56/tmp/221a_actual/release/IngeniaLab/ingenialab/integrations/plantuml/service.py", line 144, in render
+    data = _execute(plantuml_code, format, remaining)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/scratch/287a924faf56/tmp/221a_actual/release/IngeniaLab/ingenialab/integrations/plantuml/service.py", line 118, in _execute
+    raise PlantUMLError("PlantUML no pudo generar el diagrama. Ejecuta plantuml_check.", "render_failed")
+integrations.plantuml.service.PlantUMLError: PlantUML no pudo generar el diagrama. Ejecuta plantuml_check.
+
+======================================================================
+FAIL: test_recorrido_con_diagrama_plantuml_real (apps.interviews.test_pipeline.ElicitationPipelineTests.test_recorrido_con_diagrama_plantuml_real)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/287a924faf56/tmp/221a_actual/venv/lib/python3.12/site-packages/django/test/utils.py", line 446, in inner
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/scratch/287a924faf56/tmp/221a_actual/release/IngeniaLab/ingenialab/apps/interviews/test_pipeline.py", line 122, in test_recorrido_con_diagrama_plantuml_real
+    self.assertEqual(r.status_code,200,r.content);self.assertEqual(r.json()['engine'],'plantuml')
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 503 != 200 : b'{"ok": false, "message": "PlantUML no pudo generar el diagrama. Ejecuta plantuml_check.", "error": "render_failed"}'
+
+======================================================================
+FAIL: test_full_real_png_preview_save_download (apps.modeling.test_plantuml.DiagramApiTests.test_full_real_png_preview_save_download)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/287a924faf56/tmp/221a_actual/release/IngeniaLab/ingenialab/apps/modeling/test_plantuml.py", line 41, in test_full_real_png_preview_save_download
+    result=self.post('generar',{**SPEC,'format':'png'});self.assertEqual(result.status_code,200,result.content)
+                                                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 503 != 200 : b'{"ok": false, "message": "PlantUML no pudo generar el diagrama. Ejecuta plantuml_check.", "error": "render_failed"}'
+
+----------------------------------------------------------------------
+Ran 221 tests in 55.342s
+
+FAILED (failures=2, errors=2)
+Destroying test database for alias 'default'...

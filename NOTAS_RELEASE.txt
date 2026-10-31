@@ -1,0 +1,19 @@
+ACT-221A - IngeniaLab 2.0 revision actualizada - 30/10/2026
+Base exclusiva: IngeniaLab(2).zip. Sustituye la distribucion anterior basada
+en IngeniaLab(1).zip para esta actividad. No mezcla codigo de otras entregas.
+221 pruebas Django OK sin omisiones, con motor real Java/Graphviz.
+10 pruebas JS de resiliencia y 24 casos de validacion JS OK.
+E2E HTTP de staging incluido en el proyecto: 8/8 pasos PASA, PlantUML real.
+La primera pasada generica omitio cuatro pruebas por configuracion.
+El primer ensayo con motor real fallo por plugins Graphviz sin registrar
+en el entorno aislado; se configuro dot -c, sin cambios al codigo, y se
+repitieron suite y E2E. Se conservan los logs historicos y los finales.
+La ejecucion fue Linux/Python 3.12, Java 17 y Graphviz 2.43.0. No acredita
+pruebas Windows, proveedor IA en vivo, UX con alumnos ni carga/RNF-03 global.
+Base nueva migrada: catalogos y ocho lecciones, cero usuarios/sesiones y
+sin variantes IA generadas. El adjunto tenia base anterior sin tabla de
+variantes; se preservo el original y se genero la base distribuida con seed.
+Se preservan codigo, pruebas, banco de respuestas, migraciones y E2E.
+Se integran manuales Word originales y guia release actual en Markdown.
+No se publican tags ni releases remotos; aceptacion y cierre formal del
+equipo y evidencias ACT-214/ACT-220 no se sustituyen por el empaquetado.
