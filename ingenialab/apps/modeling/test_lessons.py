@@ -166,6 +166,16 @@ class LessonTests(BaseCase):
         self.assertEqual(r.context["form_data"]["attempt_id"], str(attempt.id))
         self.assertContains(r, "Prellenado con tu lección")
 
+    def test_editor_opens_saved_use_case_of_lesson(self):
+        attempt = self.ready_attempt()
+        self.start(attempt, self.reference())
+        lesson = UseCaseLesson.objects.get()
+        self.solve(lesson)
+        saved = self.post(f"/modelado/api/leccion/{lesson.id}/guardar/").json()
+        r = self.client.get(f"/modelado/nuevo/?leccion={lesson.id}")
+        self.assertRedirects(r, saved["edit_url"])
+        self.assertEqual(self.user.use_cases.count(), 1)
+
     def test_use_case_card_shows_only_solved_parts(self):
         attempt = self.ready_attempt()
         self.start(attempt, self.reference())

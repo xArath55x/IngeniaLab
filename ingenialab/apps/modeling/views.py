@@ -65,6 +65,9 @@ def editor(request, uc_id=None):
         try:
             lesson = UseCaseLesson.objects.select_related("reference", "attempt").get(
                 id=request.GET["leccion"], user=request.user, status=UseCaseLesson.COMPLETED)
+            # H-05: si la lección ya se guardó, se edita ese caso de uso en vez de crear otro.
+            if lesson.use_case_id:
+                return redirect("modeling:edit", lesson.use_case_id)
             reference = lesson.attempt
         except (UseCaseLesson.DoesNotExist, ValidationError):
             lesson = None
