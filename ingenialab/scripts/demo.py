@@ -72,6 +72,15 @@ def prepare(env, allow_fallback):
                             '--allow-plantuml-fallback (respaldo SVG; no cuenta como integracion real).')
 
 
+def warm_up(env):
+    """H-03: la primera generacion en frio es la mas lenta; se hace antes de abrir la demo. No bloquea el arranque."""
+    print('Calentando PlantUML...')
+    result = subprocess.run([str(VENV_PYTHON), 'manage.py', 'plantuml_check', '--runs', '1'], cwd=ROOT, env=env,
+                            capture_output=True, text=True)
+    if result.returncode:
+        print('Aviso: no se pudo calentar PlantUML; el primer diagrama puede tardar mas.', file=sys.stderr)
+
+
 def main():
     parser = argparse.ArgumentParser(description='Levanta la demo v2.0 de IngeniaLab.')
     parser.add_argument('--port', type=port, default=8000)
@@ -89,6 +98,7 @@ def main():
         prepare(env, args.allow_plantuml_fallback)
         run('aplicar migraciones', [python, 'manage.py', 'migrate', '--noinput'], env)
         run('cargar seed_ingenialab', [python, 'manage.py', 'seed_ingenialab'], env)
+        warm_up(env)
     except StepError as exc:
         print(exc, file=sys.stderr)
         return 1
