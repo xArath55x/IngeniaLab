@@ -176,6 +176,46 @@ class LessonTests(BaseCase):
         self.assertRedirects(r, saved["edit_url"])
         self.assertEqual(self.user.use_cases.count(), 1)
 
+    def editor_save(self, lesson, **extra):
+        spec = self.client.get(f"/modelado/nuevo/?leccion={lesson.id}").context["form_data"]
+        return self.post("/modelado/api/guardar/", {**spec, **extra}).json()
+
+    def solved_lesson(self):
+        self.start(self.ready_attempt(), self.reference())
+        lesson = UseCaseLesson.objects.get()
+        self.solve(lesson)
+        return lesson
+
+    def test_editor_save_is_linked_to_lesson_without_duplicates(self):
+        lesson = self.solved_lesson()
+        self.assertContains(self.client.get(f"/modelado/nuevo/?leccion={lesson.id}"), f'data-lesson-id="{lesson.id}"')
+        saved = self.editor_save(lesson, lesson_id=str(lesson.id))
+        self.assertTrue(saved["ok"])
+        lesson.refresh_from_db()
+        self.assertEqual(str(lesson.use_case_id), saved["id"])
+        again = self.post(f"/modelado/api/leccion/{lesson.id}/guardar/").json()
+        self.assertTrue(again["saved_before"])
+        self.assertEqual(again["id"], saved["id"])
+        self.assertEqual(self.user.use_cases.count(), 1)
+
+    def test_stale_editor_updates_use_case_already_saved_by_lesson(self):
+        lesson = self.solved_lesson()
+        spec = self.client.get(f"/modelado/nuevo/?leccion={lesson.id}").context["form_data"]
+        saved = self.post(f"/modelado/api/leccion/{lesson.id}/guardar/").json()
+        again = self.post("/modelado/api/guardar/", {**spec, "lesson_id": str(lesson.id), "name": "Registrar préstamo editado"}).json()
+        self.assertEqual(again["id"], saved["id"])
+        self.assertEqual(self.user.use_cases.get().name, "Registrar préstamo editado")
+
+    def test_foreign_or_invalid_lesson_is_not_linked(self):
+        lesson = self.solved_lesson()
+        spec = self.client.get(f"/modelado/nuevo/?leccion={lesson.id}").context["form_data"]
+        self.assertTrue(self.post("/modelado/api/guardar/", {**spec, "lesson_id": "no-es-uuid"}).json()["ok"])
+        self.client.login(username="otro", password="ClaveSegura123")
+        other = self.post("/modelado/api/guardar/", {**spec, "attempt_id": None, "lesson_id": str(lesson.id)})
+        lesson.refresh_from_db()
+        self.assertIsNone(lesson.use_case_id)
+        self.assertNotEqual(other.status_code, 500)
+
     def test_use_case_card_shows_only_solved_parts(self):
         attempt = self.ready_attempt()
         self.start(attempt, self.reference())
