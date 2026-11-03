@@ -118,6 +118,19 @@ def _execute(code, format, timeout):
         raise PlantUMLError("PlantUML no pudo generar el diagrama. Ejecuta plantuml_check.", "render_failed")
     return _valid_image(result.stdout, format)
 
+def _execute_with_retry(code, format, timeout):
+    """H-03: el arranque en frío de Java puede rebasar el presupuesto de forma aislada.
+
+    Reintenta una sola vez y solo por tiempo agotado; cada intento conserva PLANTUML_TIMEOUT.
+    `duration_ms` incluye ambos intentos, así que un reintento no oculta el incumplimiento de RNF-03.
+    """
+    try:
+        return _execute(code, format, timeout)
+    except PlantUMLError as e:
+        if e.code != "timeout": raise
+        log.warning("PlantUML excedio %.2f s generando %s; se reintenta una vez.", timeout, format)
+    return _execute(code, format, float(settings.PLANTUML_TIMEOUT))
+
 def render(plantuml_code, format="svg"):
     start = time.perf_counter()
     generation_start = start
@@ -141,7 +154,7 @@ def render(plantuml_code, format="svg"):
                 generation_start = time.perf_counter()
             remaining = budget - (time.perf_counter() - generation_start)
             if remaining <= 0: raise PlantUMLError("Se agoto el tiempo de generacion.", "timeout", 504)
-            data = _execute(plantuml_code, format, remaining)
+            data = _execute_with_retry(plantuml_code, format, remaining)
         except PlantUMLError as e:
             if not getattr(settings, "PLANTUML_ALLOW_FALLBACK", False) or format != "svg": raise
             from .fallback import render_fallback

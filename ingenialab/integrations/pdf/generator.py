@@ -6,6 +6,7 @@ pública (`build_report`) es la misma, por lo que el motor puede cambiarse sin t
 """
 import io
 import logging
+import re
 
 from django.utils import timezone
 from reportlab.graphics import renderPDF  # noqa: F401  (registro de renderers)
@@ -23,6 +24,8 @@ log = logging.getLogger(__name__)
 ACCENT = colors.HexColor("#006a68")
 LIGHT = colors.HexColor("#e6f2f1")
 GRID = colors.HexColor("#c9d6dc")
+# H-01: Helvetica no incluye emojis y los dibuja como cuadros negros en el reporte.
+_EMOJI = re.compile("[ \\t]*[\U0001F000-\U0001FFFF\u2600-\u27BF\u200D\u20E3\uFE0F]+")
 
 
 def _styles():
@@ -37,7 +40,7 @@ def _styles():
 
 
 def _esc(text):
-    return (str(text) or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    return _EMOJI.sub("", str(text) or "").strip().replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
 def _table(rows, widths, st, header=True):

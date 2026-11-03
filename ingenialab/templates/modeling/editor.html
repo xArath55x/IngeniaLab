@@ -44,7 +44,7 @@
       <div id="guide" class="guide-list"><p class="muted small">Selecciona una entrevista de referencia.</p></div>
     </section>
 
-    <form class="card" id="uc-form" novalidate data-uc-id="{{ uc.id|default:'' }}" data-selected-attempt="{{ reference_attempt.id }}"
+    <form class="card" id="uc-form" novalidate data-uc-id="{{ uc.id|default:'' }}" data-lesson-id="{{ lesson.id|default:'' }}" data-selected-attempt="{{ reference_attempt.id }}"
       data-validate-url="{% url 'modeling:api_validate' %}" data-generate-url="{% url 'modeling:api_generate' %}"
       data-save-url="{% url 'modeling:api_save' %}" data-list-url="{% url 'modeling:list' %}">
 

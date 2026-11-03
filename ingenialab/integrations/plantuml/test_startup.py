@@ -26,3 +26,27 @@ class StartupBudgetTests(SimpleTestCase):
         self.assertGreater(result.certification_ms,0)
         self.assertGreater(result.total_duration_ms,result.duration_ms)
         self.assertAlmostEqual(result.total_duration_ms,result.duration_ms+result.certification_ms,places=3)
+
+    def _render_with(self, side_effect):
+        with tempfile.TemporaryDirectory() as cache, override_settings(PLANTUML_CACHE_DIR=cache,PLANTUML_TIMEOUT=1.8,PLANTUML_ALLOW_FALLBACK=False), patch('integrations.plantuml.service._execute',side_effect=side_effect) as execute:
+            try:
+                return service.render('@startuml\nactor Alumno\n@enduml','svg'),execute
+            except service.PlantUMLError as error:
+                return error,execute
+
+    def test_h03_tiempo_agotado_se_reintenta_una_vez_con_el_mismo_presupuesto(self):
+        svg=b'<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"/>'
+        result,execute=self._render_with([service.PlantUMLError('lento','timeout',504),svg])
+        self.assertEqual(result.engine,'plantuml')
+        self.assertEqual(execute.call_count,2)
+        self.assertEqual(execute.call_args.args[2],1.8)
+
+    def test_h03_segundo_tiempo_agotado_devuelve_504(self):
+        error,execute=self._render_with([service.PlantUMLError('lento','timeout',504),service.PlantUMLError('lento','timeout',504)])
+        self.assertEqual((error.code,error.status),('timeout',504))
+        self.assertEqual(execute.call_count,2)
+
+    def test_h03_otros_errores_no_se_reintentan(self):
+        error,execute=self._render_with([service.PlantUMLError('falta jar','jar_missing')])
+        self.assertEqual(error.code,'jar_missing')
+        self.assertEqual(execute.call_count,1)

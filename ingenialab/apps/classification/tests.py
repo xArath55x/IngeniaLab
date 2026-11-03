@@ -49,6 +49,22 @@ class ClassifierViewTests(BaseCase):
         r = self.client.get(f"/clasificacion/intento/{attempt.id}/")
         self.assertContains(r, f'data-req="{req.id}"')
 
+    def test_h02_interview_without_statements_explains_next_step(self):
+        attempt = self.new_attempt()
+        self.ask_rounds(attempt, quality="low")
+        r = self.client.get(f"/clasificacion/intento/{attempt.id}/")
+        self.assertEqual(r.context["available"], 0)
+        self.assertContains(r, "Esta entrevista no dejó declaraciones para clasificar.")
+        self.assertContains(r, 'aria-labelledby="clasificar" hidden')
+        self.assertNotContains(r, "declaración subrayada")
+        self.assertNotEqual(self.new_attempt().id, attempt.id)
+
+    def test_h02_message_is_absent_when_there_are_statements(self):
+        attempt = self.finished_attempt()
+        r = self.client.get(f"/clasificacion/intento/{attempt.id}/")
+        self.assertNotContains(r, "Esta entrevista no dejó declaraciones para clasificar.")
+        self.assertContains(r, "declaración subrayada")
+
     def test_reload_shows_previous_classifications(self):
         attempt = self.finished_attempt()
         req = attempt.version.requirements.get(key="B07")

@@ -156,7 +156,7 @@ Se conservan los formularios y validaciones de ACT-207A. No hay migraciones nuev
 Los casos antiguos deben regenerarse y guardarse para usar el builder actualizado.
 
 Configuración adicional: `PLANTUML_DOT` (ruta o nombre de dot), `PLANTUML_TIMEOUT`
-(presupuesto por operación, 1.8 s por defecto) y `PLANTUML_ALLOW_FALLBACK` (0 por defecto).
+(presupuesto por intento, 1.8 s por defecto; un tiempo agotado se reintenta una sola vez) y `PLANTUML_ALLOW_FALLBACK` (0 por defecto).
 La caché distingue formato, versión del adaptador y configuración del motor. Las
 entradas antiguas quedan ignoradas; se pueden borrar con el servidor detenido.
 

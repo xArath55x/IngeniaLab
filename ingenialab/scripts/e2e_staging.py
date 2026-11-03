@@ -125,27 +125,41 @@ class Flow:
         self.alumno = Browser(base)
         self.ctx = {}
 
-    def cu01_entrevista(self):
-        signup(self.alumno, "e2e-alumno", "Alumna Staging")
-        r = self.alumno.get("/elicitacion/")
-        starts = re.findall(rf'action="(/elicitacion/iniciar/{UUID}/)"', r["text"])
-        check(starts, "no hay escenarios activos tras seed_ingenialab")
-        r = self.alumno.form(starts[0], {})
+    def _entrevistar(self, start):
+        """Recorre una entrevista eligiendo la primera opción; el orden es aleatorio por intento."""
+        r = self.alumno.form(start, {})
         m = re.fullmatch(rf"/elicitacion/intento/({UUID})/", r["path"])
         check(m, f"iniciar entrevista terminó en {r['path']}")
         attempt = m.group(1)
-        asked, finished = 0, False
+        asked, finished, discovered = 0, False, False
         while not finished:
             options = json_script(self.alumno.get(f"/elicitacion/intento/{attempt}/")["text"], "options-data")
             check(options, f"sin opciones después de {asked} preguntas y sin finalizar")
             r = self.alumno.api(f"/elicitacion/api/intento/{attempt}/preguntar/", {"question_id": options[0]["id"]})
             check(r["status"] == 200 and r["json"].get("ok"), f"preguntar: {r['status']} {r['text'][:200]}")
-            check(r["json"]["entry"]["segments"], "la respuesta del cliente no trae segmentos de bitácora")
+            segments = r["json"]["entry"]["segments"]
+            check(segments, "la respuesta del cliente no trae segmentos de bitácora")
+            discovered = discovered or any(s.get("req_id") for s in segments)
             asked += 1
             finished = r["json"]["finished"]
             check(asked <= 9, "la entrevista excede MAX_QUESTIONS (9)")
+        return attempt, asked, discovered
+
+    def cu01_entrevista(self):
+        signup(self.alumno, "e2e-alumno", "Alumna Staging")
+        r = self.alumno.get("/elicitacion/")
+        starts = re.findall(rf'action="(/elicitacion/iniciar/{UUID}/)"', r["text"])
+        check(starts, "no hay escenarios activos tras seed_ingenialab")
+        for retries in range(5):
+            attempt, asked, discovered = self._entrevistar(starts[0])
+            if discovered:
+                break
+            # H-02: elegir solo preguntas débiles es válido; la pantalla debe explicarlo.
+            r = self.alumno.get(f"/clasificacion/intento/{attempt}/")
+            check("no dejó declaraciones" in r["text"], "entrevista sin declaraciones y sin mensaje claro en CU-03")
+        check(discovered, "ninguna entrevista obtuvo declaraciones en 5 intentos")
         self.ctx["attempt"] = attempt
-        return f"{asked} preguntas formuladas; entrevista finalizada"
+        return f"{asked} preguntas formuladas; entrevista finalizada" + (f" ({retries} repetidas sin declaraciones)" if retries else "")
 
     def cu03_clasificacion(self):
         attempt = self.ctx["attempt"]

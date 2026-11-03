@@ -1,17 +1,30 @@
 """Pruebas del exportador de reporte PDF (CU-05 / RF-08) — ACT-208D."""
+import json
 from types import SimpleNamespace
 from unittest import mock
 
+from django.conf import settings
 from django.test import SimpleTestCase
 from reportlab import rl_config
 
 from apps.progress import tests as base
 from apps.progress.views import _report_data
-from integrations.pdf.generator import build_report
+from integrations.pdf.generator import _esc, build_report
 
 SVG_VALIDO = ('<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100">'
               '<rect width="200" height="100" fill="#cccccc"/></svg>')
 NIVEL = {"number": 1, "name": "Aprendiz"}
+
+
+def _textos(valor):
+    if isinstance(valor, str):
+        yield valor
+    elif isinstance(valor, dict):
+        for item in valor.values():
+            yield from _textos(item)
+    elif isinstance(valor, list):
+        for item in valor:
+            yield from _textos(item)
 
 
 def _usuario():
@@ -91,6 +104,16 @@ class GeneradorPdfTests(SimpleTestCase):
         self.assertTrue(data.startswith(b"%PDF"))
         self.assertIn(b"CU_PRESTAR_LIBRO", data)
         self.assertNotIn(b"Diagrama UML generado", data)
+
+    def test_h01_quita_emojis_y_conserva_el_texto(self):
+        self.assertEqual(_esc("Hola \U0001F44B, ¿qué tal? \U0001F937\u200D\u2640\uFE0F"), "Hola, ¿qué tal?")
+        self.assertEqual(_esc("\u2615 Café «rápido» — ñandú"), "Café «rápido» — ñandú")
+
+    def test_h01_el_contenido_semilla_se_puede_dibujar_con_helvetica(self):
+        for ruta in sorted((settings.BASE_DIR / "data").glob("*.json")):
+            for texto in _textos(json.loads(ruta.read_text(encoding="utf-8"))):
+                with self.subTest(archivo=ruta.name, texto=texto[:40]):
+                    _esc(texto).encode("cp1252")
 
     def test_caracteres_especiales_no_rompen_el_pdf(self):
         raro = "Cada <alumno> & su <b>tutor</i> & otros"
