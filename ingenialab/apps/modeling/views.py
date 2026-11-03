@@ -65,6 +65,9 @@ def editor(request, uc_id=None):
         try:
             lesson = UseCaseLesson.objects.select_related("reference", "attempt").get(
                 id=request.GET["leccion"], user=request.user, status=UseCaseLesson.COMPLETED)
+            # H-05: si la lección ya se guardó, se edita ese caso de uso en vez de crear otro.
+            if lesson.use_case_id:
+                return redirect("modeling:edit", lesson.use_case_id)
             reference = lesson.attempt
         except (UseCaseLesson.DoesNotExist, ValidationError):
             lesson = None
@@ -181,6 +184,16 @@ def api_save(request):
         try: uc_id = uuid.UUID(str(data["id"]))
         except ValueError: return fail("El identificador del caso de uso no es válido.")
         uc = get_object_or_404(UseCaseSpecification, id=uc_id, user=request.user)
+    # H-05: lo guardado desde el editor queda ligado a su lección, para no crear otro caso de uso al volver a ella.
+    lesson = None
+    if uc is None and data.get("lesson_id"):
+        try:
+            lesson = UseCaseLesson.objects.filter(
+                id=data["lesson_id"], user=request.user, status=UseCaseLesson.COMPLETED).first()
+        except (ValueError, ValidationError):
+            lesson = None
+        if lesson and lesson.use_case_id:
+            uc = UseCaseSpecification.objects.get(id=lesson.use_case_id)
     spec = form.cleaned_data
     request_id = None
     if uc is None and request.headers.get("X-Request-ID"):
@@ -226,6 +239,9 @@ def api_save(request):
     GeneratedDiagram.objects.update_or_create(
         use_case=uc, defaults={"code_hash": result.code_hash, "svg": result.svg, "engine": result.engine},
     )
+    if lesson and not lesson.use_case_id:
+        lesson.use_case = uc
+        lesson.save(update_fields=["use_case"])
     return ok(id=str(uc.id), plantuml_code=code, svg=result.svg, engine=result.engine, warnings=warnings,
               cached=result.cached, duration_ms=result.duration_ms, code_hash=result.code_hash,
               cache_warning=result.warning, spec=spec, message="Especificación guardada correctamente en tu cuenta.", badges=evaluate_badges(request.user))

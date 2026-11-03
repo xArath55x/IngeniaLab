@@ -158,7 +158,7 @@
     setBusy(true);
     try {
       const urls = { validate: form.dataset.validateUrl, generate: form.dataset.generateUrl, save: form.dataset.saveUrl };
-      const response = await IL.api(urls[action], { ...result.data, format: document.getElementById("preview-format").value });
+      const response = await IL.api(urls[action], { ...result.data, lesson_id: form.dataset.lessonId || null, format: document.getElementById("preview-format").value });
       feedback(response, response.ok ? TITLES[action] : "No se pudo completar la operación.");
       if (!response.ok) { rendered = null; return; }
       applyNormalized(response.spec);
