@@ -1,10 +1,22 @@
-ACT-221A - IngeniaLab 2.0 - 31/10/2026
+ACT-221A - IngeniaLab 2.0 - 03/11/2026
 Base: rama it-2 del repositorio. Las pruebas se ejecutaron sobre el commit
-bfe07b2 (registrado en evidencia/ACT221A/e2e_report.json).
-221 pruebas Django OK sin omisiones, con motor real Java/Graphviz
+3fa84ee (registrado en evidencia/ACT221A/e2e_report.json).
+232 pruebas Django OK sin omisiones, con motor real Java/Graphviz
 (INGENIALAB_TEST_PLANTUML=1).
 10 pruebas JS de resiliencia y 24 casos de validacion JS OK.
 E2E HTTP de staging (scripts/e2e_staging.py): 8/8 pasos PASA, PlantUML real.
+Entro despues de bfe07b2: reintento de PlantUML y calentamiento en la demo
+(H-03), leccion ligada al editor (H-05), PDF sin emojis (H-01) y entrevista
+sin declaraciones (H-02).
+Timeouts de PlantUML: la evidencia se corrio con la maquina sin carga. Con la
+CPU saturada a proposito (8 procesos), 1 de 2 corridas de la suite fallo en
+test_cold_png_certifies_svg porque el PNG tardo mas de 2 s; el E2E paso 3 de 3.
+En la revision del PR, otra Mac reporto 3 de 232 pruebas y 1 de 3 corridas E2E
+con timeout de PlantUML. Falta correr plantuml_check --strict y el E2E en el
+equipo de la demo.
+Entrega: repositorio mas lanzador. El WBS de ACT-221A describe un ZIP con base
+precargada; ese cambio debe registrarse. Release_sprint_2.zip y los checksums
+de ACT-225 en Drive son anteriores a estas correcciones.
 El campo "actividad" del reporte E2E dice ACT-214C porque es el identificador
 fijo del script que lo genera; la ejecucion corresponde a ACT-221A.
 La ejecucion fue macOS 27/Python 3.13.3, Java 25 y Graphviz 16.1.0.

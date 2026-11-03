@@ -27,7 +27,9 @@ El lanzador usa `ingenialab/scripts/demo.py`, que en cada arranque:
 2. instala el JAR de PlantUML si falta y comprueba Java y Graphviz;
 3. aplica migraciones y carga `seed_ingenialab` (idempotente: escenarios,
    requisitos maestros, inspecciones y las ocho lecciones de modelado);
-4. arranca el servidor en http://127.0.0.1:8000 con los seis módulos.
+4. calienta PlantUML para acelerar el primer diagrama; si falla, muestra un
+   aviso y continúa;
+5. arranca el servidor en http://127.0.0.1:8000 con los seis módulos.
 
 Abra esa URL y registre su cuenta. Detenga con Ctrl+C. En próximas sesiones
 basta ejecutar el lanzador; tras un `git pull` también aplica las migraciones
@@ -55,7 +57,7 @@ funcione.
 Consulte docs/GUIA_RELEASE_2_0.md para la operación actual. Los documentos
 Word de docs/ se conservan como antecedentes. El README de ingenialab contiene
 los detalles del banco de respuestas e IA opcional de esta versión;
-README_ACT214C.md explica staging E2E.
+ingenialab/README_ACT214C.md explica staging E2E.
 
 Las pruebas ejecutadas y sus resultados se encuentran en evidencia/ACT221A/.
 Se pueden reejecutar desde ingenialab/:
