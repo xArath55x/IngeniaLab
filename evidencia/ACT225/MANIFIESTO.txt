@@ -1,0 +1,29 @@
+ACT-225 - Manifiesto de integridad de entregables (WP.12) - IngeniaLab 2.0
+Generado: 03/11/2026
+
+Repositorio: https://github.com/xArath55x/IngeniaLab
+Rama: it-2
+Commit: d541ea554d429e23e071d11ac8da92172883e2d8
+Fecha del commit: 2026-11-03T13:56:34-06:00
+Archivos: 166
+Bytes: 732474
+SHA-256 de SHA256SUMS.txt: 5080e1eb66bf69d0bac29b4d56f04929932bfa6480396dfed654427a24b65057
+
+Alcance
+SHA256SUMS.txt cubre cada archivo versionado en ese commit, incluidos el codigo,
+la documentacion de docs/, LEEME_RELEASE.md, NOTAS_RELEASE.txt y evidencia/ACT221A/.
+No cubre:
+- este manifiesto ni SHA256SUMS.txt, que entraron despues de ese commit;
+- db.sqlite3 ni el JAR de PlantUML, que no se versionan. El JAR lo verifica
+  install_plantuml con su propio SHA-256;
+- los documentos que solo estan en Google Drive;
+- Release_sprint_2.zip y los checksums del 30/10/2026, anteriores a este commit.
+
+Verificacion (Linux o macOS, desde la raiz del repositorio)
+  mkdir /tmp/ingenialab-verif
+  git archive d541ea554d429e23e071d11ac8da92172883e2d8 | tar -x -C /tmp/ingenialab-verif
+  cp evidencia/ACT225/SHA256SUMS.txt /tmp/ingenialab-verif/
+  cd /tmp/ingenialab-verif && shasum -a 256 -c SHA256SUMS.txt
+
+Se verifica sobre git archive porque una conversion de fin de linea en Windows
+cambia los hashes de los archivos de un clon, sin que su contenido en Git cambie.
