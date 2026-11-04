@@ -1,0 +1,614 @@
+{
+  "rules": {
+    "name": 200,
+    "system_name": 200,
+    "actor": 120,
+    "conditions": 4000,
+    "step": 1000,
+    "alternate": 2000,
+    "max_actors": 10,
+    "min_steps": 2,
+    "max_steps": 50,
+    "max_alternates": 20,
+    "max_relations": 20
+  },
+  "cases": [
+    {
+      "name": "Plantilla completa",
+      "data": {
+        "name": "Registrar préstamo",
+        "system_name": "Biblioteca",
+        "primary_actors": [
+          "Bibliotecario"
+        ],
+        "secondary_actors": [],
+        "preconditions": "El bibliotecario inició sesión.",
+        "main_flow": [
+          "El Bibliotecario captura la matrícula.",
+          "El sistema registra el préstamo."
+        ],
+        "alternate_flows": [],
+        "postconditions": "El préstamo queda registrado.",
+        "relations": [],
+        "attempt_id": ""
+      },
+      "error": null
+    },
+    {
+      "name": "Unicode y espacios",
+      "data": {
+        "name": " Registrar\t préstamo ",
+        "system_name": "Biblioteca",
+        "primary_actors": [
+          " Bibliotecario "
+        ],
+        "secondary_actors": [],
+        "preconditions": "El bibliotecario inició sesión.",
+        "main_flow": [
+          "El Bibliotecario captura la matrícula.",
+          "El sistema registra el préstamo."
+        ],
+        "alternate_flows": [],
+        "postconditions": "El préstamo queda registrado.",
+        "relations": [],
+        "attempt_id": ""
+      },
+      "error": null
+    },
+    {
+      "name": "Nombre obligatorio",
+      "data": {
+        "name": "  ",
+        "system_name": "Biblioteca",
+        "primary_actors": [
+          "Bibliotecario"
+        ],
+        "secondary_actors": [],
+        "preconditions": "El bibliotecario inició sesión.",
+        "main_flow": [
+          "El Bibliotecario captura la matrícula.",
+          "El sistema registra el préstamo."
+        ],
+        "alternate_flows": [],
+        "postconditions": "El préstamo queda registrado.",
+        "relations": [],
+        "attempt_id": ""
+      },
+      "error": "name"
+    },
+    {
+      "name": "Nombre no textual",
+      "data": {
+        "name": 123,
+        "system_name": "Biblioteca",
+        "primary_actors": [
+          "Bibliotecario"
+        ],
+        "secondary_actors": [],
+        "preconditions": "El bibliotecario inició sesión.",
+        "main_flow": [
+          "El Bibliotecario captura la matrícula.",
+          "El sistema registra el préstamo."
+        ],
+        "alternate_flows": [],
+        "postconditions": "El préstamo queda registrado.",
+        "relations": [],
+        "attempt_id": ""
+      },
+      "error": "name"
+    },
+    {
+      "name": "Actor obligatorio",
+      "data": {
+        "name": "Registrar préstamo",
+        "system_name": "Biblioteca",
+        "primary_actors": [],
+        "secondary_actors": [],
+        "preconditions": "El bibliotecario inició sesión.",
+        "main_flow": [
+          "El Bibliotecario captura la matrícula.",
+          "El sistema registra el préstamo."
+        ],
+        "alternate_flows": [],
+        "postconditions": "El préstamo queda registrado.",
+        "relations": [],
+        "attempt_id": ""
+      },
+      "error": "primary_actors"
+    },
+    {
+      "name": "Actores repetidos",
+      "data": {
+        "name": "Registrar préstamo",
+        "system_name": "Biblioteca",
+        "primary_actors": [
+          "Alumno",
+          " alumno "
+        ],
+        "secondary_actors": [],
+        "preconditions": "El bibliotecario inició sesión.",
+        "main_flow": [
+          "El Bibliotecario captura la matrícula.",
+          "El sistema registra el préstamo."
+        ],
+        "alternate_flows": [],
+        "postconditions": "El préstamo queda registrado.",
+        "relations": [],
+        "attempt_id": ""
+      },
+      "error": "primary_actors"
+    },
+    {
+      "name": "Roles repetidos",
+      "data": {
+        "name": "Registrar préstamo",
+        "system_name": "Biblioteca",
+        "primary_actors": [
+          "Bibliotecario"
+        ],
+        "secondary_actors": [
+          "bibliotecario"
+        ],
+        "preconditions": "El bibliotecario inició sesión.",
+        "main_flow": [
+          "El Bibliotecario captura la matrícula.",
+          "El sistema registra el préstamo."
+        ],
+        "alternate_flows": [],
+        "postconditions": "El préstamo queda registrado.",
+        "relations": [],
+        "attempt_id": ""
+      },
+      "error": "secondary_actors"
+    },
+    {
+      "name": "Precondiciones obligatorias",
+      "data": {
+        "name": "Registrar préstamo",
+        "system_name": "Biblioteca",
+        "primary_actors": [
+          "Bibliotecario"
+        ],
+        "secondary_actors": [],
+        "preconditions": "",
+        "main_flow": [
+          "El Bibliotecario captura la matrícula.",
+          "El sistema registra el préstamo."
+        ],
+        "alternate_flows": [],
+        "postconditions": "El préstamo queda registrado.",
+        "relations": [],
+        "attempt_id": ""
+      },
+      "error": "preconditions"
+    },
+    {
+      "name": "Postcondiciones obligatorias",
+      "data": {
+        "name": "Registrar préstamo",
+        "system_name": "Biblioteca",
+        "primary_actors": [
+          "Bibliotecario"
+        ],
+        "secondary_actors": [],
+        "preconditions": "El bibliotecario inició sesión.",
+        "main_flow": [
+          "El Bibliotecario captura la matrícula.",
+          "El sistema registra el préstamo."
+        ],
+        "alternate_flows": [],
+        "postconditions": "  ",
+        "relations": [],
+        "attempt_id": ""
+      },
+      "error": "postconditions"
+    },
+    {
+      "name": "Dos pasos mínimos",
+      "data": {
+        "name": "Registrar préstamo",
+        "system_name": "Biblioteca",
+        "primary_actors": [
+          "Bibliotecario"
+        ],
+        "secondary_actors": [],
+        "preconditions": "El bibliotecario inició sesión.",
+        "main_flow": [
+          "Uno"
+        ],
+        "alternate_flows": [],
+        "postconditions": "El préstamo queda registrado.",
+        "relations": [],
+        "attempt_id": ""
+      },
+      "error": "main_flow"
+    },
+    {
+      "name": "Paso vacío intermedio",
+      "data": {
+        "name": "Registrar préstamo",
+        "system_name": "Biblioteca",
+        "primary_actors": [
+          "Bibliotecario"
+        ],
+        "secondary_actors": [],
+        "preconditions": "El bibliotecario inició sesión.",
+        "main_flow": [
+          "Uno",
+          "  ",
+          "Tres"
+        ],
+        "alternate_flows": [],
+        "postconditions": "El préstamo queda registrado.",
+        "relations": [],
+        "attempt_id": ""
+      },
+      "error": "main_flow"
+    },
+    {
+      "name": "JSON de paso inválido",
+      "data": {
+        "name": "Registrar préstamo",
+        "system_name": "Biblioteca",
+        "primary_actors": [
+          "Bibliotecario"
+        ],
+        "secondary_actors": [],
+        "preconditions": "El bibliotecario inició sesión.",
+        "main_flow": [
+          {},
+          "Dos"
+        ],
+        "alternate_flows": [],
+        "postconditions": "El préstamo queda registrado.",
+        "relations": [],
+        "attempt_id": ""
+      },
+      "error": "main_flow"
+    },
+    {
+      "name": "Límite nombre",
+      "data": {
+        "name": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "system_name": "Biblioteca",
+        "primary_actors": [
+          "Bibliotecario"
+        ],
+        "secondary_actors": [],
+        "preconditions": "El bibliotecario inició sesión.",
+        "main_flow": [
+          "El Bibliotecario captura la matrícula.",
+          "El sistema registra el préstamo."
+        ],
+        "alternate_flows": [],
+        "postconditions": "El préstamo queda registrado.",
+        "relations": [],
+        "attempt_id": ""
+      },
+      "error": "name"
+    },
+    {
+      "name": "Límite pasos",
+      "data": {
+        "name": "Registrar préstamo",
+        "system_name": "Biblioteca",
+        "primary_actors": [
+          "Bibliotecario"
+        ],
+        "secondary_actors": [],
+        "preconditions": "El bibliotecario inició sesión.",
+        "main_flow": [
+          "Paso",
+          "Paso",
+          "Paso",
+          "Paso",
+          "Paso",
+          "Paso",
+          "Paso",
+          "Paso",
+          "Paso",
+          "Paso",
+          "Paso",
+          "Paso",
+          "Paso",
+          "Paso",
+          "Paso",
+          "Paso",
+          "Paso",
+          "Paso",
+          "Paso",
+          "Paso",
+          "Paso",
+          "Paso",
+          "Paso",
+          "Paso",
+          "Paso",
+          "Paso",
+          "Paso",
+          "Paso",
+          "Paso",
+          "Paso",
+          "Paso",
+          "Paso",
+          "Paso",
+          "Paso",
+          "Paso",
+          "Paso",
+          "Paso",
+          "Paso",
+          "Paso",
+          "Paso",
+          "Paso",
+          "Paso",
+          "Paso",
+          "Paso",
+          "Paso",
+          "Paso",
+          "Paso",
+          "Paso",
+          "Paso",
+          "Paso",
+          "Paso"
+        ],
+        "alternate_flows": [],
+        "postconditions": "El préstamo queda registrado.",
+        "relations": [],
+        "attempt_id": ""
+      },
+      "error": "main_flow"
+    },
+    {
+      "name": "Límite texto paso",
+      "data": {
+        "name": "Registrar préstamo",
+        "system_name": "Biblioteca",
+        "primary_actors": [
+          "Bibliotecario"
+        ],
+        "secondary_actors": [],
+        "preconditions": "El bibliotecario inició sesión.",
+        "main_flow": [
+          "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+          "Paso"
+        ],
+        "alternate_flows": [],
+        "postconditions": "El préstamo queda registrado.",
+        "relations": [],
+        "attempt_id": ""
+      },
+      "error": "main_flow"
+    },
+    {
+      "name": "Límite actores",
+      "data": {
+        "name": "Registrar préstamo",
+        "system_name": "Biblioteca",
+        "primary_actors": [
+          "0",
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6",
+          "7",
+          "8",
+          "9",
+          "10"
+        ],
+        "secondary_actors": [],
+        "preconditions": "El bibliotecario inició sesión.",
+        "main_flow": [
+          "El Bibliotecario captura la matrícula.",
+          "El sistema registra el préstamo."
+        ],
+        "alternate_flows": [],
+        "postconditions": "El préstamo queda registrado.",
+        "relations": [],
+        "attempt_id": ""
+      },
+      "error": "primary_actors"
+    },
+    {
+      "name": "Tipo relación inválido",
+      "data": {
+        "name": "Registrar préstamo",
+        "system_name": "Biblioteca",
+        "primary_actors": [
+          "Bibliotecario"
+        ],
+        "secondary_actors": [],
+        "preconditions": "El bibliotecario inició sesión.",
+        "main_flow": [
+          "El Bibliotecario captura la matrícula.",
+          "El sistema registra el préstamo."
+        ],
+        "alternate_flows": [],
+        "postconditions": "El préstamo queda registrado.",
+        "relations": [
+          {
+            "type": "otro",
+            "target": "Validar"
+          }
+        ],
+        "attempt_id": ""
+      },
+      "error": "relations"
+    },
+    {
+      "name": "Destino obligatorio",
+      "data": {
+        "name": "Registrar préstamo",
+        "system_name": "Biblioteca",
+        "primary_actors": [
+          "Bibliotecario"
+        ],
+        "secondary_actors": [],
+        "preconditions": "El bibliotecario inició sesión.",
+        "main_flow": [
+          "El Bibliotecario captura la matrícula.",
+          "El sistema registra el préstamo."
+        ],
+        "alternate_flows": [],
+        "postconditions": "El préstamo queda registrado.",
+        "relations": [
+          {
+            "type": "include",
+            "target": " "
+          }
+        ],
+        "attempt_id": ""
+      },
+      "error": "relations"
+    },
+    {
+      "name": "Autorrelación",
+      "data": {
+        "name": "Registrar préstamo",
+        "system_name": "Biblioteca",
+        "primary_actors": [
+          "Bibliotecario"
+        ],
+        "secondary_actors": [],
+        "preconditions": "El bibliotecario inició sesión.",
+        "main_flow": [
+          "El Bibliotecario captura la matrícula.",
+          "El sistema registra el préstamo."
+        ],
+        "alternate_flows": [],
+        "postconditions": "El préstamo queda registrado.",
+        "relations": [
+          {
+            "type": "extend",
+            "target": "REGISTRAR PRÉSTAMO"
+          }
+        ],
+        "attempt_id": ""
+      },
+      "error": "relations"
+    },
+    {
+      "name": "Relación duplicada",
+      "data": {
+        "name": "Registrar préstamo",
+        "system_name": "Biblioteca",
+        "primary_actors": [
+          "Bibliotecario"
+        ],
+        "secondary_actors": [],
+        "preconditions": "El bibliotecario inició sesión.",
+        "main_flow": [
+          "El Bibliotecario captura la matrícula.",
+          "El sistema registra el préstamo."
+        ],
+        "alternate_flows": [],
+        "postconditions": "El préstamo queda registrado.",
+        "relations": [
+          {
+            "type": "include",
+            "target": "Validar"
+          },
+          {
+            "type": "extend",
+            "target": " validar "
+          }
+        ],
+        "attempt_id": ""
+      },
+      "error": "relations"
+    },
+    {
+      "name": "Sistema por defecto",
+      "data": {
+        "name": "Registrar préstamo",
+        "system_name": "",
+        "primary_actors": [
+          "Bibliotecario"
+        ],
+        "secondary_actors": [],
+        "preconditions": "El bibliotecario inició sesión.",
+        "main_flow": [
+          "El Bibliotecario captura la matrícula.",
+          "El sistema registra el préstamo."
+        ],
+        "alternate_flows": [],
+        "postconditions": "El préstamo queda registrado.",
+        "relations": [],
+        "attempt_id": ""
+      },
+      "error": null
+    },
+    {
+      "name": "Control oculto",
+      "data": {
+        "name": "Registrar​ préstamo",
+        "system_name": "Biblioteca",
+        "primary_actors": [
+          "Bibliotecario"
+        ],
+        "secondary_actors": [],
+        "preconditions": "El bibliotecario inició sesión.",
+        "main_flow": [
+          "El Bibliotecario captura la matrícula.",
+          "El sistema registra el préstamo."
+        ],
+        "alternate_flows": [],
+        "postconditions": "El préstamo queda registrado.",
+        "relations": [],
+        "attempt_id": ""
+      },
+      "error": "name"
+    },
+    {
+      "name": "UUID inválido",
+      "data": {
+        "name": "Registrar préstamo",
+        "system_name": "Biblioteca",
+        "primary_actors": [
+          "Bibliotecario"
+        ],
+        "secondary_actors": [],
+        "preconditions": "El bibliotecario inició sesión.",
+        "main_flow": [
+          "El Bibliotecario captura la matrícula.",
+          "El sistema registra el préstamo."
+        ],
+        "alternate_flows": [],
+        "postconditions": "El préstamo queda registrado.",
+        "relations": [],
+        "attempt_id": "hola"
+      },
+      "error": "attempt_id"
+    },
+    {
+      "name": "Relaciones válidas",
+      "data": {
+        "name": "Registrar préstamo",
+        "system_name": "Biblioteca",
+        "primary_actors": [
+          "Bibliotecario"
+        ],
+        "secondary_actors": [],
+        "preconditions": "El bibliotecario inició sesión.",
+        "main_flow": [
+          "El Bibliotecario captura la matrícula.",
+          "El sistema registra el préstamo."
+        ],
+        "alternate_flows": [],
+        "postconditions": "El préstamo queda registrado.",
+        "relations": [
+          {
+            "type": "include",
+            "target": "Verificar límite"
+          },
+          {
+            "type": "extend",
+            "target": "Notificar rechazo"
+          }
+        ],
+        "attempt_id": ""
+      },
+      "error": null
+    }
+  ]
+}

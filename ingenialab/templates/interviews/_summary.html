@@ -11,6 +11,7 @@
   </div>
   {% if summary.premature %}<p class="small muted" style="margin-top:.6rem">Terminaste con {{ summary.asked }} de {{ summary.max_questions }} preguntas; las rondas no usadas no sumaron puntos.</p>{% endif %}
   <div class="btn-row" style="margin-top:1rem">
+    {% if "classification" in modules %}<a class="btn" href="{% url 'classification:classify' attempt.id %}">Continuar: clasificar requisitos →</a>{% endif %}
     <form method="post" action="{% url 'interviews:start' attempt.version.id %}">{% csrf_token %}<button class="btn" type="submit">↺ Repetir entrevista</button></form>
     <a class="btn ghost" href="{% url 'interviews:scenarios' %}">Otros escenarios</a>
   </div>

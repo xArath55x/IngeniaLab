@@ -1,0 +1,11 @@
+PASS: éxito incluye CSRF, identidad y clave UUID
+PASS: HTML y JSON no contractual se resuelven como error sin simular desconexión
+PASS: HTTP 503 no puede declararse exitoso por el cuerpo
+PASS: reautenticación misma cuenta refresca CSRF y conserva cuerpo/clave
+PASS: otra cuenta impide reenviar el borrador
+PASS: timeout aborta transporte y espera reintento explícito con la misma clave
+PASS: fallo de red conserva snapshot del cuerpo aunque cambie el formulario
+PASS: solicitudes expiradas comparten un solo diálogo de reautenticación
+PASS: sesión todavía ausente no reenvía el POST hasta autenticarse
+PASS: 403 de permisos no se transforma en una nueva sesión
+{"activity":"ACT-211C","passed":10,"total":10}

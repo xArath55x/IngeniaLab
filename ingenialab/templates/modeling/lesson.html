@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Lección · {{ lesson.reference.spec.name }}{% endblock %}
+{% block content %}
+<div class="lesson" id="lesson"
+     data-answer-url="{% url 'modeling:api_lesson_answer' lesson.id %}"
+     data-save-url="{% url 'modeling:api_lesson_save' lesson.id %}"
+     data-editor-url="{% url 'modeling:new' %}?leccion={{ lesson.id }}"
+     data-lessons-url="{% url 'modeling:lessons' %}?attempt={{ lesson.attempt_id }}"
+     data-wizard-url="{% url 'modeling:wizard' %}?attempt={{ lesson.attempt_id }}">
+  <div class="lesson-top">
+    <a class="icon-btn" href="{% url 'modeling:lessons' %}?attempt={{ lesson.attempt_id }}" aria-label="Salir de la lección" title="Salir">✕</a>
+    <div class="bar lesson-bar" role="progressbar" aria-label="Avance de la lección"><span id="progress"></span></div>
+    <div class="lives" id="lives" aria-live="polite"></div>
+  </div>
+
+  <div class="lesson-layout">
+    <div class="lesson-main">
+      <section class="card lesson-body" id="exercise" aria-live="polite">
+        <p class="small muted lesson-kicker" id="ex-title"></p>
+        <h1 class="lesson-prompt" id="ex-prompt"></h1>
+        <ul class="lesson-context" id="ex-context"></ul>
+        <div id="ex-area"></div>
+      </section>
+
+      <div class="lesson-footer" id="footer">
+        <div class="lesson-feedback" id="feedback" aria-live="assertive"></div>
+        <button class="btn" type="button" id="btn-check" disabled>Comprobar</button>
+      </div>
+
+      <section class="card lesson-body lesson-finish" id="finish" hidden>
+        <div class="lesson-icon" id="finish-icon" aria-hidden="true"></div>
+        <h1 id="finish-title"></h1>
+        <p id="finish-text"></p>
+        <div id="finish-done" hidden>
+          <div class="diagram lesson-diagram" id="finish-diagram"><p class="muted">El diagrama aparecerá aquí.</p></div>
+          <p class="small" id="finish-status" role="status"></p>
+          <div class="btn-row" style="justify-content:center">
+            <button class="btn" type="button" id="finish-save">Generar diagrama y guardar</button>
+            <a class="btn" id="finish-view" href="#" hidden>Ver en mis casos de uso</a>
+            <a class="btn ghost" id="finish-back-done" href="#">Crear otro caso de uso</a>
+          </div>
+          <p class="small muted" style="margin-top:.8rem"><a id="finish-editor" href="#">Prefiero ajustarlo a mano en el editor</a></p>
+        </div>
+        <div class="btn-row" id="finish-failed" style="justify-content:center" hidden>
+          <form method="post" action="{% url 'modeling:lesson_start' lesson.reference_id %}">{% csrf_token %}
+            <input type="hidden" name="attempt" value="{{ lesson.attempt_id }}"><button class="btn" type="submit">Intentar de nuevo</button>
+          </form>
+          <a class="btn ghost" id="finish-back" href="#">Volver a las lecciones</a>
+        </div>
+      </section>
+    </div>
+
+    <aside class="card built-card" aria-labelledby="built-title">
+      <h2 id="built-title">Tu caso de uso</h2>
+      <p class="small muted" style="margin-top:0">Se arma con cada respuesta correcta.</p>
+      <dl class="built-list" id="built"></dl>
+    </aside>
+  </div>
+</div>
+{{ state|json_script:"lesson-state" }}
+{% endblock %}
+{% block scripts %}<script src="{% static 'js/lessons.js' %}?v=tablero-1"></script>{% endblock %}

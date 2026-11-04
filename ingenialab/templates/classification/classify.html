@@ -3,22 +3,27 @@
 {% block content %}
 <div class="page-head">
   <div>
-    <p class="small muted" style="margin:0">Elicitación · Paso 2 de 2</p>
+    <p class="small muted" style="margin:0">Entrevista → Clasificación → Modelado · Paso 2 de 3</p>
     <h1>Clasificación de requisitos</h1>
     <p class="muted" style="margin:0">{{ attempt.version.title }} · {{ attempt.version.client_name }}</p>
   </div>
   <div class="metrics" aria-live="polite">
-    <div class="metric"><b id="m-precision">{{ attempt.classification_precision }} %</b><span>Precisión</span></div>
-    <div class="metric"><b id="m-progress">{{ rows|length }} / {{ available }}</b><span>Clasificadas</span></div>
+    <div class="metric"{% if not available %} hidden{% endif %}><b id="m-precision">{{ attempt.classification_precision }} %</b><span>Precisión</span></div>
+    <div class="metric"{% if not available %} hidden{% endif %}><b id="m-progress">{{ rows|length }} / {{ available }}</b><span>Clasificadas</span></div>
     <div class="metric"><b id="m-score">{{ attempt.total_score }}</b><span>Puntos del escenario</span></div>
   </div>
 </div>
 <div class="instructions">
+  {% if not available %}
+  <p style="margin:0"><b>Esta entrevista no dejó declaraciones para clasificar.</b> Las preguntas no obtuvieron requisitos del cliente: repite la entrevista con preguntas más específicas sobre lo que necesita.</p>
+  <p style="margin:.6rem 0 0"><a class="btn small" href="{% url 'interviews:scenarios' %}">Repetir la entrevista</a></p>
+  {% else %}
   <ol>
     <li>Haz clic (o selecciona con el cursor) una <span class="stmt" style="cursor:default">declaración subrayada</span> de la bitácora.</li>
     <li>Elige si es <b>RF</b> (lo que el sistema hace) o <b>RNF</b> (una cualidad o restricción de cómo lo hace) y confirma.</li>
     <li>Para corregir, vuelve a seleccionar la declaración o su fila en la tabla: se reclasifica sin duplicarse.</li>
   </ol>
+  {% endif %}
   {% if attempt.premature_finish %}<p class="small" style="margin:.4rem 0 0">⚠ La entrevista se finalizó con temas pendientes: solo puedes clasificar lo que quedó en la bitácora.</p>{% endif %}
 </div>
 
@@ -36,7 +41,7 @@
   </section>
 
   <div>
-    <section class="card sticky" aria-labelledby="clasificar">
+    <section class="card sticky" aria-labelledby="clasificar"{% if not available %} hidden{% endif %}>
       <h2 id="clasificar">Clasificar declaración</h2>
       <div class="selection-box" id="selection">Ninguna declaración seleccionada.</div>
       <fieldset style="border:0;padding:0;margin:0">
@@ -60,8 +65,9 @@
         <tbody id="rows"></tbody>
       </table></div>
       <div class="btn-row" style="margin-top:1rem">
-        <a class="btn secondary" href="{% url 'modeling:new' %}">Modelar casos de uso →</a>
-        <a class="btn ghost" href="{% url 'progress:reports' %}">Exportar reporte</a>
+        <a class="btn secondary" href="{% url 'modeling:wizard' %}?attempt={{ attempt.id }}">Modelar casos de uso →</a>
+        <a class="btn ghost" href="{% url 'interviews:interview' attempt.id %}">Volver a la entrevista</a>
+        {% if "reports" in modules %}<a class="btn ghost" href="{% url 'progress:reports' %}">Exportar reporte</a>{% endif %}
       </div>
     </section>
   </div>

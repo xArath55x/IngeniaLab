@@ -1,0 +1,67 @@
+ACT-225 - Manifiesto de integridad de entregables (WP.12) - IngeniaLab 2.0
+Generado: 03/11/2026
+
+Repositorio: https://github.com/xArath55x/IngeniaLab
+Tag de la release: release/v2.0 (creado el 03/11/2026)
+Commit: d541ea554d429e23e071d11ac8da92172883e2d8
+Fecha del commit: 2026-11-03T13:56:34-06:00
+Archivos: 166
+Bytes: 732474
+SHA-256 de SHA256SUMS.txt: 5080e1eb66bf69d0bac29b4d56f04929932bfa6480396dfed654427a24b65057
+
+Registro del hash
+Este hash esta junto a lo que protege, asi que tambien se registra fuera de este
+archivo: en el mensaje del tag release/v2.0 y en ACT-225 del WBS. Compare contra
+esos registros: git show release/v2.0
+
+Tags
+Use release/v2.0. Los tags v2.0-demo y release/v2.0-beta apuntan a ff7588d, anterior
+a H-01, H-02, H-03 y H-05: con ellos no coinciden 25 archivos del manifiesto (13
+modificados y 12 que aun no existian), sin que eso indique una alteracion.
+LEEME_RELEASE.md y NOTAS_RELEASE.txt dicen que la entrega no publica tags porque se
+escribieron antes de crear release/v2.0; no se editan para no cambiar lo que cubre
+este manifiesto.
+
+Alcance
+SHA256SUMS.txt cubre cada archivo versionado en ese commit, incluidos el codigo,
+la documentacion de docs/, LEEME_RELEASE.md, NOTAS_RELEASE.txt y evidencia/ACT221A/.
+No cubre:
+- este manifiesto ni SHA256SUMS.txt, que entraron despues de ese commit;
+- db.sqlite3 ni el JAR de PlantUML, que no se versionan. El JAR lo verifica
+  install_plantuml con su propio SHA-256;
+- los documentos que solo estan en Google Drive;
+- Byte_Force_ACT225_Entrega_Integridad.zip y Release_sprint_2.zip en Drive, modificados
+  el 30/10/2026 y anteriores a este commit.
+
+Verificacion
+Los tres procedimientos revisan los 166 archivos. Tome SHA256SUMS.txt de la rama it-2.
+El conteo debe dar 166: los hashes no detectan archivos de mas. Hagalo antes de
+instalar, porque el lanzador agrega .venv, db.sqlite3 y otros archivos locales.
+En Linux use sha256sum -c SHA256SUMS.txt si no tiene shasum.
+
+A. Copia obtenida de Git (Linux o macOS, desde la raiz de un clon)
+  d=$(mktemp -d)
+  git archive release/v2.0 | tar -x -C "$d"
+  cp evidencia/ACT225/SHA256SUMS.txt "$d/"
+  cd "$d"
+  shasum -a 256 -c SHA256SUMS.txt
+  find . -type f ! -name SHA256SUMS.txt | wc -l
+
+B. ZIP descargado de GitHub (Linux o macOS)
+Descargue https://github.com/xArath55x/IngeniaLab/archive/refs/tags/release/v2.0.zip,
+descomprimalo y copie SHA256SUMS.txt dentro de la carpeta IngeniaLab-release-v2.0.
+  cd IngeniaLab-release-v2.0
+  shasum -a 256 -c SHA256SUMS.txt
+  find . -type f ! -name SHA256SUMS.txt | wc -l
+
+C. ZIP descargado de GitHub (Windows, PowerShell)
+Prepare la carpeta como en B y ejecute dentro de ella. No se ha probado en Windows.
+  Get-Content SHA256SUMS.txt | ForEach-Object {
+    $hash, $ruta = $_ -split '  ', 2
+    if ((Get-FileHash -LiteralPath $ruta -Algorithm SHA256).Hash -ne $hash) { "FALLA: $ruta" }
+  }
+  (Get-ChildItem -Recurse -File -Exclude SHA256SUMS.txt).Count
+
+C no debe mostrar ninguna linea FALLA. No verifique un clon de Windows directamente:
+una conversion de fin de linea puede cambiar los hashes sin que el contenido en Git
+cambie. Por eso se usa git archive o el ZIP.

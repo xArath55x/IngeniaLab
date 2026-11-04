@@ -3,14 +3,21 @@
 En cada ronda el estudiante elige una de tres preguntas (muy útil, algo útil, sin aporte),
 hasta un máximo de MAX_QUESTIONS. La calidad de cada elección se revela al finalizar.
 """
+import math
 import random
+import uuid
 
-from django.db import transaction
+from django.conf import settings
+from django.db import transaction, IntegrityError
 from django.utils import timezone
 
-from .models import InterviewLogEntry, InterviewQuestion, StudentAttempt
+from integrations.ai.dialogue import answer as dialogue_answer
+
+from .models import AnswerVariant, InterviewLogEntry, InterviewQuestion, StudentAttempt
 
 MAX_QUESTIONS = 9
+# Fracción mínima de rondas para considerar suficiente la entrevista al terminar antes (CU-01 E-1).
+THRESHOLD_RATIO = 2 / 3
 QUALITY_LABELS = dict(InterviewQuestion.QUALITIES)
 
 
@@ -45,8 +52,33 @@ def current_options(attempt):
     return options
 
 
+def bank_variant(attempt, question):
+    """Variante activa del banco para la pregunta, estable por intento; None si no hay."""
+    if not getattr(settings, "INGENIALAB_AI_ANSWER_BANK", True):
+        return None
+    variants = list(AnswerVariant.for_question(question).filter(is_active=True).order_by("created_at", "id"))
+    return random.Random(f"{attempt.id}:{question.round_number}:{question.quality}").choice(variants) if variants else None
+
+
 def progress(attempt):
     return {"asked": attempt.log_entries.count(), "max": len(rounds(attempt.version))}
+
+
+def round_topics(version):
+    """Tema de cada ronda en orden; todas las opciones de una ronda comparten tema."""
+    by_round = dict(version.questions.values_list("round_number", "topic"))
+    return [by_round[r] for r in rounds(version)]
+
+
+def evaluate_threshold(attempt):
+    """Compara el avance con el umbral mínimo y lista los temas que aún no se exploran."""
+    p = progress(attempt)
+    minimum = math.ceil(p["max"] * THRESHOLD_RATIO)
+    asked = set(attempt.log_entries.values_list("question__topic", flat=True))
+    return {
+        **p, "minimum": minimum, "reached": p["asked"] >= minimum,
+        "pending_topics": [t for t in round_topics(attempt.version) if t not in asked],
+    }
 
 
 def requirement_index(version):
@@ -56,13 +88,15 @@ def requirement_index(version):
 def serialize_entry(entry: InterviewLogEntry, req_ids_by_key):
     q = entry.question
     return {
+        "source": entry.response_source,
+        "fallback": bool(entry.fallback_reason),
         "question_id": str(q.id),
         "question": q.text,
         "topic": q.topic,
         "time": timezone.localtime(entry.created_at).strftime("%H:%M"),
         "segments": [
             {"text": s["text"], "req_id": req_ids_by_key.get(s.get("req")) if s.get("req") else None}
-            for s in q.answer_segments
+            for s in (entry.response_segments or q.answer_segments)
         ],
     }
 
@@ -113,26 +147,55 @@ def _close(attempt, premature):
     attempt.save()
 
 
+def _dialogue_payload(attempt, entry, replayed=False):
+    finished = next_round(attempt) is None
+    return {
+        "entry": serialize_entry(entry, requirement_index(attempt.version)),
+        "options": serialize_options(current_options(attempt)),
+        "progress": progress(attempt), "finished": finished,
+        "summary": summary(attempt) if finished else None, "replayed": replayed,
+    }
+
+
 @transaction.atomic
-def get_dialogue(attempt: StudentAttempt, question_id) -> dict:
+def get_dialogue(attempt: StudentAttempt, question_id, allow_replay=False) -> dict:
     """Registra la pregunta elegida, devuelve la respuesta del cliente y la siguiente ronda."""
+    try:
+        question_id = uuid.UUID(str(question_id))
+    except (ValueError, TypeError):
+        raise InterviewError("El identificador de la pregunta no es válido.")
+    previous = attempt.log_entries.filter(question_id=question_id).select_related("question").first()
+    if previous is not None and (attempt.status == StudentAttempt.INTERVIEWING or allow_replay):
+        return _dialogue_payload(attempt, previous, replayed=True)
     if attempt.status != StudentAttempt.INTERVIEWING:
         raise InterviewError("La entrevista ya terminó; no se pueden formular nuevas preguntas.")
     options = current_options(attempt)
     question = next((q for q in options if str(q.id) == str(question_id)), None)
     if question is None:
         raise InterviewError("Elige una de las tres preguntas disponibles en esta ronda.")
-    entry = InterviewLogEntry.objects.create(attempt=attempt, question=question)
+    # Banco de respuestas redactadas por el LLM de antemano: se sirven al instante. Si no hay, en vivo o catálogo.
+    variant = bank_variant(attempt, question)
+    if variant is not None:
+        segments, source, reason = variant.segments, "ai_bank", ""
+    else:
+        response = dialogue_answer(question)
+        segments, source, reason = response.segments, response.source, response.reason
+    try:
+        with transaction.atomic():
+            entry = InterviewLogEntry.objects.create(
+                attempt=attempt, question=question, response_segments=segments,
+                response_source=source, fallback_reason=reason,
+            )
+    except IntegrityError:
+        entry = attempt.log_entries.filter(question=question).select_related("question").first()
+        if entry is None:
+            raise
+        attempt.refresh_from_db()
+        return _dialogue_payload(attempt, entry, replayed=True)
     finished = next_round(attempt) is None
     if finished:
         _close(attempt, premature=False)
-    return {
-        "entry": serialize_entry(entry, requirement_index(attempt.version)),
-        "options": serialize_options(current_options(attempt)),
-        "progress": progress(attempt),
-        "finished": finished,
-        "summary": summary(attempt) if finished else None,
-    }
+    return _dialogue_payload(attempt, entry)
 
 
 @transaction.atomic
@@ -142,19 +205,35 @@ def finish_interview(attempt: StudentAttempt, confirm_pending: bool) -> dict:
         raise InterviewError("La entrevista ya terminó.")
     if not attempt.log_entries.exists():
         raise InterviewError("Haz al menos una pregunta antes de terminar la entrevista.")
-    p = progress(attempt)
-    pending = p["max"] - p["asked"]
+    t = evaluate_threshold(attempt)
+    pending = t["max"] - t["asked"]
     if pending and not confirm_pending:
+        topics = ", ".join(t["pending_topics"])
+        if t["reached"]:
+            title = "¿Terminar la entrevista?"
+            message = (f"Aún te quedan {pending} pregunta(s) disponibles. Las rondas que no uses no sumarán puntos. "
+                       f"Temas sin explorar: {topics}. ¿Deseas terminar de todos modos?")
+        else:
+            title = "Entrevista incompleta"
+            message = (f"Solo has hecho {t['asked']} de {t['max']} preguntas; se recomiendan al menos {t['minimum']} "
+                       f"para reunir requisitos suficientes. Temas sin explorar: {topics}. "
+                       "Las rondas que no uses no sumarán puntos. ¿Deseas terminar de todos modos?")
         return {
-            "needs_confirmation": True,
-            "message": f"Aún te quedan {pending} pregunta(s) disponibles. Las rondas que no uses no sumarán puntos. ¿Deseas terminar de todos modos?",
-            "pending": pending,
+            "needs_confirmation": True, "title": title, "message": message, "pending": pending,
+            "below_threshold": not t["reached"], "minimum": t["minimum"], "pending_topics": t["pending_topics"],
         }
     _close(attempt, premature=bool(pending))
     return {"needs_confirmation": False, "summary": summary(attempt)}
 
 
 @transaction.atomic
+def discard_interview(attempt: StudentAttempt):
+    """Elimina una entrevista en curso que el estudiante abandonó; las concluidas se conservan."""
+    if attempt.status != StudentAttempt.INTERVIEWING:
+        raise InterviewError("Solo puede descartarse una entrevista en curso.")
+    attempt.delete()
+
+
 def reset_interview(attempt: StudentAttempt):
     """Vacía la conversación y vuelve a la primera ronda (CU-01 FA-1)."""
     if attempt.status != StudentAttempt.INTERVIEWING:

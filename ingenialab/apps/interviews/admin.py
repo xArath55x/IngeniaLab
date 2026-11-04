@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import InterviewQuestion, MasterRequirement, ScenarioVersion, StudentAttempt
+from .models import AnswerVariant, InterviewQuestion, MasterRequirement, ScenarioVersion, StudentAttempt
 
 
 class QuestionInline(admin.TabularInline):
@@ -16,3 +16,19 @@ class ScenarioVersionAdmin(admin.ModelAdmin):
 
 admin.site.register(MasterRequirement)
 admin.site.register(StudentAttempt)
+
+
+@admin.register(AnswerVariant)
+class AnswerVariantAdmin(admin.ModelAdmin):
+    """Revisión del banco de respuestas: desmarcar «activa» oculta la variante a los estudiantes."""
+
+    list_display = ("version", "round_number", "quality", "preview", "is_active", "model", "created_at")
+    list_display_links = ("preview",)
+    list_editable = ("is_active",)
+    list_filter = ("version", "quality", "is_active", "round_number")
+    readonly_fields = ("version", "round_number", "quality", "question_hash", "segments", "model", "created_at")
+
+    @admin.display(description="Respuesta")
+    def preview(self, obj):
+        return obj.text[:160]
+

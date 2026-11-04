@@ -37,6 +37,7 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "apps.accounts.middleware.ApiSessionGuardMiddleware",
+    "apps.accounts.middleware.ApiRequestGuardMiddleware",
     "apps.accounts.middleware.ModuleGateMiddleware",
 ]
 
@@ -76,7 +77,8 @@ else:
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.sqlite3",
-            "NAME": BASE_DIR / "db.sqlite3",
+            # ACT-214C: el script E2E apunta a una BD de staging aparte con INGENIALAB_SQLITE_PATH.
+            "NAME": os.environ.get("INGENIALAB_SQLITE_PATH", BASE_DIR / "db.sqlite3"),
         }
     }
 
@@ -114,13 +116,46 @@ if not DEBUG:
     SECURE_HSTS_SECONDS = 31536000
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
-# Módulos habilitados. Para el piloto solo la entrevista está activa; los demás pueden
-# reactivarse con, p. ej., INGENIALAB_MODULES=interviews,classification,modeling,inspection,reports,progress
+# ACT-211A2: los seis módulos (CU-01 a CU-05 y tablero) están habilitados por defecto. Para limitar
+# una instalación, define p. ej. INGENIALAB_MODULES=interviews,classification,modeling
 ALL_MODULES = ["interviews", "classification", "modeling", "inspection", "reports", "progress"]
-INGENIALAB_MODULES = [m for m in os.environ.get("INGENIALAB_MODULES", "interviews").split(",") if m]
+INGENIALAB_MODULES = [m for m in os.environ.get("INGENIALAB_MODULES", ",".join(ALL_MODULES)).split(",") if m]
 
 # SCI-05: integración PlantUML (SDS §3.2).
 PLANTUML_JAR = os.environ.get("PLANTUML_JAR", str(BASE_DIR / "vendor" / "plantuml.jar"))
 PLANTUML_JAVA = os.environ.get("PLANTUML_JAVA", "java")
 PLANTUML_CACHE_DIR = Path(os.environ.get("PLANTUML_CACHE_DIR", BASE_DIR / "var" / "diagram_cache"))
-PLANTUML_TIMEOUT = 10
+# ACT-207B: presupuesto del subproceso (objetivo interactivo < 2 s).
+PLANTUML_TIMEOUT = float(os.environ.get("PLANTUML_TIMEOUT", "1.8"))
+PLANTUML_DOT = os.environ.get("PLANTUML_DOT", "dot")
+# Solo demostraciones explicitas: nunca confundir respaldo con PlantUML real.
+PLANTUML_ALLOW_FALLBACK = os.environ.get("PLANTUML_ALLOW_FALLBACK", "0") == "1"
+
+# ACT-211A1: proveedor opcional compatible con Chat Completions, solo en backend.
+INGENIALAB_AI_MODE = os.environ.get("INGENIALAB_AI_MODE", "catalog")
+INGENIALAB_AI_ENDPOINT = os.environ.get("INGENIALAB_AI_ENDPOINT", "")
+INGENIALAB_AI_MODEL = os.environ.get("INGENIALAB_AI_MODEL", "")
+INGENIALAB_AI_API_KEY = os.environ.get("INGENIALAB_AI_API_KEY", "")
+# El adaptador valida el rango y usa catálogo si la configuración no es válida.
+try:
+    INGENIALAB_AI_TIMEOUT = float(os.environ.get("INGENIALAB_AI_TIMEOUT", "1.2"))
+except ValueError:
+    INGENIALAB_AI_TIMEOUT = 0
+
+# Respuesta libre del cliente virtual: el LLM redacta la respuesta y los enunciados evaluables
+# se conservan textuales. Requiere chat_completions; si la respuesta no es válida, catálogo.
+INGENIALAB_AI_FREE_ANSWERS = os.environ.get("INGENIALAB_AI_FREE_ANSWERS", "0") == "1"
+try:
+    INGENIALAB_AI_FREE_TIMEOUT = float(os.environ.get("INGENIALAB_AI_FREE_TIMEOUT", "8"))
+except ValueError:
+    INGENIALAB_AI_FREE_TIMEOUT = 0
+
+# Banco de respuestas pregeneradas (manage.py generate_answer_variants): si hay variantes activas para
+# una pregunta, se usan al instante en lugar de llamar al LLM durante la entrevista.
+INGENIALAB_AI_ANSWER_BANK = os.environ.get("INGENIALAB_AI_ANSWER_BANK", "1") == "1"
+
+# ACT-211C: los errores CSRF de API mantienen el contrato JSON.
+CSRF_FAILURE_VIEW = "apps.accounts.views.csrf_failure"
+
+# ACT-211C: reducir arranque HotSpot sin ampliar el presupuesto PlantUML.
+PLANTUML_FAST_START = os.environ.get("PLANTUML_FAST_START", "1") == "1"

@@ -5,9 +5,12 @@ from django.http import JsonResponse
 
 
 def read_json(request):
+    if hasattr(request, "ingenialab_json"):
+        return request.ingenialab_json
     try:
-        return json.loads(request.body or b"{}")
-    except json.JSONDecodeError:
+        data = json.loads(request.body or b"{}")
+        return data if isinstance(data, dict) else {}
+    except (ValueError, UnicodeDecodeError):
         return {}
 
 

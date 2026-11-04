@@ -23,13 +23,24 @@
 
     <div class="card">
       <div class="card-head"><h2>Retomar trabajo</h2></div>
-      {% if not open_interviews and not classifying and not open_inspections %}
+      {% if not interview_groups and not lessons.in_progress and not classifying and not open_inspections %}
         <p class="empty">Aún no tienes prácticas. Comienza con una <a href="{% url 'interviews:scenarios' %}">entrevista</a>.</p>
       {% endif %}
       <ul class="item-list">
-        {% for a in open_interviews %}
-        <li><div><span class="tag hint">Entrevista en curso</span> {{ a.version.title }}<div class="small muted">Iniciada {{ a.started_at|date:"d/m/Y H:i" }}</div></div>
-          <a class="btn small" href="{% url 'interviews:interview' a.id %}">Reanudar</a></li>
+        {% for g in interview_groups %}
+        {% include "progress/_open_interview.html" with a=g.latest %}
+        {% if g.older %}
+        <li class="resume-older"><details>
+          <summary>Ver {{ g.older|length }} entrevista{{ g.older|length|pluralize }} más de {{ g.latest.version.title }}</summary>
+          <ul class="item-list">
+            {% for a in g.older %}{% include "progress/_open_interview.html" %}{% endfor %}
+          </ul>
+        </details></li>
+        {% endif %}
+        {% endfor %}
+        {% for l in lessons.in_progress %}
+        <li><div><span class="tag rf">Lección guiada</span> {{ l.reference.spec.name }}<div class="small muted">{{ l.attempt.version.title }} · {{ l.solved|length }} de {{ l.exercises|length }} partes · {{ l.lives }} vida{{ l.lives|pluralize }}</div></div>
+          <a class="btn small" href="{% url 'modeling:lesson' l.id %}">Continuar</a></li>
         {% endfor %}
         {% for a in classifying %}
         <li><div><span class="tag rf">Clasificación</span> {{ a.version.title }}<div class="small muted">Precisión {{ a.classification_precision }} % · {{ a.total_score }} pts</div></div>
@@ -44,6 +55,9 @@
 
     <div class="card">
       <div class="card-head"><h2>Casos de uso recientes</h2><a class="btn small secondary" href="{% url 'modeling:list' %}">Ver todos</a></div>
+      {% if lessons.total %}
+      <p class="small muted">🎓 Lecciones guiadas completadas: <strong>{{ lessons.completed }} de {{ lessons.total }}</strong> · <a href="{% url 'modeling:wizard' %}">Crear caso de uso</a></p>
+      {% endif %}
       <ul class="item-list">
         {% for uc in use_cases %}
         <li><span>📐 {{ uc.name }}</span><a class="btn small ghost" href="{% url 'modeling:edit' uc.id %}">Editar</a></li>
@@ -60,7 +74,7 @@
         <div class="badge{% if not b.owned %} locked{% endif %}" title="{{ b.description }}">
           <div class="b-icon" aria-hidden="true">{{ b.icon }}</div>
           <div class="b-name">{{ b.name }}</div>
-          <div class="small muted">{% if b.owned %}Obtenida{% else %}Bloqueada{% endif %}</div>
+          {% if b.owned %}<div class="small muted">Obtenida</div>{% else %}<div class="b-how small">{{ b.description }}</div>{% endif %}
         </div>
         {% endfor %}
       </div>

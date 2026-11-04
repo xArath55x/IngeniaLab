@@ -6,33 +6,33 @@ SRS v1.2 (WP.13) y al SDS v1.0 (WP.16) — ISO/IEC 29110-5-1-2:2025, Perfil Bás
 
 ## Inicio rápido (desarrollo)
 
-Requisitos: Python 3.11+, Java 11+ (para PlantUML). Graphviz **no** es necesario: los diagramas usan el
-motor de layout integrado de PlantUML (Smetana).
+Requisitos: Python 3.11–3.13 (perfil verificado: 3.12.x), Java 17+ y Graphviz (`dot` en PATH). ACT-207B usa el motor real de PlantUML con Graphviz para SVG y PNG.
 
 ```bash
 cd ingenialab
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
-# PlantUML (si no existe vendor/plantuml.jar)
-mkdir -p vendor
-curl -L -o vendor/plantuml.jar https://github.com/plantuml/plantuml/releases/download/v1.2024.7/plantuml-1.2024.7.jar
+# PlantUML fijado, descargado con verificacion SHA-256
+.venv/bin/python manage.py install_plantuml
+.venv/bin/python manage.py plantuml_check --strict
 .venv/bin/python manage.py migrate
 .venv/bin/python manage.py seed_ingenialab        # escenarios e inspecciones (idempotente)
 .venv/bin/python manage.py runserver
 ```
 
 Abre http://127.0.0.1:8000, regístrate como estudiante y comienza en **Elicitación**.
-Para entrar al panel `/admin`, crea un superusuario con `.venv/bin/python manage.py createsuperuser`.
+`db.sqlite3` no se versiona: en un clon limpio no hay usuarios, así que registra una cuenta.
+Para levantar todo en un paso, ver [ACT-214](#act-214--demo-release-v20).
 
 Pruebas automatizadas (evidencia para VR-01):
 
 ```bash
-.venv/bin/python manage.py test apps
+.venv/bin/python manage.py test apps integrations
 ```
 
-## Flujo del estudiante (piloto: solo entrevistas)
+## Flujo del estudiante
 
-En esta versión solo está habilitado el módulo de **entrevistas (CU-01)**:
+Con ACT-207A están habilitados **entrevistas (CU-01)** y **modelado (CU-02)**. Para utilizar el formulario de modelado es necesario terminar al menos una entrevista:
 
 1. El estudiante elige un escenario y se abre un chat estilo mensajería con el cliente virtual.
 2. En cada turno se ofrecen **3 preguntas** en orden aleatorio: una muy útil (+10), una más o menos útil (+5)
@@ -41,11 +41,12 @@ En esta versión solo está habilitado el módulo de **entrevistas (CU-01)**:
 4. Al final se muestra el puntaje (máx. 90), una calificación formativa y la explicación de cada elección,
    con la mejor opción de cada ronda.
 
-Los demás módulos (clasificación, modelado, inspección, reportes y tablero de progreso) siguen en el código y se
-reactivan con la variable de entorno:
+Desde ACT-211A2 los seis módulos (entrevistas, clasificación, modelado, inspección, reportes y tablero de
+progreso) están habilitados por defecto. Para limitar una instalación, define la variable de entorno con los
+módulos deseados, por ejemplo:
 
 ```bash
-INGENIALAB_MODULES=interviews,classification,modeling,inspection,reports,progress
+INGENIALAB_MODULES=interviews,classification,modeling
 ```
 
 ## Arquitectura (SDS §2)
@@ -56,7 +57,7 @@ INGENIALAB_MODULES=interviews,classification,modeling,inspection,reports,progres
 | SCI-02 | `apps/interviews` | Escenarios versionados, `services.py` = InterviewEngine, bitácora |
 | SCI-03 | `apps/classification` | `services.py` = RequirementService (upsert RF/RNF, precisión) |
 | SCI-04 | `apps/modeling` | `validators.py` = ModelingValidator, casos de uso y diagramas |
-| SCI-05 | `integrations/plantuml` | `builder.py` (spec → PlantUML), `service.py` (render + caché SHA-256) |
+| SCI-05 | `integrations/plantuml` | `builder.py` (spec → PlantUML), `service.py` (SVG/PNG real + caché SHA-256 atómica) |
 | SCI-06 | `apps/inspection` | `services.py` = AuditEngine (hallazgos, pistas, precisión) |
 | SCI-07 | `apps/progress` | `services.py` = GamificationService/ScoringEngine, tablero |
 | SCI-08 | `integrations/pdf` | `generator.py` = PDFReportGenerator |
@@ -84,7 +85,7 @@ versión nueva (`"version": "2.1"`) y la anterior se desactiva automáticamente.
 | RF-11 Inspección de defectos | `apps/inspection` |
 | RF-12 Interrupciones | `static/js/app.js` (banner + reintento, modal de reautenticación) + middleware 401 |
 | RNF-01/02 Usabilidad y accesibilidad | Instrucciones por pantalla, campos resaltados, retroalimentación con icono + texto, navegación con teclado |
-| RNF-03 < 2 s | Caché de diagramas por SHA-256 (`var/diagram_cache`) |
+| RNF-03 < 2 s | Caché SHA-256, timeout y mediciones con `plantuml_check --strict`; depende del equipo y tamaño del diagrama |
 | RNF-05 Sesión segura | Expiración a 30 min de inactividad; HTTPS/HSTS/cookies seguras con `INGENIALAB_DEBUG=0` |
 | RNF-06 Arquitectura modular | Capas separadas: vistas → servicios → ORM / adaptadores |
 
@@ -109,7 +110,7 @@ Variables de entorno:
 ```
 
 Sirve detrás de un proxy inverso con TLS (Nginx/Caddy) que envíe `X-Forwarded-Proto`.
-Si Java o el JAR no están disponibles, el sistema usa un renderizador SVG de respaldo y lo indica en pantalla.
+Si Java, Graphviz o el JAR no están disponibles, se muestra un error explicativo y no se guarda un diagrama falso. El respaldo heredado solo se activa explícitamente con `PLANTUML_ALLOW_FALLBACK=1`, para demostración; no cuenta como generación real.
 
 ## Decisiones respecto al SDS
 
@@ -117,3 +118,193 @@ Si Java o el JAR no están disponibles, el sistema usa un renderizador SVG de re
   es Python puro. La interfaz `build_report()` aísla el motor, por lo que puede cambiarse sin tocar las vistas.
 - **SQLite en desarrollo**, PostgreSQL en producción vía variables de entorno (mismo ORM y migraciones).
 - **Fuera de alcance (SRS §2):** panel docente, edición gráfica libre, modo offline y colaboración en tiempo real.
+
+## Actividad ACT-207A integrada
+
+El formulario de `apps/modeling/` utiliza Django Forms y validación JavaScript con los mismos límites.
+Abre **Modelado → Nuevo caso de uso** después de finalizar una entrevista. **Validar plantilla** comprueba
+los campos sin invocar PlantUML; generar y guardar utilizan el motor que ya incluía el proyecto.
+Se exige nombre, actor principal, precondiciones, postcondiciones y al menos dos pasos con texto.
+Los números 1..n se derivan del orden de la lista y se actualizan al agregar o quitar filas.
+
+Consulta `../ACT-207A_CAMBIOS.txt` para ver todos los archivos agregados/modificados, decisiones,
+instrucciones de instalación en Windows y las pruebas ejecutadas. No se requiere una migración nueva.
+
+Si tienes definida `INGENIALAB_MODULES`, incluye `modeling`; una variable previamente configurada
+sigue teniendo prioridad sobre el valor por defecto de esta entrega.
+
+Pruebas específicas:
+
+```bash
+python manage.py test apps.modeling
+# Opcional, solo si tienes Node.js: no requiere npm install
+node tests/modeling-validation.cjs
+```
+
+## ACT-207B: motor real de diagramas
+
+Tras instalar Java 17+ y Graphviz, ejecuta `python manage.py install_plantuml` y
+`python manage.py plantuml_check --strict`. El primer comando requiere Internet
+para instalar PlantUML 1.2026.2 con SHA-256 verificado; después se genera localmente.
+El JAR no se incluye en el ZIP. La descarga manual oficial también es válida.
+
+En Modelado puedes elegir vista previa SVG o PNG y pulsar **Validar y generar diagrama**.
+La pantalla indica el tiempo y si se reutilizó la caché. Guarda para habilitar las
+descargas de la versión persistida. Cambios pendientes no aparecen en esas descargas.
+
+Se conservan los formularios y validaciones de ACT-207A. No hay migraciones nuevas.
+Los casos antiguos deben regenerarse y guardarse para usar el builder actualizado.
+
+Configuración adicional: `PLANTUML_DOT` (ruta o nombre de dot), `PLANTUML_TIMEOUT`
+(presupuesto por intento, 1.8 s por defecto; un tiempo agotado se reintenta una sola vez) y `PLANTUML_ALLOW_FALLBACK` (0 por defecto).
+La caché distingue formato, versión del adaptador y configuración del motor. Las
+entradas antiguas quedan ignoradas; se pueden borrar con el servidor detenido.
+
+Pruebas con Java/Graphviz/JAR configurados, en PowerShell:
+
+```powershell
+$env:INGENIALAB_TEST_PLANTUML = "1"
+.\.venv\Scripts\python.exe manage.py test apps integrations
+.\.venv\Scripts\python.exe manage.py plantuml_check --runs 3 --strict
+```
+
+Sin esa variable, las tres pruebas de integración que requieren Java se omiten
+explícitamente. Las pruebas generales usan el respaldo o dobles de prueba donde
+corresponde; eso no cambia el modo normal de la aplicación.
+
+Consulta `../ACT-207B_CAMBIOS.txt` para instrucciones completas de Windows y
+`../docs/ACT-207B_Mediciones.json` para las muestras del entorno de validación.
+
+## ACT-214B — Entorno de ejecución integrado v2.0
+
+La revisión `ACT-214B-entorno-v2.0-base-08c036e` parte del adjunto
+`IngeniaLab(1).rar`, no del ZIP ACT-209 entregado previamente.
+Consulta [README_ACT214B.md](README_ACT214B.md) para preparar el entorno,
+ejecutar verificaciones reproducibles y registrar evidencia por integrante.
+El preparador no modifica la base de datos personal; las migraciones y el seed
+se verifican en una base temporal. La versión de código conserva las mejoras
+PDF de ACT-208D incluidas en el adjunto.
+
+## ACT-211A1 — Pipeline de elicitación integrado
+
+Consulta [README_ACT211A1.md](README_ACT211A1.md). Entrevistas, clasificación
+y modelado están habilitados por defecto. Antes de ejecutar esta versión,
+aplica `manage.py migrate` para preservar las respuestas en snapshots de
+bitácora. La IA es opcional mediante Chat Completions compatible y conserva
+un fallback local al catálogo.
+
+## ACT-211A2 — Ensamble de inspección, PDF y tablero
+
+Inspección (CU-04), reporte PDF (CU-05) y tablero de progreso quedan habilitados por defecto junto con
+CU-01 a CU-03 y modelado; la navegación lateral enlaza los seis módulos. Todas las vistas filtran por el
+usuario autenticado: el tablero suma puntos de entrevistas, clasificación, casos de uso e inspecciones
+concluidas de esa cuenta, y el reporte PDF solo incluye sus actividades. Una variable
+`INGENIALAB_MODULES` ya definida en el entorno sigue teniendo prioridad. No hay migraciones nuevas.
+
+Pruebas específicas:
+
+```bash
+.venv/bin/python manage.py test apps.progress.test_integration
+```
+
+## Respuestas del cliente con LLM (CU-01)
+
+Las preguntas de la entrevista siguen siendo las del catálogo; lo que cambia es la **respuesta del cliente**,
+que puede redactarla un LLM. Los enunciados evaluables (requisitos) nunca los escribe el LLM: la aplicación
+intercala el texto del catálogo, así que la clasificación (CU-03), el puntaje y el reporte no cambian.
+
+Al formular una pregunta, la respuesta sale de la primera opción disponible:
+
+| Orden | Origen | Cuándo se usa | Tiempo |
+| --- | --- | --- | --- |
+| 1 | **Banco de variantes** | Hay variantes activas para esa pregunta | Inmediato |
+| 2 | Respuesta libre en vivo | `INGENIALAB_AI_FREE_ANSWERS=1` | Lo que tarde el LLM (máx. `INGENIALAB_AI_FREE_TIMEOUT`) |
+| 3 | Reformulación restringida (ACT-211A1) | `INGENIALAB_AI_MODE=chat_completions` | Máx. 1.5 s |
+| 4 | Catálogo | Siempre, como respaldo | Inmediato |
+
+Lo recomendado es el **banco**: las variantes se generan antes de la práctica y durante la entrevista no se
+llama al LLM. Sirve cualquier proveedor compatible con Chat Completions; abajo se usa Ollama, local y sin costo.
+
+### 1. Preparar Ollama (una vez por equipo)
+
+```bash
+brew install ollama            # macOS; en Windows/Linux, instalador de https://ollama.com
+ollama serve                   # en otra terminal; debe seguir abierta mientras se genera el banco
+ollama pull qwen2.5:7b         # ~4.7 GB; requiere al menos 8 GB de RAM
+```
+
+### 2. Generar el banco
+
+Desde `ingenialab/`, con `migrate` y `seed_ingenialab` ya aplicados:
+
+```bash
+INGENIALAB_AI_ENDPOINT=http://127.0.0.1:11434/v1/chat/completions INGENIALAB_AI_MODEL=qwen2.5:7b \
+  .venv/bin/python manage.py generate_answer_variants --scenario ESC-BIBLIOTECA-01 \
+  --per-question 5 --quality high --quality medium
+```
+
+En PowerShell, define antes las variables con `$env:INGENIALAB_AI_ENDPOINT="http://127.0.0.1:11434/v1/chat/completions"`
+y `$env:INGENIALAB_AI_MODEL="qwen2.5:7b"`, y usa `.venv\Scripts\python.exe`.
+
+- Completa hasta `--per-question` variantes activas por pregunta. Si se interrumpe, al volver a ejecutarlo
+  solo genera las que faltan. Sin `--scenario` procesa todos los escenarios activos.
+- Cada variante pasa los mismos filtros que la respuesta libre: no cuenta requisitos ni cifras del escenario,
+  está en español y no recita el resumen. En las respuestas sin requisitos, el propio LLM revisa además que
+  contesten la pregunta; `--no-judge` omite esa revisión.
+- `--quality high --quality medium` deja fuera las preguntas que no aportan: con `qwen2.5:7b` casi nunca se
+  contestan bien y quedan con la respuesta del catálogo.
+- `--revalidate` aplica los filtros vigentes a las variantes existentes y desactiva las que ya no pasan.
+- Duración aproximada en un Mac M1 de 8 GB: 10–15 min por escenario.
+
+### 3. Revisar las variantes
+
+Con un superusuario (`manage.py createsuperuser`), abre `/admin/interviews/answervariant/`, filtra por
+escenario, ronda o calidad, y desmarca **Is active** en las que no deban mostrarse. Las variantes
+desactivadas se conservan y se pueden reactivar.
+
+### 4. Usar el banco en la práctica
+
+No requiere configuración: si una pregunta tiene variantes activas, cada intento recibe una al azar y Ollama
+no necesita estar encendido. Con `INGENIALAB_AI_ANSWER_BANK=0` se ignora el banco.
+
+Las variantes viven en la base de datos, no en Git. Para la máquina de la demo hay dos opciones: repetir
+los pasos 1 a 3 en ella, o copiar el `db.sqlite3` donde se generaron, que incluye también usuarios y prácticas.
+No subas `db.sqlite3` al repositorio.
+
+Las variantes se identifican por escenario, ronda y calidad, con una huella del contenido del catálogo:
+`seed_ingenialab` no las borra, y si cambia el texto de una pregunta o de su respuesta en
+`data/interviews.json`, las variantes de esa pregunta dejan de usarse y hay que generarlas de nuevo.
+
+### Respuesta libre en vivo (opcional)
+
+Para preguntas sin variantes en el banco, el LLM puede responder en el momento:
+
+```bash
+INGENIALAB_AI_MODE=chat_completions INGENIALAB_AI_ENDPOINT=http://127.0.0.1:11434/v1/chat/completions \
+INGENIALAB_AI_MODEL=qwen2.5:7b INGENIALAB_AI_FREE_ANSWERS=1 INGENIALAB_AI_FREE_TIMEOUT=20 \
+  .venv/bin/python manage.py runserver
+```
+
+Con un modelo local cada respuesta tarda 8–15 s; mientras tanto, el cliente aparece «escribiendo…». Si no
+responde a tiempo o la respuesta no pasa los filtros, se usa la del catálogo.
+
+Pruebas específicas:
+
+```bash
+.venv/bin/python manage.py test integrations.ai apps.interviews.test_answer_bank
+```
+
+## ACT-214 — Demo release v2.0
+
+Levantamiento en un paso desde `ingenialab/`: crea o repara `.venv`, reinstala las dependencias si cambió
+`requirements.txt`, instala el JAR de PlantUML si falta, aplica migraciones, carga `seed_ingenialab` y arranca el
+servidor en http://127.0.0.1:8000 con los seis módulos (ignora un `INGENIALAB_MODULES` definido en el entorno).
+
+```bash
+sh scripts/demo.sh                          # macOS / Linux
+powershell -File scripts\demo.ps1           # Windows
+```
+
+Requiere Python 3.11–3.13, Java 17+ y Graphviz, igual que el inicio rápido. Después de `git pull` basta con repetir
+el comando. Opciones: `--port 8001` y `--allow-plantuml-fallback` (respaldo SVG en un equipo sin Java/Graphviz;
+no cuenta como integración real).

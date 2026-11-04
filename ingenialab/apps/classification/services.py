@@ -1,6 +1,7 @@
 """RequirementService (SCI-03): clasificación RF/RNF, retroalimentación y precisión."""
 from dataclasses import dataclass
 
+from django.core.exceptions import ValidationError
 from django.db import transaction
 
 from apps.interviews.models import MasterRequirement, StudentAttempt
@@ -51,7 +52,7 @@ def classify_statement(attempt: StudentAttempt, master_req_id, category: str) ->
         raise ClassificationError("Debe seleccionar una clasificación válida (RF o RNF) para registrar el requisito.")
     try:
         req = available_requirements(attempt).get(id=master_req_id)
-    except (MasterRequirement.DoesNotExist, ValueError):
+    except (MasterRequirement.DoesNotExist, ValidationError, ValueError):
         raise ClassificationError("Selecciona una declaración resaltable de la bitácora.")
 
     is_correct = category == req.expected_type
@@ -81,7 +82,7 @@ def classify_statement(attempt: StudentAttempt, master_req_id, category: str) ->
 def request_hint(attempt: StudentAttempt, master_req_id) -> str:
     try:
         req = available_requirements(attempt).get(id=master_req_id)
-    except (MasterRequirement.DoesNotExist, ValueError):
+    except (MasterRequirement.DoesNotExist, ValidationError, ValueError):
         raise ClassificationError("Selecciona primero una declaración de la bitácora.")
     attempt.hints_used += 1
     attempt.save(update_fields=["hints_used"])

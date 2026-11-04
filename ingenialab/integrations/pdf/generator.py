@@ -6,6 +6,7 @@ pública (`build_report`) es la misma, por lo que el motor puede cambiarse sin t
 """
 import io
 import logging
+import re
 
 from django.utils import timezone
 from reportlab.graphics import renderPDF  # noqa: F401  (registro de renderers)
@@ -23,6 +24,8 @@ log = logging.getLogger(__name__)
 ACCENT = colors.HexColor("#006a68")
 LIGHT = colors.HexColor("#e6f2f1")
 GRID = colors.HexColor("#c9d6dc")
+# H-01: Helvetica no incluye emojis y los dibuja como cuadros negros en el reporte.
+_EMOJI = re.compile("[ \\t]*[\U0001F000-\U0001FFFF\u2600-\u27BF\u200D\u20E3\uFE0F]+")
 
 
 def _styles():
@@ -37,7 +40,7 @@ def _styles():
 
 
 def _esc(text):
-    return (str(text) or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    return _EMOJI.sub("", str(text) or "").strip().replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
 def _table(rows, widths, st, header=True):
@@ -94,6 +97,13 @@ def build_report(*, report_id, user, level, points, attempts, use_cases, inspect
                      Paragraph(f"Cobertura: {a['coverage']} · Puntaje entrevista: {a['interview_score']} · "
                                f"Precisión de clasificación: {a['precision']} % · Pistas: {a['hints']}", st["Small"]),
                      Spacer(1, 4)]
+            if a.get("log"):
+                block.append(Paragraph("Bitácora de la entrevista", st["H3x"]))
+                log_rows = [["#", "Pregunta formulada", "Respuesta del cliente", "Pts"]]
+                log_rows += [[str(i), e["question"], e["answer"], str(e["points"])]
+                             for i, e in enumerate(a["log"], 1)]
+                block.append(_table(log_rows, [0.8 * cm, 5.5 * cm, width - 7.8 * cm, 1.5 * cm], st))
+                block.append(Spacer(1, 6))
             if a["rows"]:
                 rows = [["#", "Declaración", "Clasificación", "Resultado"]]
                 rows += [[str(i), r["statement"], r["category"], "Correcto" if r["is_correct"] else "Inconsistente"]

@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Crear caso de uso{% endblock %}
+{% block content %}
+<div class="lesson" id="wizard"
+     data-generate-url="{% url 'modeling:api_generate' %}" data-save-url="{% url 'modeling:api_save' %}"
+     data-list-url="{% url 'modeling:list' %}" data-selected="{{ selected }}">
+  <div class="lesson-top">
+    <a class="icon-btn" href="{% url 'modeling:list' %}" aria-label="Salir del asistente" title="Salir">✕</a>
+    <div class="bar lesson-bar" role="progressbar" aria-label="Avance"><span id="progress"></span></div>
+    <span class="small muted" id="step-count"></span>
+  </div>
+
+  <div class="lesson-layout">
+    <div class="lesson-main">
+      <section class="card lesson-body" aria-live="polite">
+        <p class="small muted lesson-kicker" id="step-kicker"></p>
+        <h1 class="lesson-prompt" id="step-title"></h1>
+        <p class="muted" id="step-help"></p>
+        <ul class="lesson-context" id="step-context"></ul>
+        <div id="step-area" class="wizard-area"></div>
+        <div id="step-error" role="alert"></div>
+      </section>
+      <div class="lesson-footer">
+        <button class="btn ghost" type="button" id="btn-back">← Atrás</button>
+        <button class="btn" type="button" id="btn-next">Siguiente →</button>
+      </div>
+    </div>
+
+    <aside class="card built-card" aria-labelledby="built-title">
+      <h2 id="built-title">Tu caso de uso</h2>
+      <p class="small muted" style="margin-top:0">Se arma con cada paso.</p>
+      <dl class="built-list" id="built"></dl>
+    </aside>
+  </div>
+  <p class="small muted" style="text-align:center">¿Prefieres ver todo el formulario? <a href="{% url 'modeling:new' %}">Editor avanzado</a></p>
+</div>
+{{ guide|json_script:"guide-data" }}
+{{ validation_rules|json_script:"validation-rules" }}
+{% endblock %}
+{% block scripts %}
+<script src="{% static 'js/modeling-validation.js' %}"></script>
+<script src="{% static 'js/usecase-wizard.js' %}?v=cu02-unificado-2"></script>
+{% endblock %}
