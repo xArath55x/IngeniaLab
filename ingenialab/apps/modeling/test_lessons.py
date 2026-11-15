@@ -58,6 +58,15 @@ class LessonTests(BaseCase):
         self.classify(attempt)
         self.assertTrue(lessons.lesson_status(attempt, self.reference())["unlocked"])
 
+    def test_return_lesson_needs_return_goal_and_fine_rule(self):
+        """ACT-328: «Registrar devolución» tiene su propia meta (B12) y B05 es su regla de multa."""
+        ref = self.reference("UC-B2")
+        self.assertEqual(ref.requirement_keys, ["B12", "B05"])
+        locked = self.finished_attempt()
+        self.classify(locked, overrides={"B12": "RNF"})
+        self.assertFalse(lessons.lesson_status(locked, ref)["unlocked"])
+        self.assertTrue(lessons.lesson_status(self.ready_attempt(), ref)["unlocked"])
+
     def test_misclassified_requirement_keeps_lesson_locked(self):
         attempt = self.finished_attempt()
         self.classify(attempt, {"B04": "RNF"})

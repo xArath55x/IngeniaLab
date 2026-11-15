@@ -2,7 +2,7 @@
   "scenarios": [
     {
       "code": "ESC-BIBLIOTECA-01",
-      "version": "2.0",
+      "version": "2.1",
       "title": "Sistema de Préstamos de la Biblioteca",
       "summary": "La Biblioteca Central de la Facultad quiere dejar las libretas de papel y controlar préstamos, devoluciones y multas con un sistema web.",
       "client_name": "Lic. Rosa Méndez",
@@ -57,10 +57,12 @@
            "answer": [{"text": "¡Cien años de soledad! 📚"}, {"text": "Aunque casi nunca está disponible, jaja."}]}
         ]},
         {"topic": "Devoluciones y multas", "options": [
-          {"quality": "high", "text": "¿Qué ocurre cuando un alumno devuelve un libro tarde o no lo devuelve?",
+          {"quality": "high", "text": "¿Qué pasa cuando un alumno devuelve un libro, sobre todo si lo devuelve tarde?",
            "rationale": "Explora los casos excepcionales del proceso, donde aparecen requisitos que suelen olvidarse.",
            "answer": [
              {"text": "Cobramos una multa de cinco pesos por día de retraso."},
+             {"text": "Cuando el alumno entrega un libro, el bibliotecario debe registrar la devolución y el libro debe quedar disponible otra vez.",
+              "req": {"key": "B12", "type": "RF", "feedback": "Es un Requisito Funcional: describe una acción del bibliotecario en el sistema (registrar la devolución) y su efecto (el libro vuelve a estar disponible).", "hint": "¿Alguien realiza una acción con el sistema?"}},
              {"text": "El sistema debe calcular automáticamente la multa al registrar una devolución tardía.",
               "req": {"key": "B05", "type": "RF", "feedback": "Es un Requisito Funcional: describe un cálculo que el sistema realiza como parte de su comportamiento.", "hint": "¿Es algo que el sistema hace o una característica de cómo lo hace?"}},
              {"text": "También debe enviar un correo de recordatorio dos días antes de la fecha de devolución.",
