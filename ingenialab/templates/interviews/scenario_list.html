@@ -11,7 +11,7 @@
 <h2>Escenarios disponibles</h2>
 <div class="grid-3" style="margin-bottom:1.5rem">
   {% for s in scenarios %}
-  <div class="card">
+  <div class="card scenario-card">
     <div class="client" style="margin-bottom:.6rem"><div class="avatar" aria-hidden="true">{{ s.client_initials }}</div><div><b>{{ s.title }}</b><div class="small muted">{{ s.client_name }} · {{ s.client_role }}</div></div></div>
     <p class="small">{{ s.summary }}</p>
     <p class="small muted">{{ s.scenario_code }} · v{{ s.version_number }} · hasta {{ max_questions }} preguntas</p>

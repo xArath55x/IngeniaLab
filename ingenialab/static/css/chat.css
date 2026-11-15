@@ -88,3 +88,6 @@
 .review-head .muted::before { content: counter(q) ". "; font-weight: 700; }
 .review-q { font-weight: 600; margin-bottom: .2rem; }
 .review-best { margin-top: .35rem; color: var(--accent-dark); }
+
+/* En celular el chat cabe completo bajo la barra compacta del menú, con las preguntas a la vista. */
+@media (max-width: 760px) { .wa { height: calc(100vh - 12.5rem); height: calc(100dvh - 12.5rem); min-height: 420px; } }

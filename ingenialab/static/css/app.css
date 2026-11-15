@@ -57,12 +57,30 @@ p { margin: 0 0 .75rem; }
 @media (max-width: 1000px) { .grid-2, .grid-2.wide-left { grid-template-columns: 1fr; } }
 @media (max-width: 760px) {
   .layout { flex-direction: column; }
-  .sidebar { width: 100%; height: auto; position: static; }
+  /* En celular el menú se compacta en una barra para que el contenido aparezca en la primera pantalla (RNF-01). */
+  .sidebar { width: 100%; height: auto; position: static; padding: .6rem 1rem .7rem;
+    display: grid; grid-template-columns: 1fr auto; align-items: center; gap: .45rem .75rem; }
+  .brand { margin-bottom: 0; font-size: 1.1rem; }
+  .brand-mark { width: 28px; height: 28px; font-size: .9rem; }
+  .nav { grid-column: 1 / -1; grid-row: 2; display: flex; gap: .25rem; overflow-x: auto; }
+  .nav a { margin-bottom: 0; padding: .4rem .6rem; font-size: .9rem; white-space: nowrap; }
+  .nav-section { display: none; }
+  .side-progress { grid-column: 1 / -1; grid-row: 3; margin-top: 0; padding: .4rem .7rem; font-size: .8rem;
+    display: flex; align-items: center; gap: .6rem; }
+  .side-progress .bar { flex: 1; margin: 0 !important; }
+  .side-progress > div:last-child { display: none; }
+  .side-user { grid-column: 2; grid-row: 1; margin-top: 0 !important; gap: .6rem; }
   .main { padding: 1.25rem 1rem; }
+  .item-list li { flex-wrap: wrap; }
+  .resume-actions { margin-left: auto; }
 }
 
 .card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 1.1rem 1.25rem; }
 .card + .card { margin-top: 1rem; }
+/* Las tarjetas lado a lado en una cuadrícula ya se separan con gap; el margen las desalineaba. */
+.grid-2 > .card + .card, .grid-3 > .card + .card { margin-top: 0; }
+.scenario-card { display: flex; flex-direction: column; }
+.scenario-card form { margin-top: auto; }
 .card-head { display: flex; justify-content: space-between; align-items: center; gap: .5rem; margin-bottom: .75rem; }
 .sticky { position: sticky; top: 1rem; }
 
