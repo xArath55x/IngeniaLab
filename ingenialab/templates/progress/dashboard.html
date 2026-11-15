@@ -25,12 +25,21 @@
       <div class="card-head"><h2>Retomar trabajo</h2></div>
       {% if not interview_groups and not lessons.in_progress and not classifying and not open_inspections %}
         <p class="empty">Aún no tienes prácticas. Comienza con una <a href="{% url 'interviews:scenarios' %}">entrevista</a>.</p>
+      {% else %}
+      {# CU-09 FA-1: filtra las prácticas por módulo sin recargar la página. #}
+      <div class="chips resume-filter" role="group" aria-label="Filtrar por módulo" data-filter-for="resume-list">
+        <button type="button" class="chip active" data-filter="" aria-pressed="true">Todas</button>
+        <button type="button" class="chip" data-filter="elicitacion" aria-pressed="false">Elicitación</button>
+        <button type="button" class="chip" data-filter="modelado" aria-pressed="false">Modelado</button>
+        <button type="button" class="chip" data-filter="inspeccion" aria-pressed="false">Inspección</button>
+      </div>
+      <p class="small muted" id="resume-list-empty" hidden>No tienes prácticas pendientes en este módulo.</p>
       {% endif %}
-      <ul class="item-list">
+      <ul class="item-list" id="resume-list">
         {% for g in interview_groups %}
         {% include "progress/_open_interview.html" with a=g.latest %}
         {% if g.older %}
-        <li class="resume-older"><details>
+        <li class="resume-older" data-module="elicitacion"><details>
           <summary>Ver {{ g.older|length }} entrevista{{ g.older|length|pluralize }} más de {{ g.latest.version.title }}</summary>
           <ul class="item-list">
             {% for a in g.older %}{% include "progress/_open_interview.html" %}{% endfor %}
@@ -39,15 +48,15 @@
         {% endif %}
         {% endfor %}
         {% for l in lessons.in_progress %}
-        <li><div><span class="tag rf">Lección guiada</span> {{ l.reference.spec.name }}<div class="small muted">{{ l.attempt.version.title }} · {{ l.solved|length }} de {{ l.exercises|length }} partes · {{ l.lives }} vida{{ l.lives|pluralize }}</div></div>
+        <li data-module="modelado"><div><span class="tag rf">Lección guiada</span> {{ l.reference.spec.name }}<div class="small muted">{{ l.attempt.version.title }} · {{ l.solved|length }} de {{ l.exercises|length }} partes · {{ l.lives }} vida{{ l.lives|pluralize }}</div></div>
           <a class="btn small" href="{% url 'modeling:lesson' l.id %}">Continuar</a></li>
         {% endfor %}
         {% for a in classifying %}
-        <li><div><span class="tag rf">Clasificación</span> {{ a.version.title }}<div class="small muted">Precisión {{ a.classification_precision }} % · {{ a.total_score }} pts</div></div>
+        <li data-module="elicitacion"><div><span class="tag rf">Clasificación</span> {{ a.version.title }}<div class="small muted">Precisión {{ a.classification_precision }} % · {{ a.total_score }} pts</div></div>
           <a class="btn small secondary" href="{% url 'classification:classify' a.id %}">Abrir</a></li>
         {% endfor %}
         {% for i in open_inspections %}
-        <li><div><span class="tag hint">Inspección en curso</span> {{ i.exercise.title }}</div>
+        <li data-module="inspeccion"><div><span class="tag hint">Inspección en curso</span> {{ i.exercise.title }}</div>
           <a class="btn small" href="{% url 'inspection:inspect' i.id %}">Reanudar</a></li>
         {% endfor %}
       </ul>
