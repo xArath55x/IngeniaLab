@@ -191,6 +191,118 @@ test('beforeunload solo avisa si hay cambios sin guardar', async () => {
   assert.equal(fire(), false);
 });
 
+
+/* ---- ACT-307B: IL.autosave.mount (indicador, «Guardar y pausar», reanudación) ---- */
+class Node {
+  constructor(tag, attrs) { this.tag = tag; this.children = []; this.attrs = attrs || {}; this.dataset = {}; this.listeners = {};
+    this.textContent = ''; this.disabled = false; }
+  setAttribute(k, v) { this.attrs[k] = v; if (k === 'class') this.className = v; }
+  addEventListener(k, f) { this.listeners[k] = f; }
+  append(...n) { for (const x of n) { if (typeof x === 'object') x.parent = this; this.children.push(x); } }
+  prepend(...n) { for (const x of n) { if (typeof x === 'object') x.parent = this; } this.children.unshift(...n); }
+  remove() { if (this.parent) this.parent.children = this.parent.children.filter(c => c !== this); }
+  click() { return this.listeners.click && this.listeners.click({}); }
+  focus() {}
+}
+const all = root => [root, ...root.children.filter(c => typeof c === 'object').flatMap(all)];
+function setupMount(handler, opts) {
+  const icon = new Node('span'), text = new Node('span'), pause = new Node('button'), bar = new Node('div');
+  bar.append(icon, text, pause);
+  bar.querySelector = sel => ({ '.autosave-icon': icon, '.autosave-text': text, '[data-autosave-pause]': pause })[sel];
+  const body = new Node('body'); body.dataset.userId = '7';
+  const notice = new Node('form');
+  const later = [];
+  const location = { href: '/modelado/nuevo/', reloaded: false, reload() { this.reloaded = true; } };
+  const requests = [];
+  const document = { body, cookie: 'csrftoken=tok', createElement: tag => new Node(tag),
+    querySelector: sel => sel === '[data-autosave]' ? bar : null, addEventListener() {} };
+  const listeners = {};
+  const window = { location, addEventListener: (k, f) => { (listeners[k] = listeners[k] || []).push(f); },
+    crypto: { randomUUID: () => '00000000-0000-4000-8000-000000000001' } };
+  const fetch = async (url, init) => { const req = { url, method: init.method, body: init.body ? JSON.parse(init.body) : null };
+    requests.push(req); return handler(req); };
+  const ctx = { document, window, fetch, AbortController, clearTimeout, console, setInterval: (f) => { ctx.cycle = f; return 1; },
+    clearInterval() {}, setTimeout: (f, ms) => (ms === 800 ? later.push(f) : setTimeout(f, ms)) };
+  vm.runInNewContext(js('app.js'), ctx);
+  vm.runInNewContext(js('autosave.js'), ctx);
+  const restored = [];
+  let screen = { name: 'A' };
+  const saver = window.IL.autosave.mount({ module: 'modeling', key: 'nuevo:11111111-1111-4111-8111-111111111111',
+    collect: () => screen, restore: p => restored.push(p), notice: opts && opts.notice === false ? undefined : notice });
+  return { saver, bar, icon, text, pause, notice, restored, requests, later, location, body, ctx,
+    set screen(v) { screen = v; }, cycle: async () => { await ctx.cycle(); await flush(); } };
+}
+const found = response(200, { ok: true, found: true, revision: 2, paused: true, saved_at: '2026-11-16T10:42:00-06:00',
+  payload: { schema: 1, name: 'Borrador' } });
+
+test('mount: el indicador pasa por «Cambios sin guardar», «Guardando…» y «Guardado» con hora', async () => {
+  const e = setupMount(req => req.method === 'GET' ? notFound : ok(1));
+  await e.saver.ready;
+  e.saver.markDirty();
+  assert.equal(e.bar.dataset.state, 'dirty');
+  assert.equal(e.text.textContent, 'Cambios sin guardar');
+  await e.cycle();
+  assert.equal(e.bar.dataset.state, 'saved');
+  assert.match(e.text.textContent, /^Guardado \S+/);
+  assert.equal(e.icon.textContent, '✔');
+});
+
+test('mount: sin conexión el indicador lo dice con texto e icono, no solo color', async () => {
+  const e = setupMount(req => { if (req.method === 'GET') return notFound; throw new TypeError('x'); });
+  await e.saver.ready;
+  e.saver.markDirty(); await e.cycle();
+  assert.equal(e.icon.textContent, '⚠');
+  assert.match(e.text.textContent, /Sin conexión/);
+});
+
+test('mount: un autoguardado previo se restaura y ofrece descartarlo', async () => {
+  const e = setupMount(req => req.method === 'GET' ? found : response(200, { ok: true }));
+  await e.saver.ready;
+  assert.deepEqual(e.restored.map(p => p.name), ['Borrador']);
+  assert.match(e.text.textContent, /^Reanudado · guardado/);
+  const note = e.notice.children[0];
+  assert.match(note.className, /autosave-notice/);
+  const undo = all(note).find(n => n.tag === 'button');
+  await undo.listeners.click({}); await flush();
+  assert.ok(e.requests.some(r => r.url.endsWith('/descartar/') && r.method === 'POST'));
+  assert.equal(e.location.reloaded, true);
+});
+
+test('mount: no restaura encima de lo que el alumno ya escribió', async () => {
+  let release;
+  const gate = new Promise(r => { release = r; });
+  const e = setupMount(async req => { if (req.method === 'GET') { await gate; return found; } return ok(3); });
+  e.saver.markDirty();
+  release(); await e.saver.ready; await flush();
+  assert.equal(e.restored.length, 0);
+  assert.equal(e.notice.children.length, 0);
+  assert.equal(e.saver.revision, 2);  // Adopta la revisión para no chocar al guardar.
+});
+
+test('«Guardar y pausar» guarda con pause y vuelve a Mi progreso', async () => {
+  const e = setupMount(req => req.method === 'GET' ? notFound : ok(1));
+  await e.saver.ready;
+  await e.pause.click(); await flush();
+  const post = e.requests.find(r => r.method === 'POST');
+  assert.equal(post.body.pause, true);
+  assert.ok(all(e.body).some(n => /pausada/.test(n.textContent || '')));
+  assert.equal(e.later.length, 1);
+  e.later[0]();
+  assert.equal(e.location.href, '/');
+});
+
+test('«Guardar y pausar» con conflicto no redirige y lo explica', async () => {
+  const e = setupMount(req => req.method === 'GET' ? notFound
+    : response(409, { ok: false, error: 'revision_conflict', message: 'Abierta en otra pestaña.' }));
+  await e.saver.ready;
+  await e.pause.click(); await flush();
+  assert.equal(e.later.length, 0);
+  assert.equal(e.location.href, '/modelado/nuevo/');
+  assert.equal(e.bar.dataset.state, 'conflict');
+  assert.equal(e.text.textContent, 'Abierta en otra pestaña.');
+  assert.equal(e.pause.disabled, true);
+});
+
 (async () => {
   let failed = 0;
   for (const c of cases) {

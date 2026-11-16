@@ -324,8 +324,21 @@ Sin sesión, las tres responden 401 JSON. Módulos: `interview`, `classification
 en `modeling` la clave de un caso aún no guardado es `nuevo:<uuid>`.
 
 `static/js/autosave.js` (`IL.autosave.start`) envía cada 30 s lo que cambió, sin modales ni banners en segundo plano,
-y reintenta al volver la conexión. Por ahora solo lo usa el editor de casos de uso; el botón «Guardar y pausar»,
-el indicador, la reanudación desde el tablero y los demás módulos llegan en ACT-307B.
+y reintenta al volver la conexión.
+
+## ACT-307B — Guardar y pausar, indicador y reanudación (CU-10, parte 2)
+
+- **Barra de autoguardado** (`templates/progress/_autosave.html` + `IL.autosave.mount`): indicador con icono y texto
+  («Guardado 16/11, 10:42», «Sin conexión…», «Abierta en otra pestaña…») y botón **Guardar y pausar**, que guarda con
+  `pause: true` y vuelve a Mi progreso. Está en el editor de casos de uso, clasificación, inspección, entrevista y lecciones
+  mientras la práctica sigue abierta.
+- **Qué se restaura:** en el editor, la plantilla sin guardar (con aviso y opción de descartarla); en clasificación, la
+  declaración seleccionada y el tipo sin confirmar; en inspección, el fragmento y el tipo de defecto sin registrar.
+  En entrevista y lecciones cada respuesta ya se guarda en el servidor, así que solo se marca la práctica como pausada.
+  Nunca se restaura encima de lo que el alumno ya escribió.
+- **Tablero:** «Retomar trabajo» lista los casos de uso sin guardar (Reanudar abre `/modelado/nuevo/?borrador=nuevo:<uuid>`,
+  Descartar usa `POST /autoguardado/<module>/<key>/descartar/`) y marca con «⏸ Pausada» las prácticas pausadas. El enlace se
+  calcula en el servidor y al cargar el tablero se borran los autoguardados de prácticas que ya terminaron o no existen.
 
 Para borrar los autoguardados sin cambios en 90 días (RN-03), programa en el servidor:
 

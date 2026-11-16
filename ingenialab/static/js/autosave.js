@@ -143,5 +143,80 @@
     return saver;
   }
 
-  window.IL.autosave = { start, newUseCaseKey: () => "nuevo:" + uuid(), INTERVAL_MS };
+  /* ACT-307B: indicador, «Guardar y pausar» y reanudación sobre la barra de templates/progress/_autosave.html.
+   * IL.autosave.mount({ module, key, collect, restore, notice })
+   *   restore(payload) → vuelve a poner en pantalla lo autoguardado (solo si aún no hubo cambios).
+   *   notice → elemento donde avisar «Recuperamos cambios…» con la opción de descartarlos. */
+  const STATES = {
+    idle: ["✔", "Autoguardado activo"],
+    dirty: ["•", "Cambios sin guardar"],
+    saving: ["⟳", "Guardando…"],
+    saved: ["✔", "Guardado"],
+    offline: ["⚠", "Sin conexión: cambios sin guardar. Se reintentará."],
+    session: ["⚠", "Tu sesión venció: inicia sesión para seguir guardando."],
+    conflict: ["⚠", "Abierta en otra pestaña: recarga la página para continuar."],
+    closed: ["✔", "La práctica terminó; ya no hace falta autoguardar."],
+    error: ["⚠", "No se pudo autoguardar."],
+  };
+  function clock(iso) {
+    const date = iso ? new Date(iso) : null;
+    if (!date || isNaN(date)) return "";
+    return date.toLocaleString("es-MX", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false });
+  }
+  function mount(options) {
+    const bar = document.querySelector("[data-autosave]");
+    const icon = bar && bar.querySelector(".autosave-icon");
+    const text = bar && bar.querySelector(".autosave-text");
+    const pause = bar && bar.querySelector("[data-autosave-pause]");
+    let lastSaved = "";
+    function show(state, info) {
+      if (!bar) return;
+      const [mark, label] = STATES[state] || STATES.error;
+      if (state === "saved" && info.savedAt) lastSaved = clock(info.savedAt);
+      bar.dataset.state = state;
+      icon.textContent = mark;
+      text.textContent = state === "saved" && lastSaved ? `${label} ${lastSaved}`
+        : (state === "error" || state === "conflict") && info.message ? info.message : label;
+      if (pause) pause.disabled = state === "saving" || state === "conflict" || state === "closed";
+    }
+    const saver = start({
+      module: options.module, key: options.key, collect: options.collect,
+      onState(state, info) {
+        if (state !== "found") { show(state, info); return; }
+        const cp = info.checkpoint;
+        lastSaved = clock(cp.saved_at);
+        if (saver && saver.dirty) { show("dirty", {}); return; }  // No pisar lo que el alumno ya escribió.
+        if (options.restore) {
+          try { options.restore(cp.payload); } catch (error) { /* Si no se puede restaurar, se conserva la pantalla. */ }
+        }
+        if (bar) { icon.textContent = "✔"; text.textContent = `Reanudado · guardado ${lastSaved}`; bar.dataset.state = "found"; }
+        if (options.notice && options.restore) {
+          const undo = window.IL.el("button", { type: "button", class: "btn small ghost", text: "Descartar estos cambios",
+            onclick: async () => { undo.disabled = true; await saver.discard(); window.location.reload(); } });
+          const note = window.IL.el("div", { class: "feedback hint autosave-notice", role: "status" }, [
+            window.IL.el("span", { class: "icon", "aria-hidden": "true", text: "💾" }),
+            window.IL.el("div", {}, [window.IL.el("strong", { text: "Recuperamos cambios autoguardados el " + lastSaved + ". " }), undo]),
+          ]);
+          options.notice.prepend(note);
+        }
+      },
+    });
+    if (pause) {
+      pause.addEventListener("click", async () => {
+        pause.disabled = true;
+        const response = await saver.saveNow({ pause: true });
+        if (response.ok) {
+          saver.stop();
+          window.IL.toast("Práctica guardada y pausada. Puedes retomarla desde Mi progreso.", "ok");
+          setTimeout(() => { window.location.href = "/"; }, 800);
+        } else {
+          // Tras un conflicto o con la práctica terminada, pausar ya no tiene efecto.
+          pause.disabled = bar.dataset.state === "conflict" || bar.dataset.state === "closed";
+        }
+      });
+    }
+    return saver;
+  }
+
+  window.IL.autosave = { start, mount, newUseCaseKey: () => "nuevo:" + uuid(), INTERVAL_MS };
 })();

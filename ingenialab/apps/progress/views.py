@@ -22,17 +22,41 @@ def dashboard(request):
     user = request.user
     points = total_points(user)
     attempts = user.attempts.select_related("version")
+    interview_groups = open_interviews(user)
+    lessons = lesson_summary(user)
+    classifying = list(attempts.filter(status=StudentAttempt.CLASSIFYING)[:5])
+    open_inspections = list(user.inspections.filter(concluded_at__isnull=True).select_related("exercise"))
+    # CU-10: cada práctica que ya lista el tablero muestra si tiene autoguardado o quedó pausada.
+    saved, drafts = checkpoints.for_dashboard(user)
+    marks = [("interview", a) for g in interview_groups for a in [g["latest"], *g["older"]]]
+    marks += [("lesson", l) for l in lessons["in_progress"]] + [("classification", a) for a in classifying]
+    marks += [("inspection", i) for i in open_inspections]
+    for module, item in marks:
+        item.checkpoint = saved.get((module, str(item.id)))
     return render(request, "progress/dashboard.html", {
         "points": points,
         "level": level_for(points),
         "badges": badge_list(user),
-        "interview_groups": open_interviews(user),
-        "lessons": lesson_summary(user),
-        "classifying": attempts.filter(status=StudentAttempt.CLASSIFYING)[:5],
+        "interview_groups": interview_groups,
+        "lessons": lessons,
+        "classifying": classifying,
+        "drafts": drafts,
         "use_cases": user.use_cases.all()[:5],
-        "open_inspections": user.inspections.filter(concluded_at__isnull=True).select_related("exercise"),
+        "open_inspections": open_inspections,
         "done_inspections": user.inspections.filter(concluded_at__isnull=False).select_related("exercise")[:5],
     })
+
+
+@login_required
+@require_POST
+def checkpoint_discard(request, module, key):
+    """Descartar un borrador desde el tablero (formulario HTML; la API JSON vive en /api/checkpoints/)."""
+    try:
+        checkpoints.discard(request.user, module, key)
+        messages.success(request, "Borrador descartado.")
+    except checkpoints.CheckpointError:
+        messages.info(request, "Ese borrador ya no existe.")
+    return redirect("progress:dashboard")
 
 
 def _report_data(user):

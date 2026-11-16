@@ -196,3 +196,116 @@ class CheckpointPurgeTests(BaseCase):
         call_command("purge_checkpoints", "--days", "7", stdout=out)
         self.assertIn("Autoguardados borrados: 1", out.getvalue())
         self.assertFalse(PracticeCheckpoint.objects.exists())
+
+
+@override_settings(INGENIALAB_MODULES=settings.ALL_MODULES)
+class CheckpointResumeTests(BaseCase):
+    """ACT-307B: «Guardar y pausar», indicador y reanudación desde el tablero (SDS v3.0 §9.4–9.5)."""
+
+    def save(self, module, key, payload=None, pause=False, revision=0):
+        return self.post(SAVE, {"module": module, "key": str(key), "revision": revision,
+                                "payload": payload or {}, "pause": pause})
+
+    def test_practice_pages_show_autosave_bar_and_script(self):
+        attempt = self.new_attempt()
+        finished = self.finished_attempt()
+        exercise = InspectionExercise.objects.filter(is_active=True).first()
+        inspection = InspectionAttempt.objects.create(user=self.user, exercise=exercise)
+        pages = [f"/elicitacion/intento/{attempt.id}/", f"/clasificacion/intento/{finished.id}/",
+                 f"/inspeccion/intento/{inspection.id}/", "/modelado/nuevo/"]
+        for url in pages:
+            with self.subTest(url=url):
+                r = self.client.get(url)
+                self.assertEqual(r.status_code, 200)
+                self.assertContains(r, "data-autosave")
+                self.assertContains(r, "Guardar y pausar")
+                self.assertContains(r, "js/autosave.js")
+
+    def test_lesson_page_shows_bar_while_in_progress(self):
+        from apps.classification.services import available_requirements
+        from apps.modeling.models import ReferenceUseCase, UseCaseLesson
+        attempt = self.finished_attempt()
+        for req in available_requirements(attempt):
+            self.post(f"/clasificacion/api/intento/{attempt.id}/clasificar/",
+                      {"requirement_id": str(req.id), "category": req.expected_type})
+        ref = ReferenceUseCase.objects.filter(version=self.version).first()
+        self.client.post(f"/modelado/lecciones/{ref.id}/iniciar/", {"attempt": str(attempt.id)})
+        lesson = UseCaseLesson.objects.get(user=self.user, reference=ref)
+        r = self.client.get(f"/modelado/leccion/{lesson.id}/")
+        self.assertContains(r, "data-autosave")
+        self.assertContains(r, f'key: "{lesson.id}"')
+        lesson.status = UseCaseLesson.COMPLETED
+        lesson.save()
+        self.assertNotContains(self.client.get(f"/modelado/leccion/{lesson.id}/"), "data-autosave")
+
+    def test_closed_practices_do_not_show_the_bar(self):
+        finished = self.finished_attempt()
+        r = self.client.get(f"/elicitacion/intento/{finished.id}/")
+        self.assertNotContains(r, "data-autosave")
+        exercise = InspectionExercise.objects.filter(is_active=True).first()
+        done = InspectionAttempt.objects.create(user=self.user, exercise=exercise, concluded_at=timezone.now())
+        self.assertNotContains(self.client.get(f"/inspeccion/intento/{done.id}/"), "data-autosave")
+
+    def test_dashboard_lists_new_use_case_draft_with_server_side_resume_link(self):
+        key = f"nuevo:{uuid.uuid4()}"
+        self.save("modeling", key, payload={"name": "Registrar préstamo", "url": "https://malicioso.example"}, pause=True)
+        r = self.client.get("/")
+        self.assertContains(r, "Caso de uso sin guardar")
+        self.assertContains(r, "Registrar préstamo")
+        self.assertContains(r, f'href="/modelado/nuevo/?borrador={key}"')
+        self.assertContains(r, "⏸ Pausada")
+        self.assertNotContains(r, "malicioso.example")
+
+    def test_dashboard_marks_paused_interview(self):
+        attempt = self.new_attempt()
+        r = self.client.get("/")
+        self.assertNotContains(r, "⏸ Pausada")
+        self.save("interview", attempt.id, pause=True)
+        r = self.client.get("/")
+        self.assertContains(r, "⏸ Pausada")
+        self.assertContains(r, "autoguardado")
+
+    def test_dashboard_drops_checkpoints_of_closed_or_deleted_practices(self):
+        attempt = self.new_attempt()
+        self.save("interview", attempt.id, pause=True)
+        uc_key = f"nuevo:{uuid.uuid4()}"
+        self.save("modeling", uc_key)
+        self.ask_rounds(attempt)  # La entrevista termina: su autoguardado ya no aplica (RN-01).
+        PracticeCheckpoint.objects.create(user=self.user, module="modeling", key=str(uuid.uuid4()),
+                                          payload={"schema": 1})  # Caso de uso que ya no existe.
+        self.client.get("/")
+        self.assertEqual(list(PracticeCheckpoint.objects.values_list("key", flat=True)), [uc_key])
+
+    def test_dashboard_does_not_show_other_users_drafts(self):
+        PracticeCheckpoint.objects.create(user=self.other, module="modeling", key=f"nuevo:{uuid.uuid4()}",
+                                          payload={"schema": 1}, title="Caso de uso · Ajeno")
+        self.assertNotContains(self.client.get("/"), "Ajeno")
+
+    def test_discard_from_dashboard(self):
+        key = f"nuevo:{uuid.uuid4()}"
+        self.save("modeling", key)
+        r = self.client.post(f"/autoguardado/modeling/{key}/descartar/")
+        self.assertRedirects(r, "/")
+        self.assertFalse(PracticeCheckpoint.objects.exists())
+        r = self.client.post(f"/autoguardado/modeling/{key}/descartar/", follow=True)
+        self.assertContains(r, "Ese borrador ya no existe.")
+
+    def test_discard_from_dashboard_requires_post_and_session(self):
+        key = f"nuevo:{uuid.uuid4()}"
+        self.save("modeling", key)
+        self.assertEqual(self.client.get(f"/autoguardado/modeling/{key}/descartar/").status_code, 405)
+        self.client.logout()
+        r = self.client.post(f"/autoguardado/modeling/{key}/descartar/")
+        self.assertEqual(r.status_code, 302)
+        self.assertIn("/cuentas/login/", r["Location"])
+        self.assertTrue(PracticeCheckpoint.objects.exists())
+
+    def test_existing_use_case_draft_resumes_in_its_editor(self):
+        from apps.modeling.models import UseCaseSpecification
+        uc = UseCaseSpecification.objects.create(
+            user=self.user, name="Original", preconditions="a", postconditions="b",
+            actors={"primary": ["Bibliotecario"], "secondary": []}, main_flow=["Uno", "Dos"], plantuml_code="@startuml\n@enduml")
+        self.save("modeling", uc.id, payload={"name": "Cambiado"})
+        cp = checkpoints.for_dashboard(self.user)[1][0]
+        self.assertEqual(cp.resume_url, f"/modelado/{uc.id}/")
+        self.assertEqual(cp.title, "Caso de uso · Cambiado")

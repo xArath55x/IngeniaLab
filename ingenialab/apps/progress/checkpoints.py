@@ -172,3 +172,40 @@ def serialize(checkpoint, with_payload=False):
     if with_payload:
         data["payload"] = checkpoint.payload
     return data
+
+
+def resume_url(checkpoint):
+    """Enlace de reanudación calculado en el servidor a partir de módulo y clave, nunca del payload (SDS §9.5)."""
+    from django.urls import reverse
+
+    module, key = checkpoint.module, checkpoint.key
+    if module == PracticeCheckpoint.MODELING:
+        if key.startswith(NEW_USE_CASE_PREFIX):
+            return f"{reverse('modeling:new')}?borrador={key}"
+        return reverse("modeling:edit", args=[key])
+    names = {PracticeCheckpoint.INTERVIEW: "interviews:interview", PracticeCheckpoint.CLASSIFICATION: "classification:classify",
+             PracticeCheckpoint.INSPECTION: "inspection:inspect", PracticeCheckpoint.LESSON: "modeling:lesson"}
+    return reverse(names[module], args=[key])
+
+
+def for_dashboard(user):
+    """Puntos de guardado vigentes del usuario para «Retomar trabajo», del más reciente al más antiguo.
+
+    Borra los de prácticas que ya terminaron o ya no existen (RN-01). Devuelve un índice por
+    (módulo, clave) para marcar las prácticas que ya lista el tablero y los borradores de casos de uso,
+    que solo existen como punto de guardado.
+    """
+    index, drafts = {}, []
+    for checkpoint in PracticeCheckpoint.objects.filter(user=user).order_by("-updated_at"):
+        try:
+            _, is_open = practice_state(user, checkpoint.module, checkpoint.key)
+        except CheckpointError:
+            is_open = False
+        if not is_open:
+            checkpoint.delete()
+            continue
+        checkpoint.resume_url = resume_url(checkpoint)
+        index[(checkpoint.module, checkpoint.key)] = checkpoint
+        if checkpoint.module == PracticeCheckpoint.MODELING:
+            drafts.append(checkpoint)
+    return index, drafts

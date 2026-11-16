@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load static %}
 {% block title %}Clasificación · {{ attempt.version.title }}{% endblock %}
 {% block content %}
 <div class="page-head">
@@ -6,6 +7,7 @@
     <p class="small muted" style="margin:0">Entrevista → Clasificación → Modelado · Paso 2 de 3</p>
     <h1>Clasificación de requisitos</h1>
     <p class="muted" style="margin:0">{{ attempt.version.title }} · {{ attempt.version.client_name }}</p>
+    <div style="margin-top:.5rem">{% include "progress/_autosave.html" %}</div>
   </div>
   <div class="metrics" aria-live="polite">
     <div class="metric"{% if not available %} hidden{% endif %}><b id="m-precision">{{ attempt.classification_precision }} %</b><span>Precisión</span></div>
@@ -76,12 +78,13 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="{% static 'js/autosave.js' %}?v=cu10-2"></script>
 <script>
 (function () {
   const BASE = "/clasificacion/api/intento/{{ attempt.id }}/";
   const AVAILABLE = {{ available }};
   const INTERVIEW_SCORE = {{ attempt.interview_score }};
-  let selected = null;
+  let selected = null, saver = null;
   const stmts = document.querySelectorAll(".stmt[data-req]");
 
   function renderRows(rows) {
@@ -119,7 +122,7 @@
     document.getElementById("selection").textContent = "«" + span.textContent + "»";
     document.querySelectorAll('input[name="category"]').forEach((i) => (i.checked = byReq[selected] && byReq[selected].category === i.value));
     document.getElementById("feedback").innerHTML = byReq[selected]
-      ? IL.feedback("hint", "Ya clasificada como " + byReq[selected].category + ".", " Puedes cambiar el tipo y confirmar para reclasificar.") : "";
+      ? IL.feedback("hint", "Ya clasificada como " + byReq[selected].category + ".", " Puedes cambiar el tipo y confirmar para reclasificar.") : "";    if (saver) saver.markDirty();
   }
   stmts.forEach((s) => {
     s.addEventListener("click", () => select(s));
@@ -156,6 +159,25 @@
     document.getElementById("feedback").innerHTML = IL.feedback("hint", "Pista (−3 puntos):", " " + r.hint);
     document.getElementById("m-score").textContent = INTERVIEW_SCORE + r.score;
   });
+
+  // CU-10: autoguarda la declaración seleccionada y el tipo aún sin confirmar (las clasificaciones confirmadas ya se guardan).
+  document.querySelectorAll('input[name="category"]').forEach((i) => i.addEventListener("change", () => { if (saver) saver.markDirty(); }));
+  if (IL.autosave) {
+    saver = IL.autosave.mount({
+      module: "classification", key: "{{ attempt.id }}",
+      collect: () => {
+        const cat = document.querySelector('input[name="category"]:checked');
+        return { selected, category: cat ? cat.value : null };
+      },
+      restore: (p) => {
+        const span = p.selected && document.querySelector(`.stmt[data-req="${CSS.escape(String(p.selected))}"]`);
+        if (!span) return;
+        select(span);
+        const radio = document.querySelector(`input[name="category"][value="${p.category === "RNF" ? "RNF" : "RF"}"]`);
+        if (p.category && radio) radio.checked = true;
+      },
+    });
+  }
 })();
 </script>
 {% endblock %}

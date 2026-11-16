@@ -12,6 +12,7 @@
       <button class="btn" type="button" id="btn-save" disabled aria-describedby="save-hint">Guardar</button>
     </div>
     <p class="small muted save-hint" id="save-hint" aria-live="polite">Genera el diagrama para poder guardar.</p>
+    {% include "progress/_autosave.html" %}
   </div>
 </div>
 
@@ -126,6 +127,6 @@
 
 {% block scripts %}
 <script src="{% static 'js/modeling-validation.js' %}"></script>
-<script src="{% static 'js/autosave.js' %}?v=cu10-1"></script>
+<script src="{% static 'js/autosave.js' %}?v=cu10-2"></script>
 <script src="{% static 'js/modeling-editor.js' %}"></script>
 {% endblock %}

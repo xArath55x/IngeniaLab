@@ -23,10 +23,20 @@
 
     <div class="card">
       <div class="card-head"><h2>Retomar trabajo</h2></div>
-      {% if not interview_groups and not lessons.in_progress and not classifying and not open_inspections %}
+      {% if not interview_groups and not lessons.in_progress and not classifying and not open_inspections and not drafts %}
         <p class="empty">Aún no tienes prácticas. Comienza con una <a href="{% url 'interviews:scenarios' %}">entrevista</a>.</p>
       {% endif %}
       <ul class="item-list">
+        {% for d in drafts %}
+        <li><div><span class="tag rf">Caso de uso sin guardar</span> {{ d.title|cut:"Caso de uso · " }}
+          <div class="small muted">{% include "progress/_checkpoint_tag.html" with cp=d %}</div></div>
+          <div class="resume-actions">
+            <form method="post" action="{% url 'progress:checkpoint_discard_html' d.module d.key %}" onsubmit="return confirm('¿Descartar este borrador? Se perderán los cambios que no guardaste.')">{% csrf_token %}
+              <button type="submit" class="btn small ghost">Descartar</button>
+            </form>
+            <a class="btn small" href="{{ d.resume_url }}">Reanudar</a>
+          </div></li>
+        {% endfor %}
         {% for g in interview_groups %}
         {% include "progress/_open_interview.html" with a=g.latest %}
         {% if g.older %}
@@ -39,15 +49,15 @@
         {% endif %}
         {% endfor %}
         {% for l in lessons.in_progress %}
-        <li><div><span class="tag rf">Lección guiada</span> {{ l.reference.spec.name }}<div class="small muted">{{ l.attempt.version.title }} · {{ l.solved|length }} de {{ l.exercises|length }} partes · {{ l.lives }} vida{{ l.lives|pluralize }}</div></div>
+        <li><div><span class="tag rf">Lección guiada</span> {{ l.reference.spec.name }}<div class="small muted">{{ l.attempt.version.title }} · {{ l.solved|length }} de {{ l.exercises|length }} partes · {{ l.lives }} vida{{ l.lives|pluralize }}{% if l.checkpoint %} · {% include "progress/_checkpoint_tag.html" with cp=l.checkpoint %}{% endif %}</div></div>
           <a class="btn small" href="{% url 'modeling:lesson' l.id %}">Continuar</a></li>
         {% endfor %}
         {% for a in classifying %}
-        <li><div><span class="tag rf">Clasificación</span> {{ a.version.title }}<div class="small muted">Precisión {{ a.classification_precision }} % · {{ a.total_score }} pts</div></div>
+        <li><div><span class="tag rf">Clasificación</span> {{ a.version.title }}<div class="small muted">Precisión {{ a.classification_precision }} % · {{ a.total_score }} pts{% if a.checkpoint %} · {% include "progress/_checkpoint_tag.html" with cp=a.checkpoint %}{% endif %}</div></div>
           <a class="btn small secondary" href="{% url 'classification:classify' a.id %}">Abrir</a></li>
         {% endfor %}
         {% for i in open_inspections %}
-        <li><div><span class="tag hint">Inspección en curso</span> {{ i.exercise.title }}</div>
+        <li><div><span class="tag hint">Inspección en curso</span> {{ i.exercise.title }}{% if i.checkpoint %}<div class="small muted">{% include "progress/_checkpoint_tag.html" with cp=i.checkpoint %}</div>{% endif %}</div>
           <a class="btn small" href="{% url 'inspection:inspect' i.id %}">Reanudar</a></li>
         {% endfor %}
       </ul>

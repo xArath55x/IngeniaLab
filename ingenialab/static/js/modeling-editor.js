@@ -209,12 +209,30 @@
   }
   saveButton.disabled = !rendered;
   setStep(rendered ? 3 : 0);
-  // CU-10 (ACT-307A): autoguardado cada 30 s de la plantilla que aún no se guarda (SDS v3.0 §9).
+  // CU-10: autoguardado cada 30 s de la plantilla que aún no se guarda, «Guardar y pausar» y reanudación (SDS v3.0 §9).
+  function restoreDraft(p) {
+    if (p.attempt_id && [...attempt.options].some(o => o.value === p.attempt_id)) attempt.value = p.attempt_id;
+    F.name.value = p.name || ""; F.system.value = p.system_name || "";
+    F.pre.value = p.preconditions || ""; F.post.value = p.postconditions || "";
+    Object.entries(lists).forEach(([k, box]) => {
+      box.querySelectorAll(".list-item").forEach(row => row.remove());
+      (Array.isArray(p[k]) ? p[k] : []).forEach(v => addItem(box, v, false));
+      renumber(box);
+    });
+    renderGuide();
+    document.getElementById("preview-format").value = p.format === "png" ? "png" : "svg";
+    // El diagrama mostrado ya no corresponde a la plantilla recuperada: hay que generarlo de nuevo.
+    rendered = null; saveButton.disabled = true; setStep(0);
+  }
   if (IL.autosave) {
-    saver = IL.autosave.start({
-      module: "modeling", key: ucId || IL.autosave.newUseCaseKey(),
+    // Un borrador de caso nuevo se reanuda desde el tablero con ?borrador=nuevo:<uuid>.
+    const draft = new URLSearchParams(window.location.search).get("borrador") || "";
+    const draftKey = /^nuevo:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(draft) ? draft : "";
+    saver = IL.autosave.mount({
+      module: "modeling", key: ucId || draftKey || IL.autosave.newUseCaseKey(),
       collect: () => ({ ...payload(), lesson_id: form.dataset.lessonId || null,
         format: document.getElementById("preview-format").value }),
+      restore: restoreDraft, notice: form,
     });
   }
 })();
