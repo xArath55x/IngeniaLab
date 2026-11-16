@@ -11,7 +11,7 @@
   const saveButton = document.getElementById("btn-save");
   const F = { name: document.getElementById("f-name"), system: document.getElementById("f-system"),
     pre: document.getElementById("f-pre"), post: document.getElementById("f-post") };
-  let ucId = form.dataset.ucId || "", rendered = null, busy = false;
+  let ucId = form.dataset.ucId || "", rendered = null, busy = false, saver = null;
   const lists = {};
   const limits = {
     primary_actors: [rules.max_actors, rules.actor], secondary_actors: [rules.max_actors, rules.actor],
@@ -33,6 +33,7 @@
       : done === 2 ? "El diagrama está listo: ya puedes guardar." : "Genera el diagrama para poder guardar.";
   }
   function invalidate() {
+    if (saver) saver.markDirty();
     const hadDiagram = rendered !== null;
     rendered = null; saveButton.disabled = true; setStep(0);
     if (hadDiagram) validation.innerHTML = IL.feedback("hint", "Hiciste cambios.", " Vuelve a generar el diagrama para que coincida con la plantilla antes de guardar.");
@@ -183,6 +184,8 @@
         // URL absoluta desde el prefijo actual, sin concatenar a /nuevo/.
         history.replaceState(null, "", form.dataset.listUrl + response.id + "/");
         ucId = response.id; document.getElementById("title").textContent = response.spec.name;
+        // Lo guardado ya tiene registro propio: el borrador autoguardado sobra (CU-10).
+        if (saver) saver.switchKey(ucId);
         document.getElementById("diagram-downloads").style.display = "flex";
         document.getElementById("download-svg").href = form.dataset.listUrl + ucId + "/diagrama/svg/";
         document.getElementById("download-png").href = form.dataset.listUrl + ucId + "/diagrama/png/";
@@ -206,4 +209,12 @@
   }
   saveButton.disabled = !rendered;
   setStep(rendered ? 3 : 0);
+  // CU-10 (ACT-307A): autoguardado cada 30 s de la plantilla que aún no se guarda (SDS v3.0 §9).
+  if (IL.autosave) {
+    saver = IL.autosave.start({
+      module: "modeling", key: ucId || IL.autosave.newUseCaseKey(),
+      collect: () => ({ ...payload(), lesson_id: form.dataset.lessonId || null,
+        format: document.getElementById("preview-format").value }),
+    });
+  }
 })();

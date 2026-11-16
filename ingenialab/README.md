@@ -308,3 +308,34 @@ powershell -File scripts\demo.ps1           # Windows
 Requiere Python 3.11–3.13, Java 17+ y Graphviz, igual que el inicio rápido. Después de `git pull` basta con repetir
 el comando. Opciones: `--port 8001` y `--allow-plantuml-fallback` (respaldo SVG en un equipo sin Java/Graphviz;
 no cuenta como integración real).
+
+## ACT-307A — Autoguardado (CU-10, parte 1)
+
+Diseño en el SDS v3.0 (WP.16), sección 9. Esta parte agrega el modelo `PracticeCheckpoint`
+(migración `progress/0002_practice_checkpoint`), la API y el ciclo de autoguardado del editor de casos de uso.
+
+| Operación | Ruta | Notas |
+| --- | --- | --- |
+| Guardar | `POST /api/checkpoints/` con `{module, key, revision, payload, pause}` | `revision` = la que conoce el cliente (0 si no tiene). 409 `revision_conflict` si no coincide; 409 `practice_closed` si la práctica terminó; 413 si el payload pasa de 64 KB |
+| Consultar | `GET /api/checkpoints/<module>/<key>/` | `{ok, found: false}` si no hay; 404 si la práctica es ajena o no existe |
+| Descartar | `POST /api/checkpoints/<module>/<key>/descartar/` | 404 si no hay |
+
+Sin sesión, las tres responden 401 JSON. Módulos: `interview`, `classification`, `modeling`, `inspection`, `lesson`;
+en `modeling` la clave de un caso aún no guardado es `nuevo:<uuid>`.
+
+`static/js/autosave.js` (`IL.autosave.start`) envía cada 30 s lo que cambió, sin modales ni banners en segundo plano,
+y reintenta al volver la conexión. Por ahora solo lo usa el editor de casos de uso; el botón «Guardar y pausar»,
+el indicador, la reanudación desde el tablero y los demás módulos llegan en ACT-307B.
+
+Para borrar los autoguardados sin cambios en 90 días (RN-03), programa en el servidor:
+
+```bash
+python manage.py purge_checkpoints --days 90
+```
+
+Pruebas:
+
+```bash
+python manage.py test apps.progress.test_checkpoints
+node tests/autosave.cjs   # opcional, solo Node.js
+```

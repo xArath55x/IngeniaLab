@@ -1,15 +1,18 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import redirect, render
 from django.utils.crypto import get_random_string
+from django.views.decorators.http import require_GET, require_POST
 
+from apps.accounts.api import read_json
 from apps.classification.services import available_requirements
 from apps.interviews.models import StudentAttempt
 from apps.interviews.services import progress as interview_progress
 from apps.inspection.services import summary as inspection_summary
 from integrations.pdf.generator import build_report
 
+from . import checkpoints
 from .models import ReportExport
 from .services import badge_list, evaluate_badges, lesson_summary, level_for, open_interviews, total_points
 
@@ -83,3 +86,35 @@ def report_download(request):
     response = HttpResponse(pdf, content_type="application/pdf")
     response["Content-Disposition"] = f'attachment; filename="IngeniaLab_Reporte_{report_id}.pdf"'
     return response
+
+
+# CU-10 · Autoguardado (SDS v3.0 §9.3). ApiSessionGuardMiddleware ya responde 401 JSON sin sesión.
+@require_POST
+def api_checkpoint_save(request):
+    data = read_json(request)
+    try:
+        checkpoint = checkpoints.save(request.user, data.get("module"), data.get("key"), data.get("revision"),
+                                      data.get("payload"), pause=data.get("pause") is True)
+    except checkpoints.CheckpointError as e:
+        return JsonResponse(e.as_json(), status=e.status)
+    return JsonResponse(checkpoints.serialize(checkpoint))
+
+
+@require_GET
+def api_checkpoint_get(request, module, key):
+    try:
+        checkpoint = checkpoints.get(request.user, module, key)
+    except checkpoints.CheckpointError as e:
+        return JsonResponse(e.as_json(), status=e.status)
+    if checkpoint is None:
+        return JsonResponse({"ok": True, "found": False})
+    return JsonResponse(checkpoints.serialize(checkpoint, with_payload=True))
+
+
+@require_POST
+def api_checkpoint_discard(request, module, key):
+    try:
+        checkpoints.discard(request.user, module, key)
+    except checkpoints.CheckpointError as e:
+        return JsonResponse(e.as_json(), status=e.status)
+    return JsonResponse({"ok": True})
