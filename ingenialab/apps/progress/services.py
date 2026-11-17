@@ -9,14 +9,14 @@ from .models import UserBadge
 
 USE_CASE_POINTS = 20
 
-# Cinco niveles aprobados por la cliente (CU-11). Calibrados para 3 escenarios (ACT-308): un recorrido
-# completo sin errores da unos 1160 puntos, y el último nivel pide cerca del 80 % de ese máximo.
+# Cinco niveles aprobados por la cliente (CU-11). Recalibrados para 5 escenarios (ACT-329A/B): un recorrido
+# completo sin errores da unos 1750 puntos, y el último nivel pide el 80 % de ese máximo, como en ACT-308.
 LEVELS = [
     (0, "Aprendiz de Requisitos"),
-    (150, "Analista Junior"),
-    (350, "Analista de Requisitos"),
-    (600, "Ingeniero(a) de Requisitos"),
-    (900, "Arquitecto(a) de Requisitos"),
+    (225, "Analista Junior"),
+    (525, "Analista de Requisitos"),
+    (900, "Ingeniero(a) de Requisitos"),
+    (1400, "Arquitecto(a) de Requisitos"),
 ]
 
 BADGES = {
