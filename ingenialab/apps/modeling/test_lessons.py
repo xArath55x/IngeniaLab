@@ -53,6 +53,11 @@ class LessonTests(BaseCase):
         tutorias = ReferenceUseCase.objects.filter(version__scenario_code="ESC-TUTORIAS-01")
         self.assertEqual(sorted(tutorias.values_list("key", flat=True)), ["UC-T1", "UC-T2"])
         self.assertEqual(tutorias.first().version.requirements.count(), 11)
+        # Escenarios del consultorio y del gimnasio (ACT-329B): 11 requisitos y 2 casos de uso guiados cada uno.
+        for code, keys in (("ESC-CONSULTORIO-01", ["UC-M1", "UC-M2"]), ("ESC-GIMNASIO-01", ["UC-G1", "UC-G2"])):
+            refs = ReferenceUseCase.objects.filter(version__scenario_code=code)
+            self.assertEqual(sorted(refs.values_list("key", flat=True)), keys)
+            self.assertEqual(refs.first().version.requirements.count(), 11)
 
     def test_locked_until_requirements_are_classified_as_rf(self):
         attempt = self.finished_attempt()
@@ -320,18 +325,21 @@ class ExerciseTests(SimpleTestCase):
 class TutoriasScenarioTests(BaseCase):
     """Escenario de tutorías (ACT-329A): entrevista, clasificación y sus dos lecciones guiadas."""
 
+    SCENARIO = "ESC-TUTORIAS-01"
+    LESSONS = (("UC-T1", "Agendar tutoría"), ("UC-T2", "Registrar seguimiento de tutoría"))
+
     classify, ready_attempt, reference = LessonTests.classify, LessonTests.ready_attempt, LessonTests.reference
     start, reply, solve = LessonTests.start, LessonTests.reply, LessonTests.solve
 
     @classmethod
     def setUpTestData(cls):
         super().setUpTestData()
-        cls.version = cls.version.__class__.objects.get(scenario_code="ESC-TUTORIAS-01")
+        cls.version = cls.version.__class__.objects.get(scenario_code=cls.SCENARIO)
 
     def test_interview_unlocks_and_completes_both_lessons(self):
         attempt = self.ready_attempt()
         self.assertEqual(attempt.classifications.filter(is_correct=True).count(), 11)
-        for key, name in (("UC-T1", "Agendar tutoría"), ("UC-T2", "Registrar seguimiento de tutoría")):
+        for key, name in self.LESSONS:
             with self.subTest(key=key):
                 ref = self.reference(key)
                 self.assertTrue(lessons.lesson_status(attempt, ref)["unlocked"])
@@ -341,6 +349,20 @@ class TutoriasScenarioTests(BaseCase):
                 r = self.post(f"/modelado/api/leccion/{lesson.id}/guardar/").json()
                 self.assertIn("<svg", r["svg"])
                 self.assertTrue(self.user.use_cases.filter(name=name).exists())
+
+
+class ConsultorioScenarioTests(TutoriasScenarioTests):
+    """Escenario del consultorio médico (ACT-329B): entrevista, clasificación y sus dos lecciones guiadas."""
+
+    SCENARIO = "ESC-CONSULTORIO-01"
+    LESSONS = (("UC-M1", "Solicitar cita médica"), ("UC-M2", "Registrar consulta médica"))
+
+
+class GimnasioScenarioTests(TutoriasScenarioTests):
+    """Escenario del gimnasio (ACT-329B): entrevista, clasificación y sus dos lecciones guiadas."""
+
+    SCENARIO = "ESC-GIMNASIO-01"
+    LESSONS = (("UC-G1", "Reservar clase grupal"), ("UC-G2", "Pasar lista de clase"))
 
 
 class SeedValidationTests(BaseCase):
