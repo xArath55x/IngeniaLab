@@ -309,3 +309,56 @@ class CheckpointResumeTests(BaseCase):
         cp = checkpoints.for_dashboard(self.user)[1][0]
         self.assertEqual(cp.resume_url, f"/modelado/{uc.id}/")
         self.assertEqual(cp.title, "Caso de uso · Cambiado")
+
+
+@override_settings(INGENIALAB_MODULES=settings.ALL_MODULES)
+class CheckpointReviewFixesTests(BaseCase):
+    """Correcciones de la revisión del PR de ACT-307A."""
+
+    def save(self, module, key, payload=None, revision=0):
+        return self.post(SAVE, {"module": module, "key": str(key), "revision": revision, "payload": payload or {}})
+
+    def test_long_titles_fit_the_column(self):  # Rev. 4
+        self.version.title = "T" * 200
+        self.version.save()
+        attempt = self.new_attempt()
+        self.assertEqual(self.save("interview", attempt.id).status_code, 200)
+        title = PracticeCheckpoint.objects.get().title
+        self.assertEqual(len(title), PracticeCheckpoint._meta.get_field("title").max_length)
+        self.assertTrue(title.startswith("Entrevista · TTT") and title.endswith("…"))
+        r = self.save("modeling", f"nuevo:{uuid.uuid4()}", payload={"name": "N" * 500})
+        self.assertEqual(r.status_code, 200)
+        self.assertLessEqual(max(len(t) for t in PracticeCheckpoint.objects.values_list("title", flat=True)), 200)
+
+    def test_new_use_case_drafts_are_limited_per_user(self):  # Rev. 7
+        for _ in range(checkpoints.MAX_NEW_DRAFTS):
+            self.assertEqual(self.save("modeling", f"nuevo:{uuid.uuid4()}").status_code, 200)
+        r = self.save("modeling", f"nuevo:{uuid.uuid4()}")
+        self.assertEqual(r.status_code, 409)
+        self.assertEqual(r.json()["error"], "too_many_drafts")
+        self.assertEqual(PracticeCheckpoint.objects.filter(user=self.user).count(), checkpoints.MAX_NEW_DRAFTS)
+        # Actualizar uno existente sigue permitido, y otro usuario tiene su propio límite.
+        key = PracticeCheckpoint.objects.first().key
+        self.assertEqual(self.save("modeling", key, revision=1).status_code, 200)
+        self.client.logout()
+        self.client.login(username="otro", password="ClaveSegura123")
+        self.assertEqual(self.save("modeling", f"nuevo:{uuid.uuid4()}").status_code, 200)
+
+    def test_new_use_case_editor_reuses_latest_draft_key(self):  # Rev. 2
+        self.finished_attempt()
+        r = self.client.get("/modelado/nuevo/")
+        self.assertContains(r, 'data-draft-key=""')
+        old, recent = f"nuevo:{uuid.uuid4()}", f"nuevo:{uuid.uuid4()}"
+        self.save("modeling", old)
+        self.save("modeling", recent)
+        r = self.client.get("/modelado/nuevo/")
+        self.assertContains(r, f'data-draft-key="{recent}"')
+        # Elegir otra entrevista o venir de una lección abre un caso limpio.
+        attempt = StudentAttempt.objects.filter(user=self.user, status=StudentAttempt.CLASSIFYING).first()
+        self.assertContains(self.client.get(f"/modelado/nuevo/?attempt={attempt.id}"), 'data-draft-key=""')
+
+    def test_other_users_draft_key_is_never_offered(self):  # Rev. 2
+        self.finished_attempt()
+        PracticeCheckpoint.objects.create(user=self.other, module="modeling", key=f"nuevo:{uuid.uuid4()}",
+                                          payload={"schema": 1})
+        self.assertContains(self.client.get("/modelado/nuevo/"), 'data-draft-key=""')

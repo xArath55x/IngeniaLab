@@ -17,6 +17,7 @@ function setup(handler) {
   let n = 0;
   const window = {
     addEventListener: (k, f) => { (listeners[k] = listeners[k] || []).push(f); },
+    removeEventListener: (k, f) => { listeners[k] = (listeners[k] || []).filter(g => g !== f); },
     crypto: { randomUUID: () => '00000000-0000-4000-8000-' + String(++n).padStart(12, '0') },
   };
   const fetch = async (url, init) => {
@@ -38,7 +39,7 @@ function setup(handler) {
     saver, states, requests, intervals, listeners, window,
     set screen(v) { screen = v; },
     tick: async () => { await intervals[0].f(); await flush(); },
-    posts: () => requests.filter(r => r.method === 'POST'),
+    posts: () => requests.filter(r => r.method === 'POST' && r.url === '/api/checkpoints/'),
   };
 }
 const notFound = response(200, { ok: true, found: false });
@@ -218,6 +219,7 @@ function setupMount(handler, opts) {
     querySelector: sel => sel === '[data-autosave]' ? bar : null, addEventListener() {} };
   const listeners = {};
   const window = { location, addEventListener: (k, f) => { (listeners[k] = listeners[k] || []).push(f); },
+    removeEventListener: (k, f) => { listeners[k] = (listeners[k] || []).filter(g => g !== f); },
     crypto: { randomUUID: () => '00000000-0000-4000-8000-000000000001' } };
   const fetch = async (url, init) => { const req = { url, method: init.method, body: init.body ? JSON.parse(init.body) : null };
     requests.push(req); return handler(req); };
@@ -229,7 +231,7 @@ function setupMount(handler, opts) {
   let screen = { name: 'A' };
   const saver = window.IL.autosave.mount({ module: 'modeling', key: 'nuevo:11111111-1111-4111-8111-111111111111',
     collect: () => screen, restore: p => restored.push(p), notice: opts && opts.notice === false ? undefined : notice });
-  return { saver, bar, icon, text, pause, notice, restored, requests, later, location, body, ctx,
+  return { saver, bar, icon, text, pause, notice, restored, requests, later, location, body, ctx, listeners,
     set screen(v) { screen = v; }, cycle: async () => { await ctx.cycle(); await flush(); } };
 }
 const found = response(200, { ok: true, found: true, revision: 2, paused: true, saved_at: '2026-11-16T10:42:00-06:00',
@@ -268,15 +270,41 @@ test('mount: un autoguardado previo se restaura y ofrece descartarlo', async () 
   assert.equal(e.location.reloaded, true);
 });
 
-test('mount: no restaura encima de lo que el alumno ya escribió', async () => {
+test('mount (rev. 1): si ya escribió algo, no restaura ni reemplaza el autoguardado hasta que elija', async () => {
+  let release;
+  const gate = new Promise(r => { release = r; });
+  const e = setupMount(async req => {
+    if (req.method === 'GET') { await gate; return found; }
+    return ok(req.body.revision + 1);
+  });
+  e.saver.markDirty();
+  release(); await e.saver.ready; await flush();
+  assert.equal(e.restored.length, 0);
+  assert.equal(e.saver.held, true);
+  assert.equal(e.bar.dataset.state, 'held');
+  const buttons = all(e.notice.children[0]).filter(n => n.tag === 'button').map(b => b.textContent);
+  assert.deepEqual(buttons, ['Recuperar autoguardado', 'Conservar lo que escribí']);
+  await e.cycle(); await e.cycle();
+  assert.equal(e.requests.filter(r => r.method === 'POST').length, 0);  // Retenido: no pisa el anterior.
+  all(e.notice.children[0]).find(n => n.textContent === 'Conservar lo que escribí').listeners.click({});
+  await e.cycle();
+  const post = e.requests.find(r => r.method === 'POST');
+  assert.equal(post.body.revision, 2);  // Reemplaza con la revisión correcta, sin 409.
+  assert.equal(e.notice.children.length, 0);
+});
+
+test('mount (rev. 1): «Recuperar autoguardado» restaura y deja la pantalla sin cambios pendientes', async () => {
   let release;
   const gate = new Promise(r => { release = r; });
   const e = setupMount(async req => { if (req.method === 'GET') { await gate; return found; } return ok(3); });
   e.saver.markDirty();
   release(); await e.saver.ready; await flush();
-  assert.equal(e.restored.length, 0);
-  assert.equal(e.notice.children.length, 0);
-  assert.equal(e.saver.revision, 2);  // Adopta la revisión para no chocar al guardar.
+  all(e.notice.children[0]).find(n => n.textContent === 'Recuperar autoguardado').listeners.click({});
+  assert.deepEqual(e.restored.map(p => p.name), ['Borrador']);
+  assert.equal(e.saver.dirty, false);
+  assert.equal(e.saver.held, false);
+  await e.cycle();
+  assert.equal(e.requests.filter(r => r.method === 'POST').length, 0);
 });
 
 test('«Guardar y pausar» guarda con pause y vuelve a Mi progreso', async () => {
@@ -301,6 +329,158 @@ test('«Guardar y pausar» con conflicto no redirige y lo explica', async () => 
   assert.equal(e.bar.dataset.state, 'conflict');
   assert.equal(e.text.textContent, 'Abierta en otra pestaña.');
   assert.equal(e.pause.disabled, true);
+});
+
+/* ---- Correcciones de la revisión del PR de ACT-307A ---- */
+test('rev. 3: si la consulta inicial falla sin red, no guarda con revisión 0; reintenta la consulta y usa la del servidor', async () => {
+  let online = false;
+  const e = setup(req => {
+    if (!online) throw new TypeError('Failed to fetch');
+    if (req.method === 'GET') return response(200, { ok: true, found: true, revision: 5, payload: { schema: 1, name: 'Viejo' } });
+    return ok(req.body.revision + 1);
+  });
+  await e.saver.ready;
+  e.saver.markDirty(); await e.tick();
+  assert.equal(e.posts().length, 0);
+  assert.equal(e.states.at(-1)[0], 'offline');
+  online = true; await e.tick();
+  assert.equal(e.posts().length, 0);  // Apareció un autoguardado anterior y ya hay cambios: espera la decisión.
+  assert.equal(e.states.find(([st]) => st === 'found')[1].dirty, true);
+  e.saver.resolveFound('keep'); await e.tick();
+  assert.equal(e.posts()[0].body.revision, 5);
+});
+
+test('rev. 3: un descarte fallido no reinicia la revisión', async () => {
+  let online = true;
+  const e = setup(req => {
+    if (!online) throw new TypeError('x');
+    return req.method === 'GET' ? notFound : ok(req.body.revision + 1);
+  });
+  await e.saver.ready;
+  e.saver.markDirty(); await e.tick();
+  online = false;
+  assert.equal(await e.saver.discard(), false);
+  assert.equal(e.saver.revision, 1);
+  online = true;
+  e.screen = { name: 'Otro' }; e.saver.markDirty(); await e.tick();
+  assert.equal(e.posts().at(-1).body.revision, 1);
+});
+
+test('rev. 3: switchKey a la misma clave sin red conserva la revisión del servidor', async () => {
+  let online = true, server = 0;
+  const e = setup(req => {
+    if (!online) throw new TypeError('x');
+    if (req.method === 'GET') return server ? response(200, { ok: true, found: true, revision: server, payload: { schema: 1 } }) : notFound;
+    server = req.body.revision + 1; return ok(server);
+  });
+  await e.saver.ready;
+  e.saver.markDirty(); await e.tick();
+  online = false;
+  await e.saver.switchKey(e.saver.key);
+  online = true;
+  e.screen = { name: 'Cambio' }; e.saver.markDirty(); await e.tick();
+  assert.equal(e.posts().at(-1).body.revision, 1);
+  assert.notEqual(e.states.at(-1)[0], 'conflict');
+});
+
+test('rev. 5: «Guardar» explícito sin red no se queda colgado ni congela el ciclo', async () => {
+  let online = false;
+  const e = setup(req => {
+    if (req.method === 'GET') return notFound;
+    if (!online) throw new TypeError('Failed to fetch');
+    return ok(req.body.revision + 1);
+  });
+  await e.saver.ready;
+  e.saver.markDirty();
+  const result = await e.saver.saveNow({ pause: true });
+  assert.equal(result.ok, false);
+  assert.equal(result.error, 'offline');
+  online = true; await e.tick();
+  assert.equal(e.saver.dirty, false);
+});
+
+test('rev. 5: un 401 al pausar reautentica con el modal y reintenta una vez', async () => {
+  let session = false;
+  const e = setup(req => {
+    if (req.url === '/cuentas/api/sesion/') { session = true; return response(200, { ok: true, user_id: '7', csrf_token: 'nuevo' }); }
+    if (req.method === 'GET') return notFound;
+    return session ? ok(1) : response(401, { ok: false, error: 'session_expired' });
+  });
+  e.window.IL.sessionExpired = async () => { session = true; return { user_id: '7', csrf_token: 'nuevo' }; };
+  await e.saver.ready;
+  const result = await e.saver.saveNow({ pause: true });
+  assert.equal(result.ok, true);
+  assert.equal(e.posts().at(-1).headers['X-CSRFToken'], 'nuevo');
+});
+
+test('rev. 6: lo escrito mientras se guarda el caso de uso sigue pendiente y no revive la clave anterior', async () => {
+  const e = setup(req => req.method === 'GET' ? notFound
+    : (req.url.endsWith('descartar/') ? response(200, { ok: true }) : ok(req.body.revision + 1)));
+  await e.saver.ready;
+  e.saver.markDirty();
+  const sentUpTo = e.saver.snapshot();
+  e.saver.markDirty();  // Escribe mientras viaja el guardado del caso de uso.
+  const switching = e.saver.switchKey('22222222-2222-4222-8222-222222222222', sentUpTo);
+  assert.equal(e.saver.key, '22222222-2222-4222-8222-222222222222');  // Cambia de inmediato.
+  await e.tick(); await switching;
+  assert.equal(e.saver.dirty, false);
+  const keys = e.posts().filter(r => r.url === '/api/checkpoints/').map(r => r.body.key);
+  assert.deepEqual(keys, ['22222222-2222-4222-8222-222222222222']);
+});
+
+test('rev. 6: si no se pudo descartar la clave anterior, se reintenta en el siguiente ciclo', async () => {
+  let online = false;
+  const e = setup(req => {
+    if (req.url.endsWith('descartar/') && !online) throw new TypeError('x');
+    return req.method === 'GET' ? notFound : (req.url.endsWith('descartar/') ? response(200, { ok: true }) : ok(1));
+  });
+  await e.saver.ready;
+  await e.saver.switchKey('22222222-2222-4222-8222-222222222222');
+  online = true; await e.tick();
+  const discards = e.requests.filter(r => r.url.endsWith('descartar/'));
+  assert.equal(discards.length, 2);
+  assert.match(discards[1].url, /nuevo%3A1111/);
+});
+
+test('rev. 8: «session_changed» no se trata como conflicto y el ciclo sigue', async () => {
+  let other = true;
+  const e = setup(req => req.method === 'GET' ? notFound : other
+    ? response(409, { ok: false, error: 'session_changed', message: 'La cuenta activa cambió.' }) : ok(1));
+  await e.saver.ready;
+  e.saver.markDirty(); await e.tick();
+  assert.equal(e.states.at(-1)[0], 'session');
+  other = false; await e.tick();
+  assert.equal(e.saver.dirty, false);
+});
+
+test('límite de borradores: «too_many_drafts» se explica y detiene el ciclo', async () => {
+  const e = setup(req => req.method === 'GET' ? notFound
+    : response(409, { ok: false, error: 'too_many_drafts', message: 'Ya tienes 5 casos de uso sin guardar.' }));
+  await e.saver.ready;
+  e.saver.markDirty(); await e.tick();
+  assert.equal(e.states.at(-1)[0], 'limit');
+  assert.equal(e.states.at(-1)[1].message, 'Ya tienes 5 casos de uso sin guardar.');
+  e.saver.markDirty(); await e.tick();
+  assert.equal(e.posts().length, 1);
+});
+
+test('rev. 9: usa getCookie, requestId y fetchJSON de app.js', async () => {
+  const e = setup(req => req.method === 'GET' ? notFound : ok(1));
+  for (const name of ['getCookie', 'requestId', 'fetchJSON', 'sessionExpired']) assert.equal(typeof e.window.IL[name], 'function');
+  const src = js('autosave.js');
+  assert.doesNotMatch(src, /function (cookie|uuid|quiet)\(/);
+  assert.doesNotMatch(src, /[^.]\bfetch\(/);
+  await e.saver.ready;
+});
+
+test('rev. 10: stop() quita los listeners de online y beforeunload', async () => {
+  const e = setup(req => req.method === 'GET' ? notFound : ok(1));
+  await e.saver.ready;
+  const count = k => (e.listeners[k] || []).length;
+  const before = { online: count('online'), unload: count('beforeunload') };
+  e.saver.stop();
+  assert.equal(count('online'), before.online - 1);
+  assert.equal(count('beforeunload'), before.unload - 1);
 });
 
 (async () => {

@@ -28,7 +28,7 @@
       {% endif %}
       <ul class="item-list">
         {% for d in drafts %}
-        <li><div><span class="tag rf">Caso de uso sin guardar</span> {{ d.title|cut:"Caso de uso · " }}
+        <li data-module="modelado"><div><span class="tag rf">Caso de uso sin guardar</span> {{ d.title|cut:"Caso de uso · " }}
           <div class="small muted">{% include "progress/_checkpoint_tag.html" with cp=d %}</div></div>
           <div class="resume-actions">
             <form method="post" action="{% url 'progress:checkpoint_discard_html' d.module d.key %}" onsubmit="return confirm('¿Descartar este borrador? Se perderán los cambios que no guardaste.')">{% csrf_token %}

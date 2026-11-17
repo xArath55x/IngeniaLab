@@ -52,8 +52,22 @@ def validate_key(module, key):
     return key
 
 
+TITLE_MAX = PracticeCheckpoint._meta.get_field("title").max_length
+MAX_NEW_DRAFTS = 5
+
+
+def _title(text):
+    """El título se muestra en el tablero; nunca debe exceder la columna (en PostgreSQL sería un 500)."""
+    return text if len(text) <= TITLE_MAX else text[:TITLE_MAX - 1] + "…"
+
+
 def practice_state(user, module, key, payload=None):
     """Devuelve (título, abierta) de la práctica del usuario. Si no existe o es ajena, 404."""
+    title, is_open = _practice_state(user, module, key, payload)
+    return _title(title), is_open
+
+
+def _practice_state(user, module, key, payload=None):
     from apps.inspection.models import InspectionAttempt
     from apps.interviews.models import StudentAttempt
     from apps.modeling.models import UseCaseLesson, UseCaseSpecification
@@ -122,6 +136,12 @@ def save(user, module, key, revision, payload, pause=False):
         if checkpoint is None:
             if revision != 0:
                 raise _conflict(0)
+            if key.startswith(NEW_USE_CASE_PREFIX) and PracticeCheckpoint.objects.filter(
+                    user=user, module=module, key__startswith=NEW_USE_CASE_PREFIX).count() >= MAX_NEW_DRAFTS:
+                raise CheckpointError(
+                    "too_many_drafts",
+                    f"Ya tienes {MAX_NEW_DRAFTS} casos de uso sin guardar. Guarda o descarta alguno desde Mi progreso.",
+                    status=409)
             try:
                 with transaction.atomic():
                     return PracticeCheckpoint.objects.create(
@@ -172,6 +192,13 @@ def serialize(checkpoint, with_payload=False):
     if with_payload:
         data["payload"] = checkpoint.payload
     return data
+
+
+def latest_new_draft_key(user):
+    """Clave del borrador de caso de uso nuevo más reciente, para que /modelado/nuevo/ lo retome (no una clave nueva)."""
+    return (PracticeCheckpoint.objects.filter(user=user, module=PracticeCheckpoint.MODELING,
+                                              key__startswith=NEW_USE_CASE_PREFIX)
+            .order_by("-updated_at").values_list("key", flat=True).first() or "")
 
 
 def resume_url(checkpoint):

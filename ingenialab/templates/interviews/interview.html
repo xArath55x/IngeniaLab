@@ -84,7 +84,7 @@
 
 {% block scripts %}
 {% if not finished %}
-<script src="{% static 'js/autosave.js' %}?v=cu10-2"></script>
+<script src="{% static 'js/autosave.js' %}?v=cu10-3"></script>
 <script>
   // CU-10: cada pregunta ya se guarda al elegirla; aquí solo se marca la entrevista como pausada.
   if (IL.autosave) IL.autosave.mount({ module: "interview", key: "{{ attempt.id }}", collect: () => ({}) });

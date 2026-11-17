@@ -184,5 +184,7 @@
       `<div><strong>${esc(title)}</strong>${body ? esc(body) : ""}</div></div>`;
   }
 
-  window.IL = { api, toast, showBadges, confirmModal, el, esc, feedback };
+  window.IL = { api, toast, showBadges, confirmModal, el, esc, feedback,
+    // Compartidas con autosave.js para que CSRF, identidad y reautenticación vivan en un solo lugar.
+    getCookie, requestId, fetchJSON, sessionExpired };
 })();

@@ -159,6 +159,8 @@
     setBusy(true);
     try {
       const urls = { validate: form.dataset.validateUrl, generate: form.dataset.generateUrl, save: form.dataset.saveUrl };
+      // CU-10: lo que se escriba mientras viaja el guardado sigue pendiente de autoguardar.
+      const sentUpTo = saver ? saver.snapshot() : 0;
       const response = await IL.api(urls[action], { ...result.data, lesson_id: form.dataset.lessonId || null, format: document.getElementById("preview-format").value });
       feedback(response, response.ok ? TITLES[action] : "No se pudo completar la operación.");
       if (!response.ok) { rendered = null; return; }
@@ -185,7 +187,7 @@
         history.replaceState(null, "", form.dataset.listUrl + response.id + "/");
         ucId = response.id; document.getElementById("title").textContent = response.spec.name;
         // Lo guardado ya tiene registro propio: el borrador autoguardado sobra (CU-10).
-        if (saver) saver.switchKey(ucId);
+        if (saver) saver.switchKey(ucId, sentUpTo);
         document.getElementById("diagram-downloads").style.display = "flex";
         document.getElementById("download-svg").href = form.dataset.listUrl + ucId + "/diagrama/svg/";
         document.getElementById("download-png").href = form.dataset.listUrl + ucId + "/diagrama/png/";
@@ -225,9 +227,11 @@
     rendered = null; saveButton.disabled = true; setStep(0);
   }
   if (IL.autosave) {
-    // Un borrador de caso nuevo se reanuda desde el tablero con ?borrador=nuevo:<uuid>.
-    const draft = new URLSearchParams(window.location.search).get("borrador") || "";
-    const draftKey = /^nuevo:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(draft) ? draft : "";
+    // Un caso nuevo retoma su borrador: el del tablero (?borrador=nuevo:<uuid>) o, si no, el último que dejó el
+    // alumno (data-draft-key, calculado en el servidor). Solo sin borrador se crea una clave nueva.
+    const isDraft = (k) => /^nuevo:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(k || "");
+    const fromUrl = new URLSearchParams(window.location.search).get("borrador");
+    const draftKey = isDraft(fromUrl) ? fromUrl : isDraft(form.dataset.draftKey) ? form.dataset.draftKey : "";
     saver = IL.autosave.mount({
       module: "modeling", key: ucId || draftKey || IL.autosave.newUseCaseKey(),
       collect: () => ({ ...payload(), lesson_id: form.dataset.lessonId || null,

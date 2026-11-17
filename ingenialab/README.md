@@ -340,6 +340,21 @@ y reintenta al volver la conexión.
   Descartar usa `POST /autoguardado/<module>/<key>/descartar/`) y marca con «⏸ Pausada» las prácticas pausadas. El enlace se
   calcula en el servidor y al cargar el tablero se borran los autoguardados de prácticas que ya terminaron o no existen.
 
+### Revisión del PR de ACT-307A (atendida en ACT-307B)
+
+| # | Corrección |
+| --- | --- |
+| 1 | El editor restaura el borrador de un caso existente. Si el alumno ya escribió algo cuando llega el autoguardado, no se restaura ni se reemplaza: se retiene y se pregunta («Recuperar autoguardado» / «Conservar lo que escribí»). |
+| 2 | `/modelado/nuevo/` retoma el último borrador del alumno (`data-draft-key`, calculado en el servidor); solo sin borrador se crea una clave nueva. |
+| 3 | La revisión solo cambia con una respuesta del servidor. Sin red, no se guarda hasta volver a consultar la revisión; un descarte fallido no la reinicia. |
+| 4 | Los títulos se recortan a 200 caracteres (en PostgreSQL el título largo daba `DataError`). |
+| 5 | «Guardar y pausar» ya no usa `IL.api`: sin red responde de inmediato y el ciclo sigue; un 401 abre el modal de sesión y reintenta una vez. |
+| 6 | `switchKey` cambia la clave al instante, respeta lo escrito mientras viaja el guardado y reintenta el descarte de la clave anterior. |
+| 7 | Máximo 5 casos de uso sin guardar por alumno (`too_many_drafts`, 409). |
+| 8 | `session_changed` se trata como problema de sesión: se avisa y el ciclo sigue. |
+| 9 | `autosave.js` usa `getCookie`, `requestId`, `fetchJSON` y `sessionExpired` de `app.js` (expuestas en `IL`). |
+| 10 | `stop()` quita los listeners de `online` y `beforeunload`. |
+
 Para borrar los autoguardados sin cambios en 90 días (RN-03), programa en el servidor:
 
 ```bash

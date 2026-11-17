@@ -14,6 +14,7 @@ from django.views.decorators.http import require_POST
 
 from apps.accounts.api import fail, ok, read_json
 from apps.interviews.models import StudentAttempt
+from apps.progress import checkpoints
 from apps.progress.services import evaluate_badges
 from integrations.plantuml import service as plantuml
 from integrations.plantuml.builder import build_usecase_diagram
@@ -77,7 +78,10 @@ def editor(request, uc_id=None):
         except ValidationError:
             return HttpResponse("La entrevista seleccionada no es válida.", status=400)
     guide = _guide(attempts)
+    # CU-10: un caso de uso nuevo retoma el último borrador autoguardado en vez de abrir otro (se puede descartar).
+    draft_key = "" if uc or lesson or request.GET.get("attempt") else checkpoints.latest_new_draft_key(request.user)
     return render(request, "modeling/editor.html", {
+        "draft_key": draft_key,
         "uc": uc,
         "form_data": uc.as_form_data() if uc else (
             {**lesson.reference.spec, "attempt_id": str(lesson.attempt_id)} if lesson else None),
