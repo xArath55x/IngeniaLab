@@ -4,7 +4,7 @@
 <div class="page-head">
   <div>
     <h1>Hola, {{ user.first_name|default:user.username }}</h1>
-    <p class="muted">Continúa donde te quedaste o inicia una nueva práctica.</p>
+    <p class="muted">{% if game %}Continúa tu partida donde la dejaste.{% else %}Inicia una partida y recorre las cuatro etapas hasta llegar al 100 %.{% endif %}</p>
   </div>
 </div>
 
@@ -21,11 +21,47 @@
       </div>
     </div>
 
-    <div class="card">
-      <div class="card-head"><h2>Retomar trabajo</h2></div>
-      {% if not interview_groups and not lessons.in_progress and not classifying and not open_inspections %}
-        <p class="empty">Aún no tienes prácticas. Comienza con una <a href="{% url 'interviews:scenarios' %}">entrevista</a>.</p>
+    <div class="card partida-card">
+      {% if game %}
+      <div class="card-head"><h2>🎮 Partida en curso</h2><span class="tag">{{ game.percent }} %</span></div>
+      <p><strong>{{ game.title }}</strong> · Etapa {{ game.current_number }} de {{ game.total }}: {{ game.current_label }}</p>
+      <div class="bar partida-bar" role="progressbar" aria-valuenow="{{ game.percent }}" aria-valuemin="0" aria-valuemax="100" aria-label="Avance de la partida"><span style="width:{{ game.percent }}%"></span></div>
+      {% include "progress/_partida_stages.html" %}
+      <div class="btn-row">
+        <a class="btn" href="{% url 'progress:partida_continue' %}">Continuar partida →</a>
+        <form method="post" action="{% url 'progress:partida_abandon' %}" onsubmit="return confirm('¿Abandonar esta partida? Lo que hiciste se conserva en Reportes, pero la partida ya no se podrá continuar.')">{% csrf_token %}
+          <button type="submit" class="btn small ghost">Abandonar partida</button>
+        </form>
+      </div>
       {% else %}
+      <div class="partida-start">
+        <div class="partida-start-icon" aria-hidden="true">🎮</div>
+        <h2>Nueva partida</h2>
+        <p class="muted">Te tocará un escenario al azar. Recorrerás <strong>Entrevista → Clasificación → Modelado → Inspección</strong>; cada etapa terminada queda guardada como checkpoint para que continúes cuando quieras.</p>
+        {% if not history and not interview_groups and not lessons.in_progress and not classifying and not open_inspections %}<p class="empty">Aún no tienes prácticas. Pulsa «Iniciar nueva partida» para empezar.</p>{% endif %}
+        <form method="post" action="{% url 'progress:partida_start' %}">{% csrf_token %}
+          <button type="submit" class="btn partida-start-btn">▶ Iniciar nueva partida</button>
+        </form>
+      </div>
+      {% endif %}
+    </div>
+
+    {% if history %}
+    <div class="card">
+      <div class="card-head"><h2>Partidas anteriores</h2></div>
+      <ul class="item-list">
+        {% for p in history %}
+        <li><span>{{ p.attempt.version.title }}<span class="small muted"> · {{ p.started_at|date:"d/m/Y" }}</span></span>
+          {% if p.finished_at %}<span class="tag ok">✓ 100 %</span>{% else %}<span class="tag">Abandonada · {{ p.percent }} %</span>{% endif %}</li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
+    {% if interview_groups or lessons.in_progress or classifying or open_inspections %}
+    <div class="card">
+      <div class="card-head"><h2>Prácticas sueltas en curso</h2></div>
+      <p class="small muted">Las empezaste antes de las partidas. Puedes terminarlas aquí.</p>
       {# CU-09 FA-1: filtra las prácticas por módulo sin recargar la página. #}
       <div class="chips resume-filter" role="group" aria-label="Filtrar por módulo" data-filter-for="resume-list">
         <button type="button" class="chip active" data-filter="" aria-pressed="true">Todas</button>
@@ -34,7 +70,6 @@
         <button type="button" class="chip" data-filter="inspeccion" aria-pressed="false">Inspección</button>
       </div>
       <p class="small muted" id="resume-list-empty" hidden>No tienes prácticas pendientes en este módulo.</p>
-      {% endif %}
       <ul class="item-list" id="resume-list">
         {% for g in interview_groups %}
         {% include "progress/_open_interview.html" with a=g.latest %}
@@ -61,6 +96,7 @@
         {% endfor %}
       </ul>
     </div>
+    {% endif %}
 
     <div class="card">
       <div class="card-head"><h2>Casos de uso recientes</h2><a class="btn small secondary" href="{% url 'modeling:list' %}">Ver todos</a></div>

@@ -47,10 +47,14 @@ class AssemblyTests(BaseCase):
         self.post(base + "concluir/")
         return attempt, exercise
 
-    def test_navigation_links_every_module(self):
-        r = self.client.get("/")
-        for url in ("/elicitacion/", "/modelado/", "/inspeccion/", "/reportes/"):
-            self.assertContains(r, f'href="{url}"')
+    def test_navigation_is_partida_and_reports(self):
+        # Partida única: las etapas se abren desde la partida; el menú solo lleva a la partida y a Reportes.
+        nav = self.client.get("/").content.decode().split('<nav class="nav"', 1)[1].split("</nav>", 1)[0]
+        for url in ("/", "/reportes/"):
+            self.assertIn(f'href="{url}"', nav)
+        self.assertIn("Mi partida", nav)
+        for url in ("/elicitacion/", "/modelado/", "/inspeccion/"):
+            self.assertNotIn(f'href="{url}"', nav)
 
     def test_every_module_entry_point_responds(self):
         for url in ("/", "/elicitacion/", "/modelado/", "/inspeccion/", "/reportes/"):

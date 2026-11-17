@@ -221,9 +221,12 @@ class Flow:
         check(r["status"] == 200 and m, "el tablero no muestra los puntos acumulados")
         points = int(m.group(1))
         check(points > 0, "el tablero muestra 0 puntos tras completar las actividades")
-        for href in ("/elicitacion/", "/modelado/", "/inspeccion/", "/reportes/"):
+        # Partida única: el menú lleva a la partida y a Reportes; las etapas se abren desde la partida.
+        for href in ("/", "/reportes/"):
             check(f'href="{href}"' in r["text"], f"la navegación no enlaza {href}")
-        return f"{points} puntos; navegación con los seis módulos"
+        check('action="/partida/nueva/"' in r["text"] or 'href="/partida/continuar/"' in r["text"],
+              "el tablero no ofrece iniciar ni continuar la partida")
+        return f"{points} puntos; navegación de la partida y Reportes"
 
     def cu05_reporte(self):
         r = self.alumno.get("/reportes/")
