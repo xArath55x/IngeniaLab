@@ -70,7 +70,7 @@
       {% endif %}
       <ul class="item-list">
         {% for uc in use_cases %}
-        <li><span>📐 {{ uc.name }}</span><a class="btn small ghost" href="{% url 'modeling:edit' uc.id %}">Editar</a></li>
+        <li><span>📐 {{ uc.name }}{% if uc.checkpoint %}<span class="small muted"> · Cambios sin guardar · {% include "progress/_checkpoint_tag.html" with cp=uc.checkpoint %}</span>{% endif %}</span><a class="btn small ghost" href="{% url 'modeling:edit' uc.id %}">Editar</a></li>
         {% empty %}<li class="muted">Sin casos de uso guardados.</li>{% endfor %}
       </ul>
     </div>

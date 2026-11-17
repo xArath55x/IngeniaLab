@@ -237,6 +237,9 @@ function setupMount(handler, opts) {
 const found = response(200, { ok: true, found: true, revision: 2, paused: true, saved_at: '2026-11-16T10:42:00-06:00',
   payload: { schema: 1, name: 'Borrador' } });
 
+const foundActive = response(200, { ok: true, found: true, revision: 2, paused: false, saved_at: '2026-11-16T10:42:00-06:00',
+  payload: { schema: 1, name: 'Borrador' } });
+
 test('mount: el indicador pasa por «Cambios sin guardar», «Guardando…» y «Guardado» con hora', async () => {
   const e = setupMount(req => req.method === 'GET' ? notFound : ok(1));
   await e.saver.ready;
@@ -296,7 +299,7 @@ test('mount (rev. 1): si ya escribió algo, no restaura ni reemplaza el autoguar
 test('mount (rev. 1): «Recuperar autoguardado» restaura y deja la pantalla sin cambios pendientes', async () => {
   let release;
   const gate = new Promise(r => { release = r; });
-  const e = setupMount(async req => { if (req.method === 'GET') { await gate; return found; } return ok(3); });
+  const e = setupMount(async req => { if (req.method === 'GET') { await gate; return foundActive; } return ok(3); });
   e.saver.markDirty();
   release(); await e.saver.ready; await flush();
   all(e.notice.children[0]).find(n => n.textContent === 'Recuperar autoguardado').listeners.click({});
@@ -481,6 +484,86 @@ test('rev. 10: stop() quita los listeners de online y beforeunload', async () =>
   e.saver.stop();
   assert.equal(count('online'), before.online - 1);
   assert.equal(count('beforeunload'), before.unload - 1);
+});
+
+/* ---- Correcciones de la revisión del PR #43 (ACT-307B) ---- */
+test('PR #43 (3): al volver a una práctica pausada se guarda sin pausa, sin pisar «Reanudado»', async () => {
+  const e = setupMount(req => req.method === 'GET' ? found : ok(req.body.revision + 1));
+  await e.saver.ready; await flush();
+  const posts = e.requests.filter(r => r.method === 'POST' && r.url === '/api/checkpoints/');
+  assert.equal(posts.length, 1);
+  assert.equal(posts[0].body.pause, false);
+  assert.equal(posts[0].body.revision, 2);
+  assert.match(e.text.textContent, /^Reanudado · guardado/);
+  assert.equal(e.saver.dirty, false);
+  await e.cycle();
+  assert.equal(e.requests.filter(r => r.method === 'POST').length, 1);  // Ya no está pausada: no se repite.
+});
+
+test('PR #43 (3): si no estaba pausada, reanudar no envía nada', async () => {
+  const e = setupMount(req => req.method === 'GET' ? foundActive : ok(3));
+  await e.saver.ready; await e.cycle();
+  assert.equal(e.requests.filter(r => r.method === 'POST').length, 0);
+});
+
+test('PR #43 (2): «Descartar estos cambios» usa afterDiscard con la clave actual', async () => {
+  const e = setupMount(req => req.method === 'GET' ? foundActive : response(200, { ok: true }));
+  const calls = [];
+  // setupMount no expone afterDiscard: se monta otro con la misma barra.
+  const saver = e.ctx.window.IL.autosave.mount({ module: 'modeling', key: 'nuevo:22222222-2222-4222-8222-222222222222',
+    collect: () => ({}), restore: () => {}, notice: e.notice, afterDiscard: k => calls.push(k) });
+  await saver.ready; await flush();
+  const undo = all(e.notice.children[0]).find(n => n.textContent === 'Descartar estos cambios');
+  await undo.listeners.click({}); await flush();
+  assert.deepEqual(calls, ['nuevo:22222222-2222-4222-8222-222222222222']);
+  assert.equal(e.location.reloaded, false);
+});
+
+test('PR #43 (5): un 401 en la consulta inicial avisa «session», no «offline»', async () => {
+  const e = setup(req => response(401, { ok: false, error: 'session_expired', message: 'Tu sesión venció.' }));
+  await e.saver.ready;
+  e.saver.markDirty(); await e.tick();
+  assert.equal(e.states.at(-1)[0], 'session');
+  assert.equal(e.states.at(-1)[1].message, 'Tu sesión venció.');
+  assert.equal(e.posts().length, 0);
+});
+
+test('PR #43 (5): un 500 en la consulta inicial avisa «error», no «offline»', async () => {
+  const e = setup(req => response(500, {}));
+  await e.saver.ready;
+  e.saver.markDirty(); await e.tick();
+  assert.equal(e.states.at(-1)[0], 'error');
+});
+
+test('PR #43 (5): «Guardar y pausar» con la consulta en 401 reautentica, consulta de nuevo y guarda', async () => {
+  let session = false;
+  const e = setup(req => {
+    if (!session) return response(401, { ok: false, error: 'session_expired' });
+    return req.method === 'GET' ? response(200, { ok: true, found: true, revision: 4, paused: false, payload: { schema: 1 } }) : ok(5);
+  });
+  let modal = 0;
+  e.window.IL.sessionExpired = async () => { modal++; session = true; return { user_id: '7', csrf_token: 'nuevo' }; };
+  await e.saver.ready;
+  const result = await e.saver.saveNow({ pause: true });
+  assert.equal(modal, 1);
+  assert.equal(result.ok, true);
+  assert.equal(e.posts().at(-1).body.revision, 4);
+  assert.equal(e.posts().at(-1).headers['X-CSRFToken'], 'nuevo');
+});
+
+test('PR #43 (6): un 403 de CSRF al pausar abre el modal de sesión y reintenta con el token nuevo', async () => {
+  let token = false;
+  const e = setup(req => {
+    if (req.method === 'GET') return notFound;
+    return token ? ok(1) : { status: 403, json: async () => { throw new SyntaxError('HTML'); } };
+  });
+  let modal = 0;
+  e.window.IL.sessionExpired = async () => { modal++; token = true; return { user_id: '7', csrf_token: 'nuevo' }; };
+  await e.saver.ready;
+  const result = await e.saver.saveNow({ pause: true });
+  assert.equal(modal, 1);
+  assert.equal(result.ok, true);
+  assert.equal(e.posts().at(-1).headers['X-CSRFToken'], 'nuevo');
 });
 
 (async () => {

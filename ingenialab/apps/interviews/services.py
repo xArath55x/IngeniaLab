@@ -145,6 +145,8 @@ def _close(attempt, premature):
     attempt.status = StudentAttempt.CLASSIFYING
     attempt.interview_finished_at = timezone.now()
     attempt.save()
+    from apps.progress import checkpoints  # Diferido: progress depende de interviews.
+    checkpoints.close(attempt.user, "interview", attempt.id)  # CU-10, RN-01
 
 
 def _dialogue_payload(attempt, entry, replayed=False):

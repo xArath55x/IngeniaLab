@@ -212,7 +212,10 @@
   saveButton.disabled = !rendered;
   setStep(rendered ? 3 : 0);
   // CU-10: autoguardado cada 30 s de la plantilla que aún no se guarda, «Guardar y pausar» y reanudación (SDS v3.0 §9).
+  const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
   function restoreDraft(p) {
+    // Un borrador hecho desde una lección sigue ligado a ella al reanudarlo desde el tablero (H-05).
+    if (typeof p.lesson_id === "string" && UUID.test(p.lesson_id)) form.dataset.lessonId = p.lesson_id;
     if (p.attempt_id && [...attempt.options].some(o => o.value === p.attempt_id)) attempt.value = p.attempt_id;
     F.name.value = p.name || ""; F.system.value = p.system_name || "";
     F.pre.value = p.preconditions || ""; F.post.value = p.postconditions || "";
@@ -229,7 +232,7 @@
   if (IL.autosave) {
     // Un caso nuevo retoma su borrador: el del tablero (?borrador=nuevo:<uuid>) o, si no, el último que dejó el
     // alumno (data-draft-key, calculado en el servidor). Solo sin borrador se crea una clave nueva.
-    const isDraft = (k) => /^nuevo:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(k || "");
+    const isDraft = (k) => typeof k === "string" && k.startsWith("nuevo:") && UUID.test(k.slice(6));
     const fromUrl = new URLSearchParams(window.location.search).get("borrador");
     const draftKey = isDraft(fromUrl) ? fromUrl : isDraft(form.dataset.draftKey) ? form.dataset.draftKey : "";
     saver = IL.autosave.mount({
@@ -237,6 +240,13 @@
       collect: () => ({ ...payload(), lesson_id: form.dataset.lessonId || null,
         format: document.getElementById("preview-format").value }),
       restore: restoreDraft, notice: form,
+      // Descartar un borrador nuevo abre la plantilla limpia con otra clave; recargar retomaría el siguiente borrador.
+      afterDiscard: (key) => {
+        if (!isDraft(key)) { window.location.reload(); return; }
+        const next = new URL(window.location.href);
+        next.searchParams.set("borrador", IL.autosave.newUseCaseKey());
+        window.location.replace(next.toString());
+      },
     });
   }
 })();

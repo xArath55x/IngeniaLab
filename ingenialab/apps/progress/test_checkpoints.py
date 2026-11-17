@@ -306,7 +306,9 @@ class CheckpointResumeTests(BaseCase):
             user=self.user, name="Original", preconditions="a", postconditions="b",
             actors={"primary": ["Bibliotecario"], "secondary": []}, main_flow=["Uno", "Dos"], plantuml_code="@startuml\n@enduml")
         self.save("modeling", uc.id, payload={"name": "Cambiado"})
-        cp = checkpoints.for_dashboard(self.user)[1][0]
+        saved, drafts = checkpoints.for_dashboard(self.user)
+        self.assertEqual(drafts, [])  # Ya tiene registro propio: no es un «caso de uso sin guardar».
+        cp = saved[("modeling", str(uc.id))]
         self.assertEqual(cp.resume_url, f"/modelado/{uc.id}/")
         self.assertEqual(cp.title, "Caso de uso · Cambiado")
 
@@ -362,3 +364,75 @@ class CheckpointReviewFixesTests(BaseCase):
         PracticeCheckpoint.objects.create(user=self.other, module="modeling", key=f"nuevo:{uuid.uuid4()}",
                                           payload={"schema": 1})
         self.assertContains(self.client.get("/modelado/nuevo/"), 'data-draft-key=""')
+
+
+class CheckpointPr43ReviewTests(BaseCase):
+    """Correcciones de la revisión del PR #43 (ACT-307B)."""
+
+    def save(self, module, key, payload=None, revision=0, pause=False):
+        return self.post(SAVE, {"module": module, "key": str(key), "revision": revision,
+                                "payload": payload or {}, "pause": pause})
+
+    def make_use_case(self, name="Original"):
+        from apps.modeling.models import UseCaseSpecification
+        return UseCaseSpecification.objects.create(
+            user=self.user, name=name, preconditions="a", postconditions="b",
+            actors={"primary": ["Bibliotecario"], "secondary": []}, main_flow=["Uno", "Dos"],
+            plantuml_code="@startuml\n@enduml")
+
+    def test_attempt_editor_reuses_its_own_draft_instead_of_leaving_orphans(self):  # Hallazgo 1
+        attempt = self.finished_attempt()
+        url = f"/modelado/nuevo/?attempt={attempt.id}"
+        self.assertContains(self.client.get(url), 'data-draft-key=""')
+        mine, other, lesson = f"nuevo:{uuid.uuid4()}", f"nuevo:{uuid.uuid4()}", f"nuevo:{uuid.uuid4()}"
+        self.save("modeling", mine, payload={"attempt_id": str(attempt.id)})
+        self.save("modeling", other, payload={"attempt_id": str(uuid.uuid4())})
+        self.save("modeling", lesson, payload={"attempt_id": str(attempt.id), "lesson_id": str(uuid.uuid4())})
+        self.assertContains(self.client.get(url), f'data-draft-key="{mine}"')
+
+    def test_lesson_draft_key_only_matches_that_lesson(self):  # Hallazgo 1
+        lesson_id = uuid.uuid4()
+        self.assertEqual(checkpoints.latest_new_draft_key(self.user, lesson_id=lesson_id), "")
+        key = f"nuevo:{uuid.uuid4()}"
+        self.save("modeling", f"nuevo:{uuid.uuid4()}", payload={"lesson_id": str(uuid.uuid4())})
+        self.save("modeling", key, payload={"lesson_id": str(lesson_id)})
+        self.save("modeling", f"nuevo:{uuid.uuid4()}", payload={})
+        self.assertEqual(checkpoints.latest_new_draft_key(self.user, lesson_id=lesson_id), key)
+
+    def test_saved_use_case_with_autosave_is_not_listed_as_unsaved(self):  # Hallazgo 7
+        uc = self.make_use_case()
+        self.save("modeling", uc.id, payload={"name": "Cambiado"})
+        r = self.client.get("/")
+        self.assertNotContains(r, "Caso de uso sin guardar")
+        self.assertContains(r, "Cambios sin guardar")
+
+    def test_dashboard_does_not_query_once_per_checkpoint(self):  # Hallazgo 8
+        for _ in range(3):
+            self.save("interview", self.new_attempt().id)
+        for _ in range(3):
+            self.save("modeling", self.make_use_case().id)
+        self.save("modeling", f"nuevo:{uuid.uuid4()}")
+        with self.assertNumQueries(3):  # Puntos de guardado + una consulta por módulo.
+            index, drafts = checkpoints.for_dashboard(self.user)
+        self.assertEqual((len(index), len(drafts)), (7, 1))
+
+    def test_closing_a_practice_deletes_its_checkpoint(self):  # Hallazgo 8
+        attempt = self.new_attempt()
+        self.save("interview", attempt.id, pause=True)
+        self.ask_rounds(attempt)
+        self.assertFalse(PracticeCheckpoint.objects.filter(module="interview").exists())
+        exercise = InspectionExercise.objects.filter(is_active=True).first()
+        inspection = InspectionAttempt.objects.create(user=self.user, exercise=exercise)
+        self.save("inspection", inspection.id)
+        from apps.inspection.services import conclude
+        conclude(inspection)
+        self.assertFalse(PracticeCheckpoint.objects.filter(module="inspection").exists())
+
+    def test_draft_limit_locks_the_user_row(self):  # Hallazgo 9
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+        with CaptureQueriesContext(connection) as queries:
+            self.assertEqual(self.save("modeling", f"nuevo:{uuid.uuid4()}").status_code, 200)
+        user_table = self.user._meta.db_table
+        self.assertTrue(any(user_table in q["sql"] and "FOR UPDATE" in q["sql"].upper() for q in queries)
+                        or not connection.features.has_select_for_update)

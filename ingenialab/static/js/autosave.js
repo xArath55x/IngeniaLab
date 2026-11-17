@@ -28,6 +28,17 @@
   const TIMEOUT_MS = 10000;
   const OFFLINE = { ok: false, error: "offline", message: "Sin conexión: no se pudo guardar. Tus cambios siguen en pantalla." };
 
+  /* 401, o 403 de CSRF (JSON con csrf_failed o una página HTML sin JSON): la sesión o el token necesitan actualizarse. */
+  function needsAuth(status, data) {
+    return status === 401 || (status === 403 && (!data.error || data.error === "csrf_failed"));
+  }
+  function issueFor(status, data) {
+    if (needsAuth(status, data)) return { state: "session", message: data.message };
+    if (data.error === "session_changed") {
+      return { state: "session", message: data.message || "La cuenta activa cambió; vuelve a tu cuenta para seguir guardando." };
+    }
+    return { state: "error", message: data.message || "No se pudo consultar el autoguardado. Se reintentará." };
+  }
   function url(module, key, suffix) {
     return BASE + encodeURIComponent(module) + "/" + encodeURIComponent(key) + "/" + (suffix || "");
   }
@@ -49,6 +60,8 @@
     const interval = options.intervalMs || INTERVAL_MS;
     let revision = 0, loaded = false, held = false, changes = 0, savedChanges = 0, lastSent = null;
     let inFlight = null, stopped = false, timer = null;
+    let loadIssue = null;  // Por qué no se pudo consultar el punto de guardado: { state, message }.
+    let unpause = false;   // El punto estaba pausado y el alumno volvió: hay que guardarlo sin pausa.
     const pendingDiscards = [];
 
     const dirty = () => changes > savedChanges;
@@ -61,14 +74,14 @@
     }
 
     /* Aplica la respuesta del servidor a un guardado de `sentKey` hecho con los cambios hasta `upTo`. */
-    function handle(sentKey, status, data, upTo, signature) {
+    function handle(sentKey, status, data, upTo, signature, quiet) {
       if (sentKey !== key) return false;  // Se cambió de clave mientras viajaba: no toca la revisión nueva.
       if (status === 200 && data.ok) {
-        revision = data.revision; savedChanges = Math.max(savedChanges, upTo); lastSent = signature;
-        notify(dirty() ? "dirty" : "saved", { savedAt: data.saved_at, paused: data.paused });
+        revision = data.revision; savedChanges = Math.max(savedChanges, upTo); lastSent = signature; unpause = false;
+        if (!quiet) notify(dirty() ? "dirty" : "saved", { savedAt: data.saved_at, paused: data.paused });
         return true;
       }
-      if (status === 401) { notify("session", { message: data.message }); return false; }
+      if (needsAuth(status, data)) { notify("session", { message: data.message }); return false; }
       if (data.error === "session_changed") {  // Otra cuenta en otra pestaña: se reintenta en cada ciclo.
         notify("session", { message: data.message || "La cuenta activa cambió; vuelve a tu cuenta para seguir guardando." });
         return false;
@@ -80,22 +93,29 @@
       return false;
     }
 
-    /* Consulta el punto de guardado de la clave actual. Sin red, `loaded` sigue en false y se reintenta. */
+    /* Consulta el punto de guardado de la clave actual. Si falla, `loaded` sigue en false, `loadIssue` dice por qué
+     * (sin red, sesión vencida o error del servidor) y se reintenta. Devuelve la respuesta, o { offline: true }. */
     async function load() {
       const loadKey = key;
-      try {
-        const { status, data } = await call("GET", url(module, loadKey));
-        if (loadKey !== key || stopped) return;
-        if (status !== 200 || !data.ok) {
-          if (status === 404) { loaded = true; revision = 0; }  // Práctica inexistente: nada que recuperar.
-          return;
-        }
-        loaded = true;
-        if (!data.found) { revision = 0; return; }
-        revision = data.revision; lastSent = JSON.stringify(data.payload);
-        held = dirty();  // Si ya escribió algo, que elija antes de reemplazar el autoguardado anterior.
-        notify("found", { checkpoint: data, dirty: held });
-      } catch (error) { /* Sin conexión: se reintenta antes del siguiente guardado. */ }
+      let reply;
+      try { reply = await call("GET", url(module, loadKey)); }
+      catch (error) { loadIssue = { state: "offline" }; return { offline: true }; }
+      if (loadKey !== key || stopped) return reply;
+      const { status, data } = reply;
+      if (status === 404) { loaded = true; revision = 0; loadIssue = null; return reply; }  // Práctica inexistente.
+      if (status !== 200 || !data.ok) { loadIssue = issueFor(status, data); return reply; }
+      loaded = true; loadIssue = null;
+      if (!data.found) { revision = 0; return reply; }
+      revision = data.revision; lastSent = JSON.stringify(data.payload);
+      unpause = !!data.paused;  // Volvió a una práctica pausada: se quita la marca en cuanto elija qué conservar.
+      held = dirty();  // Si ya escribió algo, que elija antes de reemplazar el autoguardado anterior.
+      notify("found", { checkpoint: data, dirty: held });
+      return reply;
+    }
+    function notifyLoadIssue() {
+      const issue = loadIssue || { state: "offline" };
+      notify(issue.state, { message: issue.message });
+      return issue;
     }
 
     async function discardKey(target) {
@@ -112,16 +132,17 @@
           if (!(await discardKey(old))) pendingDiscards.push(old);
         }
         if (!loaded) await load();
-        if (stopped || held || !dirty()) return;
-        if (!loaded) { notify("offline", {}); return; }
+        if (stopped || held || !(dirty() || unpause)) return;
+        if (!loaded) { notifyLoadIssue(); return; }
         const upTo = changes, sentKey = key;
+        const quiet = !dirty();  // Solo quitar la pausa: el indicador sigue diciendo «Reanudado».
         const request = body(false);
         const signature = JSON.stringify(request.payload);
-        if (signature === lastSent) { savedChanges = Math.max(savedChanges, upTo); notify("saved", {}); return; }
-        notify("saving", {});
+        if (!unpause && signature === lastSent) { savedChanges = Math.max(savedChanges, upTo); notify("saved", {}); return; }
+        if (!quiet) notify("saving", {});
         try {
           const { status, data } = await call("POST", BASE, request);
-          handle(sentKey, status, data, upTo, signature);
+          handle(sentKey, status, data, upTo, signature, quiet);
         } catch (error) {
           notify("offline", {});  // Se reintenta en el siguiente ciclo o al volver la conexión.
         }
@@ -144,34 +165,45 @@
         held = false;
         if (choice === "restore") { savedChanges = changes; notify("saved", {}); }
         else notify(dirty() ? "dirty" : "saved", {});
+        if (unpause) settle().then(tick);  // Ya volvió: el tablero no debe seguir diciendo «Pausada».
       },
       async saveNow(opts) {
         await settle();
         if (stopped) return { ok: false, error: "stopped", message: "El autoguardado está detenido; recarga la página." };
         return track((async () => {
-          if (!loaded) await load();
-          if (!loaded) { notify("offline", {}); return OFFLINE; }
-          held = false;  // Guardar a propósito es elegir lo que está en pantalla.
-          const upTo = changes, sentKey = key;
-          const request = body(opts && opts.pause);
-          const signature = JSON.stringify(request.payload);
-          notify("saving", {});
-          let csrf = "";
+          let csrf = "", upTo = 0, sentKey = key, signature = null;
           for (let tries = 0; tries < 2; tries++) {
             let reply;
-            try { reply = await call("POST", BASE, { ...request, revision }, csrf); }
-            catch (error) { notify("offline", {}); return OFFLINE; }
+            try {
+              if (!loaded) {
+                reply = await load();
+                if (reply.offline) { notify("offline", {}); return OFFLINE; }
+              }
+              if (loaded) {
+                held = false;  // Guardar a propósito es elegir lo que está en pantalla.
+                upTo = changes; sentKey = key;
+                const request = body(opts && opts.pause);
+                signature = JSON.stringify(request.payload);
+                notify("saving", {});
+                reply = await call("POST", BASE, request, csrf);
+              }
+            } catch (error) { notify("offline", {}); return OFFLINE; }
             const { status, data } = reply;
-            if (status === 401 && tries === 0) {
-              const refreshed = await IL.sessionExpired(data.message || "Tu sesión necesita actualizarse.");
+            // Igual que IL.api: 401 o 403 de CSRF abren el modal de sesión y se reintenta una vez.
+            if (needsAuth(status, data) && tries === 0) {
+              const refreshed = await IL.sessionExpired(data.message || "Tu sesión o token necesitan actualizarse.");
               const identity = document.body.dataset.userId || "";
               if (identity && refreshed.user_id !== identity) {
                 const changed = { ok: false, error: "session_changed", message: "La cuenta activa cambió. Vuelve a tu cuenta para guardar." };
-                handle(sentKey, 409, changed, upTo, signature);
+                notify("session", { message: changed.message });
                 return changed;
               }
               csrf = refreshed.csrf_token;
               continue;
+            }
+            if (!loaded) {
+              const issue = notifyLoadIssue();
+              return { ok: false, error: issue.state, message: issue.message || "No se pudo consultar el autoguardado.", http_status: status };
             }
             handle(sentKey, status, data, upTo, signature);
             return { ...data, ok: status === 200 && !!data.ok, http_status: status };
@@ -216,8 +248,9 @@
   }
 
   /* ACT-307B: indicador, «Guardar y pausar» y reanudación sobre la barra de templates/progress/_autosave.html.
-   * IL.autosave.mount({ module, key, collect, restore, notice })
+   * IL.autosave.mount({ module, key, collect, restore, notice, afterDiscard })
    *   restore(payload) → vuelve a poner en pantalla lo autoguardado.
+   *   afterDiscard(key) → qué hacer tras «Descartar estos cambios» (por omisión, recargar la página).
    *   notice → elemento donde avisar «Recuperamos cambios…» (si falta, el aviso va en la barra). */
   const STATES = {
     idle: ["✔", "Autoguardado activo"],
@@ -264,7 +297,7 @@
     }
     async function discardAndReload(button) {
       button.disabled = true;
-      if (await saver.discard()) { window.location.reload(); return; }
+      if (await saver.discard()) { (options.afterDiscard || (() => window.location.reload()))(saver.key); return; }
       button.disabled = false;
       IL.toast("No se pudo descartar sin conexión. Inténtalo de nuevo.", "bad");
     }

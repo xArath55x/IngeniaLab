@@ -14,8 +14,10 @@ Reglas:
 """
 import json
 import re
+from collections import defaultdict
 from datetime import timedelta
 
+from django.contrib.auth import get_user_model
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 
@@ -136,6 +138,9 @@ def save(user, module, key, revision, payload, pause=False):
         if checkpoint is None:
             if revision != 0:
                 raise _conflict(0)
+            if key.startswith(NEW_USE_CASE_PREFIX):
+                # Bloquea la fila del usuario: dos pestañas creando borradores a la vez no rebasan el límite.
+                get_user_model().objects.select_for_update().filter(pk=user.pk).first()
             if key.startswith(NEW_USE_CASE_PREFIX) and PracticeCheckpoint.objects.filter(
                     user=user, module=module, key__startswith=NEW_USE_CASE_PREFIX).count() >= MAX_NEW_DRAFTS:
                 raise CheckpointError(
@@ -172,6 +177,11 @@ def get(user, module, key):
     return mine.first()
 
 
+def close(user, module, key):
+    """Borra el punto de guardado de una práctica que acaba de terminar (RN-01). Lo llaman los servicios al cerrarla."""
+    PracticeCheckpoint.objects.filter(user=user, module=module, key=str(key)).delete()
+
+
 def discard(user, module, key):
     key = validate_key(module, key)
     deleted, _ = PracticeCheckpoint.objects.filter(user=user, module=module, key=key).delete()
@@ -194,11 +204,24 @@ def serialize(checkpoint, with_payload=False):
     return data
 
 
-def latest_new_draft_key(user):
-    """Clave del borrador de caso de uso nuevo más reciente, para que /modelado/nuevo/ lo retome (no una clave nueva)."""
-    return (PracticeCheckpoint.objects.filter(user=user, module=PracticeCheckpoint.MODELING,
-                                              key__startswith=NEW_USE_CASE_PREFIX)
-            .order_by("-updated_at").values_list("key", flat=True).first() or "")
+def latest_new_draft_key(user, lesson_id=None, attempt_id=None):
+    """Clave del borrador de caso de uso nuevo más reciente, para que /modelado/nuevo/ lo retome (no una clave nueva).
+
+    Con `lesson_id` solo vale un borrador de esa lección; con `attempt_id`, uno de esa entrevista que no venga de
+    una lección. Así ?leccion= y ?attempt= retoman su propio borrador en vez de dejar uno huérfano en cada visita.
+    Hay a lo más MAX_NEW_DRAFTS borradores, así que se filtran aquí y no con consultas sobre el JSON.
+    """
+    drafts = (PracticeCheckpoint.objects.filter(user=user, module=PracticeCheckpoint.MODELING,
+                                                key__startswith=NEW_USE_CASE_PREFIX)
+              .order_by("-updated_at").values_list("key", "payload"))
+    for key, payload in drafts:
+        payload = payload if isinstance(payload, dict) else {}
+        if lesson_id is not None and str(payload.get("lesson_id") or "") != str(lesson_id):
+            continue
+        if attempt_id is not None and (payload.get("lesson_id") or str(payload.get("attempt_id") or "") != str(attempt_id)):
+            continue
+        return key
+    return ""
 
 
 def resume_url(checkpoint):
@@ -215,24 +238,53 @@ def resume_url(checkpoint):
     return reverse(names[module], args=[key])
 
 
+def _open_keys(user, module, keys):
+    """Las claves de `keys` cuyas prácticas siguen abiertas, con una sola consulta por módulo."""
+    from apps.inspection.models import InspectionAttempt
+    from apps.interviews.models import StudentAttempt
+    from apps.modeling.models import UseCaseLesson, UseCaseSpecification
+
+    ids = [k for k in keys if not k.startswith(NEW_USE_CASE_PREFIX)]
+    if module == PracticeCheckpoint.INTERVIEW:
+        found = StudentAttempt.objects.filter(user=user, id__in=ids, status=StudentAttempt.INTERVIEWING)
+    elif module == PracticeCheckpoint.CLASSIFICATION:
+        found = StudentAttempt.objects.filter(user=user, id__in=ids, status=StudentAttempt.CLASSIFYING)
+    elif module == PracticeCheckpoint.INSPECTION:
+        found = InspectionAttempt.objects.filter(user=user, id__in=ids, concluded_at__isnull=True)
+    elif module == PracticeCheckpoint.LESSON:
+        found = UseCaseLesson.objects.filter(user=user, id__in=ids, status=UseCaseLesson.IN_PROGRESS)
+    elif module == PracticeCheckpoint.MODELING:
+        found = UseCaseSpecification.objects.filter(user=user, id__in=ids)
+    else:
+        return set()
+    open_keys = {str(pk) for pk in found.values_list("id", flat=True)}
+    if module == PracticeCheckpoint.MODELING:
+        open_keys |= {k for k in keys if k.startswith(NEW_USE_CASE_PREFIX)}
+    return open_keys
+
+
 def for_dashboard(user):
     """Puntos de guardado vigentes del usuario para «Retomar trabajo», del más reciente al más antiguo.
 
-    Borra los de prácticas que ya terminaron o ya no existen (RN-01). Devuelve un índice por
-    (módulo, clave) para marcar las prácticas que ya lista el tablero y los borradores de casos de uso,
-    que solo existen como punto de guardado.
+    Devuelve un índice por (módulo, clave) para marcar las prácticas que ya lista el tablero (incluidos los casos
+    de uso guardados con cambios autoguardados) y los borradores de casos de uso nuevos, que solo existen como punto
+    de guardado. Los servicios borran el punto al cerrar cada práctica (`close`); aquí solo se limpian, en bloque,
+    los que quedaran de prácticas cerradas o borradas (RN-01).
     """
-    index, drafts = {}, []
-    for checkpoint in PracticeCheckpoint.objects.filter(user=user).order_by("-updated_at"):
-        try:
-            _, is_open = practice_state(user, checkpoint.module, checkpoint.key)
-        except CheckpointError:
-            is_open = False
-        if not is_open:
-            checkpoint.delete()
+    found = list(PracticeCheckpoint.objects.filter(user=user).order_by("-updated_at"))
+    keys = defaultdict(list)
+    for checkpoint in found:
+        keys[checkpoint.module].append(checkpoint.key)
+    open_keys = {module: _open_keys(user, module, module_keys) for module, module_keys in keys.items()}
+    index, drafts, stale = {}, [], []
+    for checkpoint in found:
+        if checkpoint.key not in open_keys[checkpoint.module]:
+            stale.append(checkpoint.pk)
             continue
         checkpoint.resume_url = resume_url(checkpoint)
         index[(checkpoint.module, checkpoint.key)] = checkpoint
-        if checkpoint.module == PracticeCheckpoint.MODELING:
+        if checkpoint.module == PracticeCheckpoint.MODELING and checkpoint.key.startswith(NEW_USE_CASE_PREFIX):
             drafts.append(checkpoint)
+    if stale:
+        PracticeCheckpoint.objects.filter(pk__in=stale).delete()
     return index, drafts

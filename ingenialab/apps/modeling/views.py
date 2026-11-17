@@ -79,7 +79,15 @@ def editor(request, uc_id=None):
             return HttpResponse("La entrevista seleccionada no es válida.", status=400)
     guide = _guide(attempts)
     # CU-10: un caso de uso nuevo retoma el último borrador autoguardado en vez de abrir otro (se puede descartar).
-    draft_key = "" if uc or lesson or request.GET.get("attempt") else checkpoints.latest_new_draft_key(request.user)
+    # Con ?leccion= o ?attempt= se retoma el borrador de esa lección o entrevista, no uno ajeno ni uno nuevo cada vez.
+    if uc:
+        draft_key = ""
+    elif lesson:
+        draft_key = checkpoints.latest_new_draft_key(request.user, lesson_id=lesson.id)
+    elif request.GET.get("attempt"):
+        draft_key = checkpoints.latest_new_draft_key(request.user, attempt_id=reference.id)
+    else:
+        draft_key = checkpoints.latest_new_draft_key(request.user)
     return render(request, "modeling/editor.html", {
         "draft_key": draft_key,
         "uc": uc,

@@ -122,7 +122,8 @@
     document.getElementById("selection").textContent = "«" + span.textContent + "»";
     document.querySelectorAll('input[name="category"]').forEach((i) => (i.checked = byReq[selected] && byReq[selected].category === i.value));
     document.getElementById("feedback").innerHTML = byReq[selected]
-      ? IL.feedback("hint", "Ya clasificada como " + byReq[selected].category + ".", " Puedes cambiar el tipo y confirmar para reclasificar.") : "";    if (saver) saver.markDirty();
+      ? IL.feedback("hint", "Ya clasificada como " + byReq[selected].category + ".", " Puedes cambiar el tipo y confirmar para reclasificar.") : "";
+    if (saver) saver.markDirty();
   }
   stmts.forEach((s) => {
     s.addEventListener("click", () => select(s));

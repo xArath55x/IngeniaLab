@@ -26,11 +26,12 @@ def dashboard(request):
     lessons = lesson_summary(user)
     classifying = list(attempts.filter(status=StudentAttempt.CLASSIFYING)[:5])
     open_inspections = list(user.inspections.filter(concluded_at__isnull=True).select_related("exercise"))
+    use_cases = list(user.use_cases.all()[:5])
     # CU-10: cada práctica que ya lista el tablero muestra si tiene autoguardado o quedó pausada.
     saved, drafts = checkpoints.for_dashboard(user)
     marks = [("interview", a) for g in interview_groups for a in [g["latest"], *g["older"]]]
     marks += [("lesson", l) for l in lessons["in_progress"]] + [("classification", a) for a in classifying]
-    marks += [("inspection", i) for i in open_inspections]
+    marks += [("inspection", i) for i in open_inspections] + [("modeling", uc) for uc in use_cases]
     for module, item in marks:
         item.checkpoint = saved.get((module, str(item.id)))
     return render(request, "progress/dashboard.html", {
@@ -41,7 +42,7 @@ def dashboard(request):
         "lessons": lessons,
         "classifying": classifying,
         "drafts": drafts,
-        "use_cases": user.use_cases.all()[:5],
+        "use_cases": use_cases,
         "open_inspections": open_inspections,
         "done_inspections": user.inspections.filter(concluded_at__isnull=False).select_related("exercise")[:5],
     })
