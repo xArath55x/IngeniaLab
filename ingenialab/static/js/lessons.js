@@ -89,9 +89,11 @@
     const sync = () => {
       picked.replaceChildren(...order.map((id, i) => {
         const o = ex.options.find((x) => x.id === id);
-        return IL.el("li", {}, [button(`${i + 1}. ${o.text}`, "lesson-tile placed", () => {
+        const tile = button(`${i + 1}. ${o.text}`, "lesson-tile placed", () => {
           order.splice(order.indexOf(id), 1); sync();
-        })]);
+        });
+        tile.dataset.id = id;
+        return IL.el("li", {}, [tile]);
       }));
       pool.replaceChildren(...ex.options.filter((o) => !order.includes(o.id)).map((o) =>
         button(o.text, "lesson-tile", () => { order.push(o.id); sync(); })));
@@ -200,6 +202,16 @@
     $("ex-area").querySelectorAll(".lesson-option[data-id]").forEach((b) => {
       if (right.has(b.dataset.id)) b.classList.add("is-correct");
       else if (b.classList.contains("selected")) b.classList.add("is-wrong");
+    });
+    // Al ordenar: verde lo que quedó en su lugar y rojo lo que no, con ✓/✗ y el lugar correcto (no solo color).
+    const goal = (r.correct_order || []).map(String);
+    $("ex-area").querySelectorAll(".lesson-sequence .lesson-tile[data-id]").forEach((b, i) => {
+      if (!goal.length) return;
+      const ok = goal[i] === b.dataset.id;
+      b.classList.add(ok ? "is-correct" : "is-wrong");
+      b.prepend(IL.el("span", { class: "order-mark", "aria-hidden": "true", text: ok ? "✓ " : "✗ " }));
+      if (!ok) b.append(IL.el("span", { class: "order-hint", text: ` → va en el lugar ${goal.indexOf(b.dataset.id) + 1}` }));
+      b.setAttribute("aria-label", `${b.textContent}. ${ok ? "En su lugar" : "Fuera de lugar"}`);
     });
     IL.showBadges(r.badges);
     pendingNext = r;

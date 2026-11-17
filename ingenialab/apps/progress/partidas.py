@@ -9,9 +9,8 @@ y «Continuar partida» lleva a la pantalla de la primera etapa sin terminar.
 Reglas para el 100 % de cada etapa:
 - Entrevista: cerrada (las 9 preguntas o «Terminar entrevista»).
 - Clasificación: todos los enunciados que aparecieron en la bitácora están clasificados.
-- Modelado: todas las lecciones desbloqueadas están completadas. Una lección se desbloquea al descubrir y
-  clasificar bien sus RF; si la entrevista no desbloqueó ninguna, la etapa no tiene nada que hacer y se da
-  por terminada.
+- Modelado: todas las lecciones del escenario están completadas. En una partida todas se pueden jugar, aunque
+  la entrevista no haya descubierto sus requisitos (se muestra un aviso), así que el modelado nunca se salta.
 - Inspección: concluida.
 """
 import random
@@ -101,7 +100,6 @@ def _stages(partida):
     from apps.inspection.services import summary as inspection_summary
     from apps.interviews.models import StudentAttempt
     from apps.interviews.services import progress as interview_progress
-    from apps.modeling import lessons as lesson_engine
     from apps.modeling.models import ReferenceUseCase, UseCaseLesson
 
     attempt = partida.attempt
@@ -124,14 +122,13 @@ def _stages(partida):
         stages[Partida.MODELING] = (0.0, "Se abre al clasificar todos los enunciados")
     else:
         refs = list(ReferenceUseCase.objects.filter(version=attempt.version))
-        unlocked = [r for r in refs if lesson_engine.lesson_status(attempt, r)["unlocked"]]
         completed = set(UseCaseLesson.objects.filter(attempt=attempt, status=UseCaseLesson.COMPLETED)
                         .values_list("reference_id", flat=True))
-        done = sum(1 for r in unlocked if r.id in completed)
-        if not unlocked:
-            stages[Partida.MODELING] = (1.0, "Ninguna lección se desbloqueó en esta entrevista")
+        done = sum(1 for r in refs if r.id in completed)
+        if not refs:
+            stages[Partida.MODELING] = (1.0, "Este escenario no tiene lecciones")
         else:
-            stages[Partida.MODELING] = (done / len(unlocked), f"{done} de {len(unlocked)} lecciones")
+            stages[Partida.MODELING] = (done / len(refs), f"{done} de {len(refs)} lecciones")
 
     if stages[Partida.MODELING][0] < 1:
         stages[Partida.INSPECTION] = (0.0, "Se abre al terminar el modelado")

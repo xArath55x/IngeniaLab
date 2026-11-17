@@ -14,10 +14,10 @@
         "main_flow": [
           "El bibliotecario captura la matrícula del alumno.",
           "El sistema muestra los datos del alumno y sus préstamos activos.",
-          "El bibliotecario captura el código del libro.",
+          "Con los préstamos del alumno en pantalla, el bibliotecario captura el código del libro.",
           "El sistema verifica que el alumno tenga menos de tres libros prestados.",
           "El sistema registra el préstamo con el alumno, el libro y la fecha de devolución.",
-          "El sistema muestra la fecha de devolución al bibliotecario."
+          "Con el préstamo ya registrado, el sistema muestra la fecha de devolución al bibliotecario."
         ],
         "alternate_flows": [
           "FA-1 (paso 4): Si el alumno ya tiene tres libros prestados, el sistema rechaza el préstamo e indica que primero debe devolver uno.",
@@ -37,8 +37,8 @@
         },
         "preconditions": {
           "correct": ["El bibliotecario inició sesión en el sistema.", "El alumno presenta su credencial en el mostrador."],
-          "distractors": ["El préstamo quedó registrado con su fecha de devolución.", "El alumno tiene menos de tres libros prestados.", "El libro ya fue devuelto por el alumno."],
-          "explanation": "Antes de empezar, el bibliotecario ya inició sesión y el alumno muestra su credencial. El límite de libros se revisa durante el flujo (B04) y el préstamo registrado es el resultado."
+          "distractors": ["El préstamo quedó registrado con su fecha de devolución.", "El bibliotecario ya entregó el libro al alumno.", "El libro ya fue devuelto por el alumno."],
+          "explanation": "Antes de empezar, el bibliotecario ya inició sesión y el alumno muestra su credencial. Entregar el libro y dejar el préstamo registrado ocurren al final, y un libro devuelto es otro caso de uso."
         },
         "main_flow": {
           "distractors": ["El sistema calcula la multa por retraso del alumno.", "El alumno escribe su contraseña en el mostrador.", "El sistema envía el reporte mensual a la dirección."],
@@ -63,7 +63,7 @@
         "relations": {
           "correct": ["«include» Verificar límite de préstamos"],
           "distractors": ["«extend» Verificar límite de préstamos", "«include» Calcular multa", "«extend» Generar reporte mensual"],
-          "explanation": "«include» porque revisar el límite pasa SIEMPRE al prestar. Calcular la multa y el reporte no forman parte de prestar."
+          "explanation": "«include» porque revisar el límite pasa SIEMPRE, en el paso 4 de cada préstamo. Que a veces se rechace (FA-1) es el resultado de esa revisión, no la revisión misma: por eso no es «extend». Calcular la multa y el reporte no forman parte de prestar."
         }
       }
     },
@@ -147,13 +147,13 @@
           "El alumno escribe el título, el autor o el tema del libro.",
           "El sistema muestra los libros que coinciden con la búsqueda.",
           "El alumno selecciona un libro.",
-          "El sistema muestra los datos del libro e indica si está disponible."
+          "El sistema muestra los datos del libro seleccionado e indica si está disponible."
         ],
         "alternate_flows": [
           "FA-1 (paso 2): Si ningún libro coincide, el sistema informa que no hay resultados y sugiere intentar otra búsqueda.",
           "FA-2 (paso 4): Si el libro está prestado, el sistema lo indica como no disponible y muestra su fecha de devolución."
         ],
-        "postconditions": "El alumno sabe si el libro que busca está disponible. El catálogo no cambia por la consulta.",
+        "postconditions": "El alumno sabe si el libro que busca está disponible. El alumno conoce los datos del libro que eligió.",
         "relations": []
       },
       "exercises": {
@@ -186,9 +186,9 @@
           "explanation": "Una búsqueda sin resultados o un libro prestado cambian lo que ve el alumno. Las otras opciones van contra la facilidad de uso (B03) y el rendimiento (B07) que pidió la cliente."
         },
         "postconditions": {
-          "correct": ["El alumno sabe si el libro que busca está disponible.", "El catálogo no cambia por la consulta."],
+          "correct": ["El alumno sabe si el libro que busca está disponible.", "El alumno conoce los datos del libro que eligió."],
           "distractors": ["El libro quedó prestado al alumno.", "El alumno abrió el catálogo en línea.", "El sistema registró una multa."],
-          "explanation": "Al final, el alumno sabe si el libro está disponible y el catálogo no cambia. Consultar no presta libros ni genera multas, y abrir el catálogo es la precondición."
+          "explanation": "Al final, el alumno conoce los datos del libro y sabe si está disponible. Consultar no presta libros ni genera multas, y abrir el catálogo es la precondición."
         }
       }
     },
@@ -214,7 +214,7 @@
           "FA-1 (paso 4): Si no hubo préstamos en el mes seleccionado, el sistema informa que no hay datos para el reporte.",
           "FA-2 (paso 3): Si la coordinadora elige un mes que aún no termina, el sistema le pide elegir un mes concluido."
         ],
-        "postconditions": "La coordinadora obtiene el reporte de los libros más prestados del mes. Los préstamos registrados no cambian.",
+        "postconditions": "La coordinadora obtiene el reporte de los libros más prestados del mes.",
         "relations": []
       },
       "exercises": {
@@ -247,9 +247,9 @@
           "explanation": "Un mes sin préstamos o un mes que no ha terminado cambian el resultado. Las otras opciones son reglas inventadas que dañarían los datos."
         },
         "postconditions": {
-          "correct": ["La coordinadora obtiene el reporte de los libros más prestados del mes.", "Los préstamos registrados no cambian."],
+          "correct": ["La coordinadora obtiene el reporte de los libros más prestados del mes."],
           "distractors": ["La coordinadora inició sesión en el sistema.", "Todos los libros fueron devueltos.", "La dirección recibió un correo automático."],
-          "explanation": "Al final, la coordinadora tiene el reporte y los préstamos no cambian. La sesión es la precondición y nadie pidió correos automáticos."
+          "explanation": "Al final, la coordinadora tiene el reporte de los libros más prestados del mes. La sesión es la precondición y nadie pidió correos automáticos."
         }
       }
     },
@@ -269,7 +269,7 @@
           "El sistema muestra los platillos con su precio y disponibilidad.",
           "El estudiante elige los platillos y confirma el pedido.",
           "El sistema cobra el pedido con tarjeta de débito o crédito.",
-          "El sistema confirma el pedido y muestra su número."
+          "Con el pago aprobado, el sistema muestra el número del pedido al estudiante."
         ],
         "alternate_flows": [
           "FA-1 (paso 4): Si el servicio de pagos rechaza la tarjeta, el sistema informa el motivo y permite usar otra tarjeta.",
@@ -397,12 +397,13 @@
           "El estudiante abre sus pedidos activos.",
           "El sistema muestra los pedidos y su estado.",
           "El estudiante selecciona el pedido y elige cancelarlo.",
+          "El sistema pide confirmar la cancelación y el estudiante la confirma.",
           "El sistema verifica que el pedido no se haya empezado a preparar.",
           "El sistema cancela el pedido y muestra la confirmación."
         ],
         "alternate_flows": [
-          "FA-1 (paso 4): Si el pedido ya se empezó a preparar, el sistema rechaza la cancelación e informa el motivo.",
-          "FA-2 (paso 3): Si el estudiante se arrepiente y no confirma la cancelación, el sistema conserva el pedido sin cambios."
+          "FA-1 (paso 5): Si el pedido ya se empezó a preparar, el sistema rechaza la cancelación e informa el motivo.",
+          "FA-2 (paso 4): Si el estudiante no confirma la cancelación, el sistema conserva el pedido sin cambios."
         ],
         "postconditions": "El pedido queda cancelado y no se prepara. El pedido ya no aparece entre los pedidos activos del estudiante.",
         "relations": []
@@ -423,15 +424,15 @@
         },
         "main_flow": {
           "distractors": ["El sistema cobra el pedido otra vez.", "El encargado marca el pedido como listo.", "El estudiante elige nuevos platillos del menú."],
-          "explanation": "El estudiante abre sus pedidos, elige cancelar, el sistema revisa que no se esté preparando (C11) y lo cancela. Cobrar, marcar como listo y elegir platillos son otros casos de uso."
+          "explanation": "El estudiante abre sus pedidos, elige cancelar y lo confirma, el sistema revisa que no se esté preparando (C11) y lo cancela. Cobrar, marcar como listo y elegir platillos son otros casos de uso."
         },
         "alternate_flows": {
           "correct": [
-            "FA-1 (paso 4): Si el pedido ya se empezó a preparar, el sistema rechaza la cancelación e informa el motivo.",
-            "FA-2 (paso 3): Si el estudiante se arrepiente y no confirma la cancelación, el sistema conserva el pedido sin cambios."
+            "FA-1 (paso 5): Si el pedido ya se empezó a preparar, el sistema rechaza la cancelación e informa el motivo.",
+            "FA-2 (paso 4): Si el estudiante no confirma la cancelación, el sistema conserva el pedido sin cambios."
           ],
           "distractors": [
-            "FA-1 (paso 4): Si el pedido ya se está preparando, el sistema lo cancela de todos modos.",
+            "FA-1 (paso 5): Si el pedido ya se está preparando, el sistema lo cancela de todos modos.",
             "FA-2 (paso 3): Si el estudiante tiene clase, el sistema cancela el pedido automáticamente."
           ],
           "explanation": "Solo se cancela si el pedido no se empezó a preparar (C11), y el estudiante puede arrepentirse antes de confirmar. Las otras opciones contradicen esa regla o inventan otra."
@@ -461,8 +462,7 @@
           "El sistema notifica al estudiante que su pedido está listo para recoger."
         ],
         "alternate_flows": [
-          "FA-1 (paso 4): Si la notificación no se puede enviar, el sistema muestra el pedido como listo dentro de la aplicación del estudiante.",
-          "FA-2 (paso 3): Si el encargado marca un pedido por error, puede regresarlo a «en preparación» antes de que lo recojan."
+          "FA-1 (paso 4): Si la notificación no se puede enviar, el sistema muestra el pedido como listo dentro de la aplicación del estudiante."
         ],
         "postconditions": "El estudiante sabe que su pedido está listo para recoger. El pedido aparece como listo en la aplicación.",
         "relations": []
@@ -490,14 +490,13 @@
         },
         "alternate_flows": {
           "correct": [
-            "FA-1 (paso 4): Si la notificación no se puede enviar, el sistema muestra el pedido como listo dentro de la aplicación del estudiante.",
-            "FA-2 (paso 3): Si el encargado marca un pedido por error, puede regresarlo a «en preparación» antes de que lo recojan."
+            "FA-1 (paso 4): Si la notificación no se puede enviar, el sistema muestra el pedido como listo dentro de la aplicación del estudiante."
           ],
           "distractors": [
             "FA-1 (paso 4): Si la notificación falla, el sistema cancela el pedido y cobra una multa.",
             "FA-2 (paso 3): Si el pedido está listo, el sistema pide al estudiante pagar otra vez."
           ],
-          "explanation": "Si el aviso falla, el pedido se ve como listo en la aplicación, y un error del encargado se puede corregir. Cancelar, multar o cobrar otra vez son reglas inventadas."
+          "explanation": "Si el aviso falla, el pedido se ve como listo dentro de la aplicación del estudiante. Cancelar, multar o cobrar otra vez son reglas inventadas."
         },
         "postconditions": {
           "correct": ["El estudiante sabe que su pedido está listo para recoger.", "El pedido aparece como listo en la aplicación."],
@@ -582,13 +581,12 @@
           "El tutor abre la tutoría en su agenda.",
           "El sistema muestra los datos del alumno y de la tutoría.",
           "El tutor marca si el alumno asistió y escribe un comentario sobre los temas tratados.",
-          "El sistema guarda la asistencia y el comentario cifrado.",
-          "El sistema marca la tutoría como realizada."
+          "El sistema guarda la asistencia y el comentario cifrado, y marca la tutoría como realizada."
         ],
         "alternate_flows": [
           "FA-1 (paso 3): Si el alumno no asistió, el tutor marca la inasistencia y el comentario es opcional."
         ],
-        "postconditions": "La asistencia y el comentario quedan en el historial del alumno. La tutoría cuenta para el reporte del semestre.",
+        "postconditions": "La asistencia y el comentario quedan en el historial del alumno. La tutoría aparece como realizada en la agenda.",
         "relations": []
       },
       "exercises": {
@@ -620,9 +618,9 @@
           "explanation": "La inasistencia cambia lo que registra el tutor. Guardar sin cifrar viola T08 y borrar la tutoría haría que no contara en el reporte del semestre (T10)."
         },
         "postconditions": {
-          "correct": ["La asistencia y el comentario quedan en el historial del alumno.", "La tutoría cuenta para el reporte del semestre."],
+          "correct": ["La asistencia y el comentario quedan en el historial del alumno.", "La tutoría aparece como realizada en la agenda."],
           "distractors": ["La tutoría quedó agendada.", "El tutor inició sesión en el sistema.", "El alumno recibió un recordatorio."],
-          "explanation": "Al terminar, el seguimiento queda en el historial y la tutoría se suma al reporte (T10). Agendar ocurre antes, iniciar sesión es la precondición y el recordatorio es otro caso de uso."
+          "explanation": "Al terminar, el seguimiento queda en el historial y la tutoría queda como realizada en la agenda. Agendar ocurre antes, iniciar sesión es la precondición y el recordatorio es otro caso de uso."
         }
       }
     },
@@ -639,7 +637,7 @@
         "preconditions": "El alumno inició sesión en el sistema. El consultorio publicó sus horas de atención.",
         "main_flow": [
           "El alumno elige el día de su cita.",
-          "El sistema muestra las horas disponibles de ese día.",
+          "Con el día elegido, el sistema muestra sus horas disponibles.",
           "El alumno elige una hora y confirma la cita.",
           "El sistema verifica que el alumno no tenga otra cita pendiente.",
           "El sistema registra la cita en la lista del médico de ese turno."
@@ -828,7 +826,7 @@
         "alternate_flows": [
           "FA-1 (paso 3): Si llega un alumno sin reserva y la clase tiene lugar, el instructor lo agrega a la lista."
         ],
-        "postconditions": "La asistencia de la clase queda guardada. Las faltas cuentan para el bloqueo de reservas.",
+        "postconditions": "La asistencia de la clase queda guardada. Los alumnos que no llegaron quedan marcados con falta.",
         "relations": []
       },
       "exercises": {
@@ -860,9 +858,9 @@
           "explanation": "Un alumno sin reserva puede entrar solo si hay lugar, respetando el cupo (G04). Quitar a otro alumno rompe su reserva, y borrar la falta impediría aplicar el bloqueo por inasistencias (G06)."
         },
         "postconditions": {
-          "correct": ["La asistencia de la clase queda guardada.", "Las faltas cuentan para el bloqueo de reservas."],
+          "correct": ["La asistencia de la clase queda guardada.", "Los alumnos que no llegaron quedan marcados con falta."],
           "distractors": ["La reserva quedó registrada.", "El instructor inició sesión en el sistema.", "El alumno entró al gimnasio con su credencial."],
-          "explanation": "Al terminar, la asistencia queda guardada y las faltas se suman para el bloqueo (G06). Reservar ocurre antes, iniciar sesión es la precondición y el acceso con credencial es otro caso de uso."
+          "explanation": "Al terminar, la asistencia queda guardada y quienes no llegaron quedan con falta (G06). Reservar ocurre antes, iniciar sesión es la precondición y el acceso con credencial es otro caso de uso."
         }
       }
     }
