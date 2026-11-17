@@ -2,10 +2,14 @@
 from django.conf import settings
 from django.test import override_settings
 
+from apps.classification import services as classification_services
 from apps.classification.services import available_requirements
-from apps.interviews.models import StudentAttempt
+from apps.inspection import services as inspection_services
+from apps.inspection.models import InspectionExercise
+from apps.interviews.models import InterviewQuestion, ScenarioVersion, StudentAttempt
+from apps.modeling import lessons
 from apps.modeling.models import ReferenceUseCase, UseCaseLesson
-from apps.progress.services import BADGES, open_interviews
+from apps.progress.services import BADGES, LEVELS, USE_CASE_POINTS, level_for, open_interviews
 
 from .tests import BaseCase
 
@@ -79,3 +83,58 @@ class DashboardTests(BaseCase):
         r = self.client.get("/")
         self.assertContains(r, BADGES["auditor"][2])
         self.assertNotContains(r, "Bloqueada")
+
+    def test_cu09_filter_marks_every_resume_item_with_its_module(self):
+        attempt = self.ready_attempt()
+        self.new_attempt()
+        self.start_lesson(attempt)
+        self.client.post(f"/inspeccion/iniciar/{InspectionExercise.objects.first().id}/")
+        r = self.client.get("/")
+        for value, label in (("", "Todas"), ("elicitacion", "Elicitación"), ("modelado", "Modelado"),
+                             ("inspeccion", "Inspección")):
+            self.assertContains(r, f'data-filter="{value}"')
+            self.assertContains(r, f">{label}</button>", html=False)
+        html = r.content.decode()
+        items = html.split('id="resume-list"', 1)[1].split("</ul>\n    </div>", 1)[0]
+        top_level = [line for line in items.splitlines() if line.startswith("        <li")]
+        self.assertTrue(top_level)
+        self.assertTrue(all("data-module=" in line for line in top_level), top_level)
+        for module in ("elicitacion", "modelado", "inspeccion"):
+            self.assertIn(f'data-module="{module}"', items)
+
+    def test_cu09_new_student_sees_empty_state_without_filter(self):
+        r = self.client.get("/")
+        self.assertContains(r, "Aún no tienes prácticas")
+        self.assertNotContains(r, "data-filter-for")
+
+
+class LevelTests(BaseCase):
+    """CU-11: cinco niveles calibrados para los escenarios cargados (ACT-308)."""
+
+    def max_points(self):
+        """Puntos de un recorrido completo sin errores, pistas ni repeticiones."""
+        total = 0
+        for version in ScenarioVersion.objects.filter(is_active=True):
+            rounds = version.questions.values("round_number").distinct().count()
+            total += rounds * InterviewQuestion.POINTS[InterviewQuestion.HIGH]
+            total += version.requirements.count() * classification_services.POINTS_PER_CORRECT
+        for exercise in InspectionExercise.objects.filter(is_active=True):
+            total += exercise.defect_count * inspection_services.POINTS_PER_DEFECT
+        lesson_points = lessons.XP_BASE + lessons.XP_PER_LIFE * lessons.LIVES + USE_CASE_POINTS
+        return total + ReferenceUseCase.objects.filter(version__is_active=True).count() * lesson_points
+
+    def test_five_increasing_levels_and_last_one_reachable(self):
+        thresholds = [t for t, _ in LEVELS]
+        self.assertEqual(len(LEVELS), 5)
+        self.assertEqual(thresholds, sorted(set(thresholds)))
+        self.assertEqual(thresholds[0], 0)
+        top = self.max_points()
+        self.assertLessEqual(thresholds[-1], 0.85 * top, f"máximo posible: {top}")
+        self.assertGreaterEqual(thresholds[-1], 0.6 * top, f"máximo posible: {top}")
+
+    def test_level_for_boundaries(self):
+        self.assertEqual(level_for(0)["number"], 1)
+        self.assertEqual(level_for(LEVELS[1][0] - 1)["number"], 1)
+        self.assertEqual(level_for(LEVELS[1][0])["number"], 2)
+        last = level_for(LEVELS[-1][0])
+        self.assertEqual((last["number"], last["next_at"], last["percent"]), (5, None, 100))
