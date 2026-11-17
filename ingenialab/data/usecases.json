@@ -625,6 +625,246 @@
           "explanation": "Al terminar, el seguimiento queda en el historial y la tutoría se suma al reporte (T10). Agendar ocurre antes, iniciar sesión es la precondición y el recordatorio es otro caso de uso."
         }
       }
+    },
+    {
+      "scenario": "ESC-CONSULTORIO-01",
+      "version": "1.0",
+      "key": "UC-M1",
+      "requirements": ["M01", "M04"],
+      "spec": {
+        "name": "Solicitar cita médica",
+        "system_name": "Sistema de Citas del Consultorio Médico",
+        "primary_actors": ["Alumno"],
+        "secondary_actors": [],
+        "preconditions": "El alumno inició sesión en el sistema. El consultorio publicó sus horas de atención.",
+        "main_flow": [
+          "El alumno elige el día de su cita.",
+          "El sistema muestra las horas disponibles de ese día.",
+          "El alumno elige una hora y confirma la cita.",
+          "El sistema verifica que el alumno no tenga otra cita pendiente.",
+          "El sistema registra la cita en la lista del médico de ese turno."
+        ],
+        "alternate_flows": [
+          "FA-1 (paso 2): Si el día elegido no tiene horas disponibles, el sistema lo indica y pide elegir otro día.",
+          "FA-2 (paso 4): Si el alumno ya tiene una cita pendiente, el sistema no registra la nueva y le muestra la que ya tiene."
+        ],
+        "postconditions": "La cita queda registrada a nombre del alumno. La hora elegida ya no aparece como disponible.",
+        "relations": []
+      },
+      "exercises": {
+        "name": {
+          "distractors": ["Cita médica", "Mostrar las horas en menos de dos segundos", "Lista de citas"],
+          "explanation": "El alumno quiere solicitar una cita (M01). «Mostrar las horas en menos de dos segundos» es un requisito no funcional (M09): una cualidad que debe cumplir el caso de uso, no un caso de uso. Los otros dos son objetos sin verbo."
+        },
+        "actors": {
+          "distractors": ["Médico", "Expediente clínico", "Correo electrónico"],
+          "explanation": "Quien solicita la cita es el alumno (M01). El médico solo ve la lista de su turno (M03) y no participa al solicitarla; el expediente es un dato y el correo es un medio de aviso."
+        },
+        "preconditions": {
+          "correct": ["El alumno inició sesión en el sistema.", "El consultorio publicó sus horas de atención."],
+          "distractors": ["La cita quedó registrada en la lista del médico.", "La recepcionista registró la llegada del alumno.", "El médico registró el diagnóstico."],
+          "explanation": "Antes de pedir cita, el alumno debe tener sesión y debe haber horas publicadas. Que la cita quede registrada es el resultado, y la llegada y el diagnóstico ocurren el día de la consulta (M02, M07)."
+        },
+        "main_flow": {
+          "distractors": ["La recepcionista registra la llegada del alumno.", "El médico captura el diagnóstico y las indicaciones.", "El sistema genera el reporte mensual de consultas."],
+          "explanation": "El alumno elige el día, el sistema muestra las horas libres, el alumno elige y confirma (M01), el sistema valida que no tenga otra cita pendiente (M04) y registra la cita. Registrar la llegada, capturar el diagnóstico y generar reportes son otros casos de uso."
+        },
+        "alternate_flows": {
+          "correct": [
+            "FA-1 (paso 2): Si el día elegido no tiene horas disponibles, el sistema lo indica y pide elegir otro día.",
+            "FA-2 (paso 4): Si el alumno ya tiene una cita pendiente, el sistema no registra la nueva y le muestra la que ya tiene."
+          ],
+          "distractors": [
+            "FA-1 (paso 4): Si el alumno ya tiene una cita pendiente, el sistema le registra las dos.",
+            "FA-2 (paso 2): Si no hay horas ese día, el sistema asigna al alumno la hora de otro alumno."
+          ],
+          "explanation": "Un día sin horas o una cita pendiente desvían el flujo (M04). Registrar dos citas viola esa regla, y quitarle la hora a otro alumno no es una forma válida de resolver la falta de horas."
+        },
+        "postconditions": {
+          "correct": ["La cita queda registrada a nombre del alumno.", "La hora elegida ya no aparece como disponible."],
+          "distractors": ["El alumno fue atendido por el médico.", "El alumno inició sesión en el sistema.", "El sistema envió el reporte a Servicios Estudiantiles."],
+          "explanation": "Al terminar, la cita está a nombre del alumno y la hora se ocupa. La atención ocurre después, iniciar sesión es la precondición y el reporte es otro caso de uso."
+        }
+      }
+    },
+    {
+      "scenario": "ESC-CONSULTORIO-01",
+      "version": "1.0",
+      "key": "UC-M2",
+      "requirements": ["M03", "M07"],
+      "spec": {
+        "name": "Registrar consulta médica",
+        "system_name": "Sistema de Citas del Consultorio Médico",
+        "primary_actors": ["Médico"],
+        "secondary_actors": [],
+        "preconditions": "El médico inició sesión en el sistema. La recepcionista registró la llegada del alumno.",
+        "main_flow": [
+          "El médico abre la lista de citas de su turno.",
+          "El médico elige la cita del alumno que atiende.",
+          "El sistema muestra el expediente del alumno.",
+          "El médico captura el motivo, el diagnóstico y las indicaciones.",
+          "El sistema guarda la consulta en el expediente del alumno."
+        ],
+        "alternate_flows": [
+          "FA-1 (paso 5): Si falta el motivo o el diagnóstico, el sistema no guarda la consulta y marca los campos que faltan."
+        ],
+        "postconditions": "La consulta queda guardada en el expediente del alumno. La cita aparece como atendida.",
+        "relations": []
+      },
+      "exercises": {
+        "name": {
+          "distractors": ["Expediente del alumno", "Guardar diagnósticos cifrados", "Diagnóstico"],
+          "explanation": "El médico quiere registrar la consulta (M07). «Guardar diagnósticos cifrados» es un requisito no funcional (M08): una cualidad del caso de uso, no un caso de uso. Los otros dos son objetos sin verbo."
+        },
+        "actors": {
+          "distractors": ["Recepcionista", "Alumno", "Base de datos"],
+          "explanation": "Quien registra la consulta es el médico (M07). La recepcionista solo registra la llegada (M02), el alumno no captura nada en este caso de uso y la base de datos es parte interna del sistema."
+        },
+        "preconditions": {
+          "correct": ["El médico inició sesión en el sistema.", "La recepcionista registró la llegada del alumno."],
+          "distractors": ["La consulta quedó guardada en el expediente.", "El alumno canceló su cita.", "El sistema envió el recordatorio de la cita."],
+          "explanation": "Para registrar la consulta, el médico debe tener sesión y el alumno debió llegar (M02). Guardar la consulta es el resultado, una cita cancelada no se atiende y el recordatorio no es necesario para registrar la consulta."
+        },
+        "main_flow": {
+          "distractors": ["El alumno elige una hora disponible.", "El sistema muestra el diagnóstico a la recepcionista.", "El alumno cancela su cita."],
+          "explanation": "El médico abre su lista (M03), elige la cita, el sistema muestra el expediente, el médico captura la consulta y el sistema la guarda (M07). Elegir hora y cancelar son otros casos de uso, y mostrar el diagnóstico a la recepcionista viola la confidencialidad (M08)."
+        },
+        "alternate_flows": {
+          "correct": [
+            "FA-1 (paso 5): Si falta el motivo o el diagnóstico, el sistema no guarda la consulta y marca los campos que faltan."
+          ],
+          "distractors": [
+            "FA-1 (paso 5): Si falta el diagnóstico, el sistema guarda la consulta vacía.",
+            "FA-2 (paso 3): Si el expediente es largo, el sistema lo guarda sin cifrar."
+          ],
+          "explanation": "Una consulta sin motivo o diagnóstico no cumple M07, así que el sistema pide completarla. Guardarla vacía deja el registro incompleto y guardar sin cifrar viola M08."
+        },
+        "postconditions": {
+          "correct": ["La consulta queda guardada en el expediente del alumno.", "La cita aparece como atendida."],
+          "distractors": ["La cita quedó registrada.", "El médico inició sesión en el sistema.", "El alumno recibió un recordatorio."],
+          "explanation": "Al terminar, la consulta está en el expediente y la cita se marca como atendida. Registrar la cita ocurre antes, iniciar sesión es la precondición y el recordatorio es otro caso de uso."
+        }
+      }
+    },
+    {
+      "scenario": "ESC-GIMNASIO-01",
+      "version": "1.0",
+      "key": "UC-G1",
+      "requirements": ["G01", "G04"],
+      "spec": {
+        "name": "Reservar clase grupal",
+        "system_name": "Sistema de Reservas del Gimnasio Universitario",
+        "primary_actors": ["Alumno"],
+        "secondary_actors": [],
+        "preconditions": "El alumno inició sesión en el sistema. El coordinador publicó el horario de la semana.",
+        "main_flow": [
+          "El alumno consulta el horario de clases de la semana.",
+          "El sistema muestra las clases con los lugares disponibles.",
+          "El alumno elige una clase y confirma la reserva.",
+          "El sistema verifica que haya cupo y que el alumno no tenga ya dos reservas ese día.",
+          "El sistema registra la reserva y descuenta un lugar del cupo."
+        ],
+        "alternate_flows": [
+          "FA-1 (paso 4): Si la clase ya no tiene cupo, el sistema lo indica y muestra otras clases con lugares.",
+          "FA-2 (paso 4): Si el alumno ya tiene dos reservas ese día, el sistema no registra la nueva y se lo indica."
+        ],
+        "postconditions": "La reserva queda registrada a nombre del alumno. La clase tiene un lugar menos disponible.",
+        "relations": []
+      },
+      "exercises": {
+        "name": {
+          "distractors": ["Clase de spinning", "Confirmar en menos de dos segundos", "Cupo de la clase"],
+          "explanation": "El alumno quiere reservar una clase (G01). «Confirmar en menos de dos segundos» es un requisito no funcional (G09): una cualidad que debe cumplir el caso de uso, no un caso de uso. Los otros dos son objetos sin verbo."
+        },
+        "actors": {
+          "distractors": ["Instructor", "Credencial con código QR", "Horario de clases"],
+          "explanation": "Quien reserva es el alumno (G01). El instructor pasa lista en la clase (G03), pero no participa al reservar; la credencial sirve para entrar (G07) y el horario es un dato."
+        },
+        "preconditions": {
+          "correct": ["El alumno inició sesión en el sistema.", "El coordinador publicó el horario de la semana."],
+          "distractors": ["La reserva quedó registrada.", "El instructor pasó lista.", "El alumno entró al gimnasio con su credencial."],
+          "explanation": "Antes de reservar, el alumno debe tener sesión y debe haber un horario publicado (G02). La reserva registrada es el resultado, y pasar lista y entrar al gimnasio ocurren el día de la clase (G03, G07)."
+        },
+        "main_flow": {
+          "distractors": ["El instructor marca a los alumnos que llegaron.", "El sistema registra el acceso al escanear la credencial.", "El sistema genera el reporte mensual de ocupación."],
+          "explanation": "El alumno consulta el horario, el sistema muestra los lugares, el alumno elige y confirma (G01), el sistema valida cupo y límite diario (G04) y registra la reserva. Pasar lista, registrar el acceso y generar reportes son otros casos de uso."
+        },
+        "alternate_flows": {
+          "correct": [
+            "FA-1 (paso 4): Si la clase ya no tiene cupo, el sistema lo indica y muestra otras clases con lugares.",
+            "FA-2 (paso 4): Si el alumno ya tiene dos reservas ese día, el sistema no registra la nueva y se lo indica."
+          ],
+          "distractors": [
+            "FA-1 (paso 4): Si la clase ya no tiene cupo, el sistema aumenta el cupo para que el alumno entre.",
+            "FA-2 (paso 3): Si el alumno usa el celular, el sistema le pide reservar desde una computadora."
+          ],
+          "explanation": "La falta de cupo o el límite de dos reservas desvían el flujo (G04). Aumentar el cupo viola esa misma regla, y pedir una computadora contradice el requisito de reservar desde el celular (G11)."
+        },
+        "postconditions": {
+          "correct": ["La reserva queda registrada a nombre del alumno.", "La clase tiene un lugar menos disponible."],
+          "distractors": ["El alumno asistió a la clase.", "El alumno inició sesión en el sistema.", "El coordinador recibió el reporte mensual."],
+          "explanation": "Al terminar, la reserva está a nombre del alumno y el cupo baja. Asistir ocurre después, iniciar sesión es la precondición y el reporte es otro caso de uso."
+        }
+      }
+    },
+    {
+      "scenario": "ESC-GIMNASIO-01",
+      "version": "1.0",
+      "key": "UC-G2",
+      "requirements": ["G03"],
+      "spec": {
+        "name": "Pasar lista de clase",
+        "system_name": "Sistema de Reservas del Gimnasio Universitario",
+        "primary_actors": ["Instructor"],
+        "secondary_actors": [],
+        "preconditions": "El instructor inició sesión en el sistema. La clase del instructor ya comenzó.",
+        "main_flow": [
+          "El instructor abre la lista de su clase.",
+          "El sistema muestra a los alumnos que reservaron lugar.",
+          "El instructor marca a los alumnos que llegaron.",
+          "El instructor confirma la lista.",
+          "El sistema guarda la asistencia y marca como falta a quienes no llegaron."
+        ],
+        "alternate_flows": [
+          "FA-1 (paso 3): Si llega un alumno sin reserva y la clase tiene lugar, el instructor lo agrega a la lista."
+        ],
+        "postconditions": "La asistencia de la clase queda guardada. Las faltas cuentan para el bloqueo de reservas.",
+        "relations": []
+      },
+      "exercises": {
+        "name": {
+          "distractors": ["Lista de asistencia", "Guardar el cuestionario cifrado", "Clase grupal"],
+          "explanation": "El instructor quiere pasar lista (G03). «Guardar el cuestionario cifrado» es un requisito no funcional (G08): una cualidad del sistema, no un caso de uso. Los otros dos son objetos sin verbo."
+        },
+        "actors": {
+          "distractors": ["Alumno", "Coordinador del gimnasio", "Lector de código QR"],
+          "explanation": "Quien pasa lista es el instructor (G03). El alumno ya no interactúa con el sistema en este caso de uso, el coordinador solo publica el horario y consulta reportes, y el lector de QR se usa en la entrada (G07)."
+        },
+        "preconditions": {
+          "correct": ["El instructor inició sesión en el sistema.", "La clase del instructor ya comenzó."],
+          "distractors": ["La asistencia quedó guardada.", "El alumno canceló su reserva.", "El coordinador generó el reporte mensual."],
+          "explanation": "Para pasar lista, el instructor debe tener sesión y la clase debe estar en curso. Guardar la asistencia es el resultado, cancelar una reserva no es necesario y el reporte se genera después (G10)."
+        },
+        "main_flow": {
+          "distractors": ["El alumno elige una clase y confirma la reserva.", "El sistema muestra el cuestionario de salud de cada alumno.", "El coordinador publica el horario de la semana."],
+          "explanation": "El instructor abre su lista, el sistema muestra a quienes reservaron, el instructor marca a los que llegaron y confirma, y el sistema guarda la asistencia (G03). Reservar y publicar el horario son otros casos de uso, y mostrar el cuestionario de salud viola la confidencialidad (G08)."
+        },
+        "alternate_flows": {
+          "correct": [
+            "FA-1 (paso 3): Si llega un alumno sin reserva y la clase tiene lugar, el instructor lo agrega a la lista."
+          ],
+          "distractors": [
+            "FA-1 (paso 3): Si llega un alumno sin reserva, el instructor quita a otro alumno de la lista para darle su lugar.",
+            "FA-2 (paso 5): Si un alumno faltó, el sistema borra su reserva sin marcar la falta."
+          ],
+          "explanation": "Un alumno sin reserva puede entrar solo si hay lugar, respetando el cupo (G04). Quitar a otro alumno rompe su reserva, y borrar la falta impediría aplicar el bloqueo por inasistencias (G06)."
+        },
+        "postconditions": {
+          "correct": ["La asistencia de la clase queda guardada.", "Las faltas cuentan para el bloqueo de reservas."],
+          "distractors": ["La reserva quedó registrada.", "El instructor inició sesión en el sistema.", "El alumno entró al gimnasio con su credencial."],
+          "explanation": "Al terminar, la asistencia queda guardada y las faltas se suman para el bloqueo (G06). Reservar ocurre antes, iniciar sesión es la precondición y el acceso con credencial es otro caso de uso."
+        }
+      }
     }
   ]
 }
