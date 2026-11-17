@@ -505,6 +505,126 @@
           "explanation": "Al terminar, el estudiante sabe que puede recoger su pedido y el estado se ve en la aplicación. El pago ocurrió al pedir, los pedidos en preparación son la precondición y el menú es otro caso de uso."
         }
       }
+    },
+    {
+      "scenario": "ESC-TUTORIAS-01",
+      "version": "1.0",
+      "key": "UC-T1",
+      "requirements": ["T01", "T04"],
+      "spec": {
+        "name": "Agendar tutoría",
+        "system_name": "Sistema de Tutorías de la Facultad",
+        "primary_actors": ["Alumno"],
+        "secondary_actors": [],
+        "preconditions": "El alumno inició sesión en el sistema. El alumno tiene un tutor asignado.",
+        "main_flow": [
+          "El alumno consulta los horarios de su tutor.",
+          "El sistema muestra los horarios libres de la semana.",
+          "El alumno elige un horario y confirma la tutoría.",
+          "El sistema verifica que el horario siga libre y que falten al menos 24 horas.",
+          "El sistema registra la tutoría en la agenda del alumno y del tutor."
+        ],
+        "alternate_flows": [
+          "FA-1 (paso 4): Si otro alumno ocupó el horario, el sistema lo indica y muestra los horarios que siguen libres.",
+          "FA-2 (paso 4): Si faltan menos de 24 horas para el horario elegido, el sistema no permite agendarlo y pide elegir otro."
+        ],
+        "postconditions": "La tutoría queda registrada en la agenda del alumno y del tutor. El horario ya no aparece como libre.",
+        "relations": []
+      },
+      "exercises": {
+        "name": {
+          "distractors": ["Horario de tutoría", "Responder en menos de tres segundos", "Agenda del tutor"],
+          "explanation": "El alumno quiere agendar una tutoría (T01). «Responder en menos de tres segundos» es un requisito no funcional (T09): una cualidad que debe cumplir el caso de uso, no un caso de uso. Los otros dos son objetos sin verbo."
+        },
+        "actors": {
+          "distractors": ["Coordinadora de tutorías", "Horario", "Correo electrónico"],
+          "explanation": "Quien agenda es el alumno (T01). La coordinadora asigna tutores, pero no participa al agendar (T03); el horario es un dato y el correo es un medio de aviso."
+        },
+        "preconditions": {
+          "correct": ["El alumno inició sesión en el sistema.", "El alumno tiene un tutor asignado."],
+          "distractors": ["La tutoría quedó registrada en la agenda.", "El tutor registró la asistencia del alumno.", "El alumno canceló su tutoría anterior."],
+          "explanation": "Antes de agendar, el alumno debe tener sesión y un tutor asignado (T03). Que la tutoría quede registrada es el resultado, la asistencia se registra después de la tutoría y no hace falta cancelar otra."
+        },
+        "main_flow": {
+          "distractors": ["La coordinadora asigna un tutor al alumno.", "El tutor registra un comentario sobre los temas tratados.", "El sistema genera el reporte del semestre."],
+          "explanation": "El alumno consulta los horarios, el sistema muestra los libres, el alumno elige y confirma (T01), el sistema valida la regla de horario y anticipación (T04) y registra la tutoría. Asignar tutor, registrar comentarios y generar reportes son otros casos de uso."
+        },
+        "alternate_flows": {
+          "correct": [
+            "FA-1 (paso 4): Si otro alumno ocupó el horario, el sistema lo indica y muestra los horarios que siguen libres.",
+            "FA-2 (paso 4): Si faltan menos de 24 horas para el horario elegido, el sistema no permite agendarlo y pide elegir otro."
+          ],
+          "distractors": [
+            "FA-1 (paso 4): Si el horario está ocupado, el sistema agenda a los dos alumnos a la misma hora.",
+            "FA-2 (paso 3): Si el alumno usa el celular, el sistema le pide entrar desde una computadora."
+          ],
+          "explanation": "Un horario ocupado o la falta de anticipación desvían el flujo (T04). Agendar a dos alumnos a la vez viola esa misma regla, y pedir una computadora contradice el requisito de agendar desde el celular (T11)."
+        },
+        "postconditions": {
+          "correct": ["La tutoría queda registrada en la agenda del alumno y del tutor.", "El horario ya no aparece como libre."],
+          "distractors": ["El alumno asistió a la tutoría.", "El alumno inició sesión en el sistema.", "El sistema envió el reporte a la Dirección."],
+          "explanation": "Al terminar, la tutoría está en ambas agendas y el horario se ocupa. Asistir ocurre después, iniciar sesión es la precondición y el reporte es otro caso de uso."
+        }
+      }
+    },
+    {
+      "scenario": "ESC-TUTORIAS-01",
+      "version": "1.0",
+      "key": "UC-T2",
+      "requirements": ["T07"],
+      "spec": {
+        "name": "Registrar seguimiento de tutoría",
+        "system_name": "Sistema de Tutorías de la Facultad",
+        "primary_actors": ["Tutor"],
+        "secondary_actors": [],
+        "preconditions": "El tutor inició sesión en el sistema. La hora de la tutoría ya pasó.",
+        "main_flow": [
+          "El tutor abre la tutoría en su agenda.",
+          "El sistema muestra los datos del alumno y de la tutoría.",
+          "El tutor marca si el alumno asistió y escribe un comentario sobre los temas tratados.",
+          "El sistema guarda la asistencia y el comentario cifrado.",
+          "El sistema marca la tutoría como realizada."
+        ],
+        "alternate_flows": [
+          "FA-1 (paso 3): Si el alumno no asistió, el tutor marca la inasistencia y el comentario es opcional."
+        ],
+        "postconditions": "La asistencia y el comentario quedan en el historial del alumno. La tutoría cuenta para el reporte del semestre.",
+        "relations": []
+      },
+      "exercises": {
+        "name": {
+          "distractors": ["Comentario de tutoría", "Guardar comentarios cifrados", "Historial del alumno"],
+          "explanation": "El tutor quiere registrar el seguimiento de la tutoría (T07). «Guardar comentarios cifrados» es un requisito no funcional (T08): una cualidad del caso de uso, no un caso de uso. Los otros dos son objetos sin verbo."
+        },
+        "actors": {
+          "distractors": ["Alumno", "Coordinadora de tutorías", "Base de datos"],
+          "explanation": "Quien registra el seguimiento es el tutor (T07). El alumno ya no interactúa con el sistema en este paso, la coordinadora solo consulta los reportes y la base de datos es parte interna del sistema."
+        },
+        "preconditions": {
+          "correct": ["El tutor inició sesión en el sistema.", "La hora de la tutoría ya pasó."],
+          "distractors": ["La tutoría está marcada como realizada.", "El alumno escribió un comentario.", "La coordinadora aprobó el registro."],
+          "explanation": "Para registrar el seguimiento, el tutor debe tener sesión y la tutoría ya debió ocurrir. Marcarla como realizada es el resultado, el comentario lo escribe el tutor y el registro no requiere aprobación."
+        },
+        "main_flow": {
+          "distractors": ["El alumno elige un horario libre.", "El sistema envía un recordatorio un día antes.", "El sistema muestra el comentario a todos los alumnos."],
+          "explanation": "El tutor abre la tutoría, el sistema muestra sus datos, el tutor registra asistencia y comentario (T07) y el sistema los guarda cifrados (T08). Elegir horario y enviar recordatorios son otros casos de uso, y mostrar el comentario a todos viola la confidencialidad (T08)."
+        },
+        "alternate_flows": {
+          "correct": [
+            "FA-1 (paso 3): Si el alumno no asistió, el tutor marca la inasistencia y el comentario es opcional."
+          ],
+          "distractors": [
+            "FA-1 (paso 4): Si el comentario es largo, el sistema lo guarda sin cifrar.",
+            "FA-2 (paso 3): Si el alumno no asistió, el sistema borra la tutoría de su historial."
+          ],
+          "explanation": "La inasistencia cambia lo que registra el tutor. Guardar sin cifrar viola T08 y borrar la tutoría haría que no contara en el reporte del semestre (T10)."
+        },
+        "postconditions": {
+          "correct": ["La asistencia y el comentario quedan en el historial del alumno.", "La tutoría cuenta para el reporte del semestre."],
+          "distractors": ["La tutoría quedó agendada.", "El tutor inició sesión en el sistema.", "El alumno recibió un recordatorio."],
+          "explanation": "Al terminar, el seguimiento queda en el historial y la tutoría se suma al reporte (T10). Agendar ocurre antes, iniciar sesión es la precondición y el recordatorio es otro caso de uso."
+        }
+      }
     }
   ]
 }

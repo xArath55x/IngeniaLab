@@ -49,6 +49,10 @@ class LessonTests(BaseCase):
     def test_seed_loads_reference_use_cases(self):
         self.assertEqual(ReferenceUseCase.objects.filter(version=self.version).count(), 4)
         self.assertEqual(ReferenceUseCase.objects.filter(version__scenario_code="ESC-CAFETERIA-01").count(), 4)
+        # Escenario de tutorías (ACT-329A): 11 requisitos y 2 casos de uso guiados.
+        tutorias = ReferenceUseCase.objects.filter(version__scenario_code="ESC-TUTORIAS-01")
+        self.assertEqual(sorted(tutorias.values_list("key", flat=True)), ["UC-T1", "UC-T2"])
+        self.assertEqual(tutorias.first().version.requirements.count(), 11)
 
     def test_locked_until_requirements_are_classified_as_rf(self):
         attempt = self.finished_attempt()
@@ -301,6 +305,33 @@ class ExerciseTests(SimpleTestCase):
         for exercise, value, expected in cases:
             with self.subTest(exercise=exercise, value=value):
                 self.assertEqual(lessons.is_correct(exercise, value), expected)
+
+
+@override_settings(INGENIALAB_MODULES=settings.ALL_MODULES)
+class TutoriasScenarioTests(BaseCase):
+    """Escenario de tutorías (ACT-329A): entrevista, clasificación y sus dos lecciones guiadas."""
+
+    classify, ready_attempt, reference = LessonTests.classify, LessonTests.ready_attempt, LessonTests.reference
+    start, reply, solve = LessonTests.start, LessonTests.reply, LessonTests.solve
+
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        cls.version = cls.version.__class__.objects.get(scenario_code="ESC-TUTORIAS-01")
+
+    def test_interview_unlocks_and_completes_both_lessons(self):
+        attempt = self.ready_attempt()
+        self.assertEqual(attempt.classifications.filter(is_correct=True).count(), 11)
+        for key, name in (("UC-T1", "Agendar tutoría"), ("UC-T2", "Registrar seguimiento de tutoría")):
+            with self.subTest(key=key):
+                ref = self.reference(key)
+                self.assertTrue(lessons.lesson_status(attempt, ref)["unlocked"])
+                self.start(attempt, ref)
+                lesson = UseCaseLesson.objects.get(reference=ref)
+                self.assertEqual(self.solve(lesson)["lesson_status"], "completed")
+                r = self.post(f"/modelado/api/leccion/{lesson.id}/guardar/").json()
+                self.assertIn("<svg", r["svg"])
+                self.assertTrue(self.user.use_cases.filter(name=name).exists())
 
 
 class SeedValidationTests(BaseCase):

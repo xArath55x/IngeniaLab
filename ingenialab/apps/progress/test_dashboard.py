@@ -60,7 +60,8 @@ class DashboardTests(BaseCase):
         r = self.client.get("/")
         self.assertContains(r, "Lección guiada")
         self.assertContains(r, f"/modelado/leccion/{lesson.id}/")
-        self.assertContains(r, "Lecciones guiadas completadas: <strong>0 de 8</strong>", html=False)
+        total = ReferenceUseCase.objects.filter(version__is_active=True).count()
+        self.assertContains(r, f"Lecciones guiadas completadas: <strong>0 de {total}</strong>", html=False)
 
     def test_guided_badge_for_lesson_without_losing_lives(self):
         lesson = self.start_lesson(self.ready_attempt())
@@ -71,7 +72,8 @@ class DashboardTests(BaseCase):
             lesson.refresh_from_db()
         self.assertTrue(self.user.badges.filter(code="guided").exists())
         r = self.client.get("/")
-        self.assertContains(r, "Lecciones guiadas completadas: <strong>1 de 8</strong>", html=False)
+        total = ReferenceUseCase.objects.filter(version__is_active=True).count()
+        self.assertContains(r, f"Lecciones guiadas completadas: <strong>1 de {total}</strong>", html=False)
 
     def test_locked_badges_explain_how_to_earn_them(self):
         r = self.client.get("/")
