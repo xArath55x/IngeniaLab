@@ -9,6 +9,7 @@ from django.db import transaction
 from apps.inspection.models import InspectionExercise, InspectionFragment
 from apps.interviews.models import InterviewQuestion, MasterRequirement, ScenarioVersion
 from apps.modeling.forms import UseCaseForm
+from apps.modeling import lessons as lesson_engine
 from apps.modeling.models import ReferenceUseCase
 
 
@@ -82,11 +83,14 @@ class Command(BaseCommand):
             if version is None:
                 raise ValueError(f"{uc['key']}: no existe el escenario {uc['scenario']} v{uc['version']}")
             _check_use_case(uc, version)
-            # Las lecciones guardan copia de sus ejercicios, así que actualizar la referencia no las altera.
-            ReferenceUseCase.objects.update_or_create(version=version, key=uc["key"], defaults={
+            reference, _ = ReferenceUseCase.objects.update_or_create(version=version, key=uc["key"], defaults={
                 "order": order, "requirement_keys": uc["requirements"], "spec": uc["spec"], "exercises": uc["exercises"],
             })
-            self.stdout.write(self.style.SUCCESS(f"Caso de uso {uc['key']} ({version.scenario_code}): {uc['spec']['name']}"))
+            # Las lecciones guardan copia de sus ejercicios: las terminadas no cambian, y las que van a medias
+            # pasan al contenido corregido conservando lo resuelto y sus vidas.
+            refreshed = lesson_engine.refresh_in_progress(reference)
+            note = f" · {refreshed} lección(es) en curso actualizada(s)" if refreshed else ""
+            self.stdout.write(self.style.SUCCESS(f"Caso de uso {uc['key']} ({version.scenario_code}): {uc['spec']['name']}{note}"))
 
 
 def _check_use_case(uc, version):

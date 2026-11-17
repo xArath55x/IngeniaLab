@@ -151,3 +151,25 @@ class PartidaTests(BaseCase):
         self.client.login(username="otro", password="ClaveSegura123")
         self.assertIsNone(partidas.active(self.other))
         self.assertNotContains(self.client.get("/"), partida.attempt.version.title + "</strong>")
+
+    def test_short_interview_does_not_skip_modeling(self):
+        _, partida = self.start()
+        attempt = partida.attempt
+        self.ask_rounds(attempt, rounds=1)
+        self.post(f"/elicitacion/api/intento/{attempt.id}/finalizar/", {"confirm": True})
+        partida.refresh_from_db()
+        attempt = partida.attempt
+        self.classify_all(attempt)
+        state = partidas.state(partida)
+        self.assertEqual(state["current"], Partida.MODELING)
+        refs = ReferenceUseCase.objects.filter(version=attempt.version)
+        self.assertIn(f"0 de {refs.count()} lecciones", [s["detail"] for s in state["stages"]])
+        # Todas se pueden jugar en la partida; lo que faltó se avisa en vez de bloquear.
+        page = self.client.get(f"/modelado/lecciones/?attempt={attempt.id}")
+        self.assertNotContains(page, "Para desbloquearla")
+        self.assertContains(page, "En tu entrevista no descubriste")
+        for ref in refs:
+            self.assertTrue(lesson_engine.lesson_status(attempt, ref)["unlocked"])
+        # Fuera de una partida (abandonada) vuelve el desbloqueo por requisitos.
+        partidas.abandon(partida)
+        self.assertFalse(all(lesson_engine.lesson_status(attempt, ref)["unlocked"] for ref in refs))

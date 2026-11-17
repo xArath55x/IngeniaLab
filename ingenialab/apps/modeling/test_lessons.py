@@ -375,3 +375,120 @@ class SeedValidationTests(BaseCase):
             tmp.flush()
             with self.assertRaisesMessage(ValueError, "B07 debe ser un requisito funcional"):
                 call_command("seed_ingenialab", usecases=tmp.name, stdout=StringIO())
+
+
+class QuestionClarityTests(BaseCase):
+    """Preguntas de las lecciones: sin ambigüedad y con el caso de uso en cada enunciado."""
+
+    def exercises(self, ref):
+        statements = list(ref.version.requirements.filter(key__in=ref.requirement_keys)
+                          .values_list("statement_text", flat=True))
+        return {e["id"]: e for e in lessons.build_exercises(ref, statements, seed="claridad")}
+
+    def test_every_prompt_names_the_use_case(self):
+        for ref in ReferenceUseCase.objects.all():
+            for ex_id, exercise in self.exercises(ref).items():
+                with self.subTest(caso=ref.key, ejercicio=ex_id):
+                    if ex_id != "name":  # La de nombre pregunta justamente cuál es.
+                        self.assertIn(f"«{ref.spec['name']}»", exercise["prompt"])
+
+    def test_flow_selection_asks_for_the_single_intruder(self):
+        for ref in ReferenceUseCase.objects.all():
+            exercise = self.exercises(ref)["main_flow_select"]
+            with self.subTest(caso=ref.key):
+                self.assertEqual(exercise["type"], "choice")
+                self.assertIn("NO", exercise["prompt"])
+                options = [o["text"] for o in exercise["options"]]
+                intruder = options[exercise["answer"]]
+                self.assertIn(intruder, ref.exercises["main_flow"]["distractors"])
+                self.assertEqual(sorted(o for o in options if o != intruder), sorted(ref.spec["main_flow"]))
+
+    def test_card_does_not_show_the_intruder_as_a_flow_step(self):
+        ref = ReferenceUseCase.objects.get(version=self.version, key="UC-B1")
+        lesson = UseCaseLesson(exercises=list(self.exercises(ref).values()), solved=["main_flow_select"])
+        self.assertNotIn("main_flow_select", [part["id"] for part in lessons.built(lesson)])
+
+    def test_every_reference_use_case_passes_the_editor_validation(self):
+        from apps.interviews.models import StudentAttempt
+        from apps.modeling.forms import UseCaseForm
+
+        for ref in ReferenceUseCase.objects.select_related("version"):
+            attempt = StudentAttempt.objects.create(user=self.user, version=ref.version,
+                                                    status=StudentAttempt.CLASSIFYING)
+            form = UseCaseForm(data={**ref.spec, "attempt_id": str(attempt.id)}, user=self.user)
+            with self.subTest(caso=ref.key):
+                self.assertTrue(form.is_valid(), form.errors)
+
+
+@override_settings(INGENIALAB_MODULES=settings.ALL_MODULES)
+class RefreshInProgressTests(BaseCase):
+    """Al corregir el contenido, las lecciones a medias lo toman sin perder lo resuelto (seed_ingenialab)."""
+
+    classify, ready_attempt, reference = LessonTests.classify, LessonTests.ready_attempt, LessonTests.reference
+    start, reply, solve = LessonTests.start, LessonTests.reply, LessonTests.solve
+
+    def test_seed_updates_in_progress_lesson_text_and_keeps_progress(self):
+        attempt = self.ready_attempt()
+        ref = self.reference()
+        self.start(attempt, ref)
+        lesson = UseCaseLesson.objects.get()
+        first = lesson.queue[0]
+        self.reply(lesson, first, {e["id"]: e for e in lesson.exercises}[first]["answer"])
+        lesson.refresh_from_db()
+        # Simula una lección creada con el texto anterior.
+        old = [{**e, "prompt": "Texto anterior"} for e in lesson.exercises]
+        UseCaseLesson.objects.filter(pk=lesson.pk).update(exercises=old)
+        call_command("seed_ingenialab", stdout=StringIO())
+        refreshed = UseCaseLesson.objects.get()
+        self.assertNotIn("Texto anterior", [e["prompt"] for e in refreshed.exercises])
+        self.assertEqual(refreshed.solved, lesson.solved)
+        self.assertEqual(refreshed.queue, lesson.queue)
+        self.assertEqual(refreshed.lives, lesson.lives)
+        self.assertEqual(refreshed.status, UseCaseLesson.IN_PROGRESS)
+
+    def test_finished_lessons_are_not_touched(self):
+        attempt = self.ready_attempt()
+        self.start(attempt, self.reference())
+        lesson = UseCaseLesson.objects.get()
+        self.solve(lesson)
+        UseCaseLesson.objects.filter(pk=lesson.pk).update(exercises=[{"id": "name", "prompt": "Texto anterior"}])
+        call_command("seed_ingenialab", stdout=StringIO())
+        self.assertEqual(UseCaseLesson.objects.get().exercises, [{"id": "name", "prompt": "Texto anterior"}])
+
+
+class FlowOrderTests(BaseCase):
+    """El orden del flujo debe deducirse del texto: lo respalda la pista del enunciado."""
+
+    def test_every_main_flow_starts_with_the_actor(self):
+        for ref in ReferenceUseCase.objects.all():
+            with self.subTest(caso=ref.key):
+                self.assertFalse(ref.spec["main_flow"][0].startswith("El sistema"), ref.spec["main_flow"][0])
+
+
+@override_settings(INGENIALAB_MODULES=settings.ALL_MODULES)
+class OrderFeedbackTests(BaseCase):
+    """Al fallar el orden, la respuesta trae el orden correcto para marcar cada paso en verde o rojo."""
+
+    classify = LessonTests.classify
+
+    def test_order_answer_returns_correct_order(self):
+        attempt = LessonTests.ready_attempt(self)
+        LessonTests.start(self, attempt, LessonTests.reference(self))
+        lesson = UseCaseLesson.objects.get()
+        while lesson.queue[0] != "main_flow":
+            first = lesson.queue[0]
+            LessonTests.reply(self, lesson, first, {e["id"]: e for e in lesson.exercises}[first]["answer"])
+            lesson.refresh_from_db()
+        expected = next(e for e in lesson.exercises if e["id"] == "main_flow")["answer"]
+        wrong = [expected[1], expected[0], *expected[2:]]
+        r = LessonTests.reply(self, lesson, "main_flow", wrong).json()
+        self.assertFalse(r["correct"])
+        self.assertEqual(r["correct_order"], expected)
+        self.assertEqual(r["correct_ids"], [])
+
+    def test_other_exercises_do_not_send_an_order(self):
+        attempt = LessonTests.ready_attempt(self)
+        LessonTests.start(self, attempt, LessonTests.reference(self))
+        lesson = UseCaseLesson.objects.get()
+        r = LessonTests.reply(self, lesson, lesson.queue[0], -1).json()
+        self.assertEqual(r["correct_order"], [])
