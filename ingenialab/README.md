@@ -267,13 +267,37 @@ desactivadas se conservan y se pueden reactivar.
 No requiere configuración: si una pregunta tiene variantes activas, cada intento recibe una al azar y Ollama
 no necesita estar encendido. Con `INGENIALAB_AI_ANSWER_BANK=0` se ignora el banco.
 
-Las variantes viven en la base de datos, no en Git. Para la máquina de la demo hay dos opciones: repetir
-los pasos 1 a 3 en ella, o copiar el `db.sqlite3` donde se generaron, que incluye también usuarios y prácticas.
-No subas `db.sqlite3` al repositorio.
+Las variantes viven en la base de datos, no en Git. Para llevarlas a otra máquina (producción o la de la
+demo), usa el paso 5; no copies el `db.sqlite3` del equipo donde se generaron ni lo subas al repositorio.
 
 Las variantes se identifican por escenario, ronda y calidad, con una huella del contenido del catálogo:
 `seed_ingenialab` no las borra, y si cambia el texto de una pregunta o de su respuesta en
 `data/interviews.json`, las variantes de esa pregunta dejan de usarse y hay que generarlas de nuevo.
+
+### 5. Llevar el banco a otra base (exportar e importar)
+
+En el equipo donde se generó y revisó el banco:
+
+```bash
+.venv/bin/python manage.py export_answer_bank --scenario ESC-BIBLIOTECA-01 --output banco_biblioteca.json
+.venv/bin/python manage.py export_answer_bank --output banco_todos.json      # todos los escenarios activos
+```
+
+En la máquina de destino, con `migrate` y `seed_ingenialab` ya aplicados:
+
+```bash
+.venv/bin/python manage.py import_answer_bank banco_todos.json --dry-run    # solo informa
+.venv/bin/python manage.py import_answer_bank banco_todos.json
+```
+
+- El archivo identifica cada variante por código y versión de escenario, ronda, calidad y huella de la
+  pregunta, nunca por IDs de la base, y no contiene datos de alumnos.
+- Incluye las variantes desactivadas en la revisión (`--active-only` las omite); al importar llegan
+  desactivadas, y si aquí estaban activas se desactivan. Nunca se reactiva una variante.
+- Se descartan, y se reportan, las variantes obsoletas (la pregunta cambió en el catálogo), las que no pasan
+  los filtros vigentes y las mal formadas. Las que ya existen con el mismo texto no se duplican, así que
+  importar dos veces el mismo archivo es seguro.
+- Si falta en la base alguna versión de escenario del archivo, no se importa nada.
 
 ### Respuesta libre en vivo (opcional)
 
