@@ -31,6 +31,8 @@ class Command(BaseCommand):
             raise CommandError(f"No existe el archivo {path}.")
         except (UnicodeDecodeError, json.JSONDecodeError) as exc:
             raise CommandError(f"{path} no es un JSON válido: {exc}")
+        except OSError as exc:  # Carpeta, sin permisos, etc.
+            raise CommandError(f"No se pudo leer {path}: {exc.strerror or exc}")
         try:
             reports = import_bank(data, dry_run=dry_run)
         except BankFileError as exc:

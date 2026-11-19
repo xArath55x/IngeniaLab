@@ -11,7 +11,7 @@ from pathlib import Path
 
 from django.core.management.base import BaseCommand, CommandError
 
-from apps.interviews.answer_bank import BankFileError, export_bank
+from apps.interviews.answer_bank import UnknownScenarioError, export_bank
 
 
 class Command(BaseCommand):
@@ -25,7 +25,7 @@ class Command(BaseCommand):
     def handle(self, *args, **opts):
         try:
             data = export_bank(opts["scenario"], active_only=opts["active_only"])
-        except BankFileError as exc:
+        except UnknownScenarioError as exc:
             raise CommandError(str(exc))
         text = json.dumps(data, ensure_ascii=False, indent=2) + "\n"
         if opts["output"] == "-":

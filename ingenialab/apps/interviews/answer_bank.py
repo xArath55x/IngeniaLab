@@ -7,10 +7,11 @@ pregunta; nunca por IDs de la base, que cambian entre equipos y al volver a semb
 Reglas de importación:
 1. La versión del escenario debe existir (correr antes seed_ingenialab); si falta alguna, no se importa nada.
 2. Una variante cuyo question_hash ya no coincide con la pregunta del catálogo se descarta (obsoleta).
-3. Las variantes activas pasan la validación vigente (dialogue.revalidate_variant); las que no, se descartan.
-   Las inactivas se importan sin validar: nunca se muestran y conservan la revisión del equipo.
-4. Una variante con el mismo texto que otra existente no se duplica, así que importar dos veces es seguro.
-   Si el archivo la trae desactivada y aquí está activa, se desactiva; nunca se reactiva una desactivada.
+3. Toda variante nueva, activa o inactiva, pasa la validación vigente (dialogue.revalidate_variant); las que no,
+   se descartan. Se guardan los segmentos que devuelve la validación, nunca los del archivo, y los enunciados
+   evaluables (`req`) deben ser idénticos a los del catálogo: así una inactiva reactivada en el admin es segura.
+4. Una variante con el mismo texto (sin contar espacios) que otra existente no se duplica, así que importar dos
+   veces es seguro. Si el archivo la trae desactivada y aquí está activa, se desactiva; nunca se reactiva.
 5. Todo ocurre en una transacción; con dry_run se informa el resultado sin guardar nada.
 """
 from collections import Counter
@@ -32,13 +33,17 @@ class BankFileError(ValueError):
     """El archivo no tiene el formato esperado o falta una versión de escenario; no se importó nada."""
 
 
+class UnknownScenarioError(ValueError):
+    """Se pidió exportar un escenario sin versión activa."""
+
+
 def _versions(codes=None):
     versions = ScenarioVersion.objects.filter(is_active=True)
     if codes:
         versions = versions.filter(scenario_code__in=codes)
         missing = set(codes) - set(versions.values_list("scenario_code", flat=True))
         if missing:
-            raise BankFileError(f"No hay una versión activa de: {', '.join(sorted(missing))}.")
+            raise UnknownScenarioError(f"No hay una versión activa de: {', '.join(sorted(missing))}.")
     return versions.order_by("scenario_code")
 
 
@@ -60,19 +65,44 @@ def export_bank(codes=None, active_only=False):
             "exported_at": timezone.localtime().isoformat(timespec="seconds"), "scenarios": scenarios}
 
 
-def _text(segments):
-    return " ".join(s["text"] for s in segments)
+def _dedup_text(text):
+    """Texto de una variante para no duplicarla: los espacios repetidos no la hacen distinta."""
+    return " ".join(text.split())
 
 
 def _check_segments(segments):
     if not isinstance(segments, list) or not segments:
         return False
     for s in segments:
-        if not isinstance(s, dict) or not isinstance(s.get("text"), str) or not s["text"].strip():
+        if not isinstance(s, dict) or set(s) - {"text", "req"} or not isinstance(s.get("text"), str) \
+                or not s["text"].strip():
             return False
         if s.get("req") is not None and not isinstance(s["req"], str):
             return False
     return True
+
+
+def _is_int(value):
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+@dataclass
+class _Target:
+    """Pregunta del catálogo con lo que se calcula una sola vez por pregunta, no por variante."""
+    question: InterviewQuestion
+    content_hash: str
+    statements: list
+    facts: list = None
+
+
+def _validated_segments(item, target):
+    """Segmentos limpios de la variante, o ValueError si no pasa la validación vigente."""
+    statements = [{"text": s["text"], "req": s["req"]} for s in item["segments"] if s.get("req")]
+    if statements != target.statements:
+        raise ValueError("Los enunciados evaluables no coinciden con el catálogo")
+    if target.facts is None:
+        target.facts = dialogue.scenario_facts(target.question)
+    return dialogue.revalidate_variant(item["segments"], target.question, facts=target.facts)
 
 
 def _check_file(data):
@@ -119,10 +149,13 @@ def import_bank(data, dry_run=False):
     with transaction.atomic():
         for version, entry in targets:
             report = ScenarioReport(version.scenario_code, version.version_number)
-            questions = {(q.round_number, q.quality): q for q in version.questions.all()}
+            questions = {(q.round_number, q.quality): _Target(q, q.content_hash,
+                                                              [{"text": s["text"], "req": s["req"]}
+                                                               for s in q.answer_segments if s.get("req")])
+                         for q in version.questions.all()}
             existing = {}
             for v in version.answer_variants.all():
-                existing.setdefault((v.round_number, v.quality, v.question_hash, _text(v.segments)), v)
+                existing.setdefault((v.round_number, v.quality, v.question_hash, _dedup_text(v.text)), v)
             for item in entry["variants"]:
                 _import_variant(version, item, questions, existing, report.counts)
             reports.append(report)
@@ -133,16 +166,17 @@ def import_bank(data, dry_run=False):
 
 def _import_variant(version, item, questions, existing, counts):
     if not isinstance(item, dict) or item.get("quality") not in QUALITIES \
-            or not isinstance(item.get("round_number"), int) or not isinstance(item.get("question_hash"), str) \
-            or not _check_segments(item.get("segments")):
+            or not _is_int(item.get("round_number")) or not isinstance(item.get("question_hash"), str) \
+            or not isinstance(item.get("is_active", True), bool) or not _check_segments(item.get("segments")):
         counts["malformed"] += 1
         return
-    question = questions.get((item["round_number"], item["quality"]))
-    if question is None or question.content_hash != item["question_hash"]:
+    target = questions.get((item["round_number"], item["quality"]))
+    if target is None or target.content_hash != item["question_hash"]:
         counts["obsolete"] += 1
         return
-    active = item.get("is_active", True) is not False
-    key = (item["round_number"], item["quality"], item["question_hash"], _text(item["segments"]))
+    active = item.get("is_active", True)
+    key = (item["round_number"], item["quality"], item["question_hash"],
+           _dedup_text(" ".join(s["text"] for s in item["segments"])))
     current = existing.get(key)
     if current is not None:
         if current.is_active and not active:
@@ -152,15 +186,14 @@ def _import_variant(version, item, questions, existing, counts):
         else:
             counts["duplicate"] += 1
         return
-    if active:
-        try:
-            dialogue.revalidate_variant(item["segments"], question)
-        except ValueError:
-            counts["invalid"] += 1
-            return
+    try:
+        segments = _validated_segments(item, target)
+    except ValueError:
+        counts["invalid"] += 1
+        return
     existing[key] = AnswerVariant.objects.create(
         version=version, round_number=item["round_number"], quality=item["quality"],
-        question_hash=item["question_hash"], segments=item["segments"],
+        question_hash=item["question_hash"], segments=segments,
         model=str(item.get("model") or "")[:100], is_active=active)
     counts["imported"] += 1
     if not active:
