@@ -1,9 +1,11 @@
 {% extends "base.html" %}
+{% load static %}
 {% block title %}Inspección · {{ attempt.exercise.title }}{% endblock %}
 {% block content %}
 <div class="page-head">
   <div><p class="small muted" style="margin:0"><a href="{% url 'inspection:list' %}">Inspección</a> / {{ attempt.exercise.code }}</p>
-    <h1>{{ attempt.exercise.title }}</h1></div>
+    <h1>{{ attempt.exercise.title }}</h1>
+    {% if not attempt.is_concluded %}<div style="margin-top:.5rem">{% include "progress/_autosave.html" %}</div>{% endif %}</div>
   <div class="metrics" aria-live="polite">
     <div class="metric"><b id="m-found">{{ summary.found }} / {{ summary.total }}</b><span>Defectos hallados</span></div>
     <div class="metric"><b id="m-precision">{{ summary.precision }} %</b><span>Precisión</span></div>
@@ -62,11 +64,12 @@
 
 {% block scripts %}
 {% if not attempt.is_concluded %}
+<script src="{% static 'js/autosave.js' %}?v=cu10-4"></script>
 <script>
 (function () {
   const BASE = "/inspeccion/api/intento/{{ attempt.id }}/";
   const LABELS = { {% for v, l in defect_types %}"{{ v }}": "{{ l|escapejs }}",{% endfor %} };
-  let selected = null;
+  let selected = null, saver = null;
   const frags = document.querySelectorAll(".frag");
   const regBtn = document.getElementById("btn-register");
   const typeSel = document.getElementById("defect-type");
@@ -78,6 +81,7 @@
     selected = f;
     document.getElementById("selection").textContent = f.dataset.label + ": «" + f.children[1].textContent + "»";
     regBtn.disabled = false;
+    if (saver) saver.markDirty();
   }
   frags.forEach((f) => {
     f.addEventListener("click", () => select(f));
@@ -128,9 +132,26 @@
     const r = await IL.api(BASE + "concluir/");
     if (!r.ok) return IL.toast(r.message, "bad");
     IL.showBadges(r.badges);
+    if (saver) saver.stop();  // Concluida: el servidor ya borró o rechaza su autoguardado (RN-01).
     IL.toast(`Práctica concluida: ${r.summary.score} puntos, precisión ${r.summary.precision} %.`, "ok");
     setTimeout(() => window.location.reload(), 900);
   });
+
+  // CU-10: autoguarda el fragmento seleccionado y el tipo de defecto aún sin registrar.
+  typeSel.addEventListener("change", () => { if (saver) saver.markDirty(); });
+  if (IL.autosave) {
+    saver = IL.autosave.mount({
+      module: "inspection", key: "{{ attempt.id }}",
+      // Solo hay una selección en pantalla; lo confirmado ya está en el servidor: no se pregunta al salir.
+      warnOnLeave: false,
+      collect: () => ({ fragment: selected ? selected.dataset.id : null, defect_type: typeSel.value || null }),
+      restore: (p) => {
+        const f = p.fragment && document.querySelector(`.frag[data-id="${CSS.escape(String(p.fragment))}"]`);
+        if (f) select(f);
+        if (p.defect_type && [...typeSel.options].some((o) => o.value === p.defect_type)) typeSel.value = p.defect_type;
+      },
+    });
+  }
 })();
 </script>
 {% endif %}

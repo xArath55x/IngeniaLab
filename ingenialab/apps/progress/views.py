@@ -1,17 +1,18 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import redirect, render
-from django.views.decorators.http import require_POST
 from django.utils.crypto import get_random_string
+from django.views.decorators.http import require_GET, require_POST
 
+from apps.accounts.api import read_json
 from apps.classification.services import available_requirements
 from apps.interviews.models import StudentAttempt
 from apps.interviews.services import progress as interview_progress
 from apps.inspection.services import summary as inspection_summary
 from integrations.pdf.generator import build_report
 
-from . import partidas
+from . import checkpoints, partidas
 from .models import ReportExport
 from .services import badge_list, evaluate_badges, lesson_summary, level_for, open_interviews, total_points
 
@@ -33,6 +34,17 @@ def dashboard(request):
             interview_groups.append({**group, "latest": items[0], "older": items[1:]})
     lessons = lesson_summary(user)
     lessons["in_progress"] = [lesson for lesson in lessons["in_progress"] if lesson.attempt_id != skip_attempt]
+    classifying = [a for a in attempts.filter(status=StudentAttempt.CLASSIFYING)[:6] if a.id != skip_attempt][:5]
+    open_inspections = [i for i in user.inspections.filter(concluded_at__isnull=True).select_related("exercise")
+                        if i.id != skip_inspection]
+    use_cases = list(user.use_cases.all()[:5])
+    # CU-10: cada práctica que ya lista el tablero muestra si tiene autoguardado o quedó pausada.
+    saved, drafts = checkpoints.for_dashboard(user)
+    marks = [("interview", a) for g in interview_groups for a in [g["latest"], *g["older"]]]
+    marks += [("lesson", l) for l in lessons["in_progress"]] + [("classification", a) for a in classifying]
+    marks += [("inspection", i) for i in open_inspections] + [("modeling", uc) for uc in use_cases]
+    for module, item in marks:
+        item.checkpoint = saved.get((module, str(item.id)))
     return render(request, "progress/dashboard.html", {
         "points": points,
         "level": level_for(points),
@@ -41,12 +53,24 @@ def dashboard(request):
         "history": partidas.history(user),
         "interview_groups": interview_groups,
         "lessons": lessons,
-        "classifying": [a for a in attempts.filter(status=StudentAttempt.CLASSIFYING)[:6] if a.id != skip_attempt][:5],
-        "use_cases": user.use_cases.all()[:5],
-        "open_inspections": [i for i in user.inspections.filter(concluded_at__isnull=True).select_related("exercise")
-                             if i.id != skip_inspection],
+        "classifying": classifying,
+        "drafts": drafts,
+        "use_cases": use_cases,
+        "open_inspections": open_inspections,
         "done_inspections": user.inspections.filter(concluded_at__isnull=False).select_related("exercise")[:5],
     })
+
+
+@login_required
+@require_POST
+def checkpoint_discard(request, module, key):
+    """Descartar un borrador desde el tablero (formulario HTML; la API JSON vive en /api/checkpoints/)."""
+    try:
+        checkpoints.discard(request.user, module, key)
+        messages.success(request, "Borrador descartado.")
+    except checkpoints.CheckpointError:
+        messages.info(request, "Ese borrador ya no existe.")
+    return redirect("progress:dashboard")
 
 
 @login_required
@@ -136,3 +160,35 @@ def report_download(request):
     response = HttpResponse(pdf, content_type="application/pdf")
     response["Content-Disposition"] = f'attachment; filename="IngeniaLab_Reporte_{report_id}.pdf"'
     return response
+
+
+# CU-10 · Autoguardado (SDS v3.0 §9.3). ApiSessionGuardMiddleware ya responde 401 JSON sin sesión.
+@require_POST
+def api_checkpoint_save(request):
+    data = read_json(request)
+    try:
+        checkpoint = checkpoints.save(request.user, data.get("module"), data.get("key"), data.get("revision"),
+                                      data.get("payload"), pause=data.get("pause") is True)
+    except checkpoints.CheckpointError as e:
+        return JsonResponse(e.as_json(), status=e.status)
+    return JsonResponse(checkpoints.serialize(checkpoint))
+
+
+@require_GET
+def api_checkpoint_get(request, module, key):
+    try:
+        checkpoint = checkpoints.get(request.user, module, key)
+    except checkpoints.CheckpointError as e:
+        return JsonResponse(e.as_json(), status=e.status)
+    if checkpoint is None:
+        return JsonResponse({"ok": True, "found": False})
+    return JsonResponse(checkpoints.serialize(checkpoint, with_payload=True))
+
+
+@require_POST
+def api_checkpoint_discard(request, module, key):
+    try:
+        checkpoints.discard(request.user, module, key)
+    except checkpoints.CheckpointError as e:
+        return JsonResponse(e.as_json(), status=e.status)
+    return JsonResponse({"ok": True})

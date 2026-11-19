@@ -262,6 +262,9 @@ def answer(lesson, exercise_id, value):
         lesson.status, lesson.finished_at = UseCaseLesson.COMPLETED, timezone.now()
         lesson.xp = XP_BASE + XP_PER_LIFE * lesson.lives
     lesson.save()
+    if lesson.status != UseCaseLesson.IN_PROGRESS:
+        from apps.progress import checkpoints  # Diferido: progress depende de modeling.
+        checkpoints.close(lesson.user, "lesson", lesson.id)  # CU-10, RN-01
     # Tras responder, las opciones correctas se marcan en pantalla (opción única o múltiple).
     correct_ids = exercise["answer"] if exercise["type"] == "multi" else (
         [exercise["answer"]] if exercise["type"] == "choice" else [])
