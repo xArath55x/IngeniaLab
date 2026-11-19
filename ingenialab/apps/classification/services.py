@@ -44,8 +44,15 @@ def recalculate(attempt: StudentAttempt):
     return attempt
 
 
+def _lock(attempt):
+    """Bloquea el intento y relee `hints_used` dentro de la transacción (ACT-313B; ver inspection._lock)."""
+    list(StudentAttempt.objects.select_for_update().filter(pk=attempt.pk).values_list("pk"))
+    attempt.refresh_from_db()
+
+
 @transaction.atomic
 def classify_statement(attempt: StudentAttempt, master_req_id, category: str) -> ClassificationResult:
+    _lock(attempt)
     if attempt.status != StudentAttempt.CLASSIFYING:
         raise ClassificationError("Debes finalizar la entrevista antes de clasificar requisitos.")
     if category not in VALID_CATEGORIES:
@@ -80,6 +87,7 @@ def classify_statement(attempt: StudentAttempt, master_req_id, category: str) ->
 
 @transaction.atomic
 def request_hint(attempt: StudentAttempt, master_req_id) -> str:
+    _lock(attempt)
     try:
         req = available_requirements(attempt).get(id=master_req_id)
     except (MasterRequirement.DoesNotExist, ValidationError, ValueError):
