@@ -47,6 +47,14 @@ class StaleAttemptTests(InspectionBase):
             services.register_finding(stale, self.amb.id, "ambiguity")
 
 
+class LockKeepsLoadedRelationsTests(InspectionBase):  # Revisión del PR #48
+    def test_lock_does_not_drop_the_exercise_loaded_by_the_view(self):
+        attempt = InspectionAttempt.objects.select_related("exercise").get(pk=self.attempt.pk)
+        services.request_hint(attempt)
+        with self.assertNumQueries(0):
+            self.assertEqual(attempt.exercise.title, "Ejercicio")
+
+
 class SqliteTransactionModeTests(SimpleTestCase):
     def test_sqlite_takes_write_lock_at_begin_and_waits(self):
         if connection.vendor != "sqlite":

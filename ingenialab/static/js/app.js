@@ -208,7 +208,30 @@
     });
   });
 
-  window.IL = { api, toast, showBadges, confirmModal, el, esc, feedback,
+  /* ---------- Un clic a la vez (ACT-313B) ---------- */
+  // Mientras una acción espera al servidor, todos los botones del grupo quedan deshabilitados, así un doble
+  // clic no envía dos peticiones ni se ignoran clics en botones que parecen activos. Al terminar, cada botón
+  // vuelve a su estado según enabled(button). Si la acción devuelve IL.KEEP_LOCKED (p. ej. la página va a
+  // recargarse tras concluir), los botones siguen deshabilitados.
+  const KEEP_LOCKED = Symbol("keep-locked");
+  function actionGroup(buttons, enabled) {
+    let busy = false;
+    const restore = () => buttons.forEach((b) => { b.disabled = enabled ? !enabled(b) : false; });
+    return {
+      get busy() { return busy; },
+      async run(button, action) {
+        if (busy) return undefined;
+        busy = true;
+        buttons.forEach((b) => { b.disabled = true; });
+        button.setAttribute("aria-busy", "true");
+        let keep = false;
+        try { const result = await action(); keep = result === KEEP_LOCKED; return result; }
+        finally { busy = false; button.removeAttribute("aria-busy"); if (!keep) restore(); }
+      },
+    };
+  }
+
+  window.IL = { api, toast, showBadges, confirmModal, el, esc, feedback, actionGroup, KEEP_LOCKED,
     // Compartidas con autosave.js para que CSRF, identidad y reautenticación vivan en un solo lugar.
     getCookie, requestId, fetchJSON, sessionExpired };
 })();

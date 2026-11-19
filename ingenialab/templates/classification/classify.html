@@ -138,22 +138,17 @@
     if (span) select(span);
   });
 
-  // ACT-313B: un clic a la vez; un doble clic ya no envía dos clasificaciones ni cobra dos pistas.
-  let busy = false;
-  async function once(button, action) {
-    if (busy) return;
-    busy = true; button.disabled = true; button.setAttribute("aria-busy", "true");
-    try { await action(); } finally { busy = false; button.disabled = false; button.removeAttribute("aria-busy"); }
-  }
-
+  // ACT-313B: un clic a la vez (IL.actionGroup); un doble clic ya no envía dos clasificaciones ni cobra dos pistas.
   const confirmBtn = document.getElementById("btn-confirm");
+  const hintBtn = document.getElementById("btn-hint");
+  const actions = IL.actionGroup([confirmBtn, hintBtn]);
   confirmBtn.addEventListener("click", () => {
     const fb = document.getElementById("feedback");
     const cat = document.querySelector('input[name="category"]:checked');
     if (!selected) { fb.innerHTML = IL.feedback("bad", "Primero selecciona una declaración de la bitácora."); return; }
     if (!cat) { fb.innerHTML = IL.feedback("bad", "Debe seleccionar una clasificación válida (RF o RNF) para registrar el requisito."); return; }
     const req = selected, category = cat.value;
-    return once(confirmBtn, async () => {
+    return actions.run(confirmBtn, async () => {
       const r = await IL.api(BASE + "clasificar/", { requirement_id: req, category });
       if (!r.ok) { fb.innerHTML = IL.feedback("bad", r.message); return; }
       fb.innerHTML = IL.feedback(r.is_correct ? "ok" : "bad",
@@ -165,11 +160,10 @@
     });
   });
 
-  const hintBtn = document.getElementById("btn-hint");
   hintBtn.addEventListener("click", () => {
     if (!selected) { document.getElementById("feedback").innerHTML = IL.feedback("bad", "Selecciona una declaración para pedir una pista sobre ella."); return; }
     const req = selected;
-    return once(hintBtn, async () => {
+    return actions.run(hintBtn, async () => {
       const r = await IL.api(BASE + "pista/", { requirement_id: req });
       if (!r.ok) return IL.toast(r.message, "bad");
       document.getElementById("feedback").innerHTML = IL.feedback("hint", "Pista (−3 puntos):", " " + r.hint);

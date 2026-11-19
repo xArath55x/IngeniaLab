@@ -49,6 +49,18 @@ ARTICLES = {"el", "la", "los", "las", "un", "una", "unos", "unas"}
 # «Sistema» es el sujeto de casi todos los pasos («El sistema muestra…»): no basta para nombrar a un actor
 # como «Sistema de pagos».
 GENERIC_HEADS = {"sistema"}
+# Adjetivos y determinantes que suelen ir antes del sustantivo («Nuevo cliente», «Otro usuario»): el
+# sustantivo principal es la palabra siguiente.
+LEADING_MODIFIERS = {"nuevo", "nueva", "nuevos", "nuevas", "otro", "otra", "otros", "otras", "primer", "primera",
+                     "segundo", "segunda", "cada", "cualquier", "todo", "toda", "todos", "todas", "gran", "buen",
+                     "buena", "mismo", "misma"}
+
+
+def _head_noun(name):
+    words = [w for w in re.findall(r"\w+", name) if w not in ARTICLES]
+    while len(words) > 1 and words[0] in LEADING_MODIFIERS:
+        words = words[1:]
+    return words[0] if words else ""
 
 
 def mentions_actor(flow, actor):
@@ -56,14 +68,18 @@ def mentions_actor(flow, actor):
 
     Un flujo bien redactado dice «La coordinadora elige…» aunque el actor sea «Coordinadora de la
     biblioteca»; exigir el nombre completo daba una sugerencia falsa en 3 de los 14 casos de referencia.
+    El sustantivo cuenta también en plural («las coordinadoras»), y se salta un adjetivo inicial
+    («Nuevo cliente» se reconoce por «cliente», no por «nuevo»).
     """
     name = key(actor)
     if name in flow:
         return True
-    words = [w for w in re.findall(r"\w+", name) if w not in ARTICLES]
-    if len(words) < 2 or words[0] in GENERIC_HEADS:
+    if len([w for w in re.findall(r"\w+", name) if w not in ARTICLES]) < 2:
         return False
-    return re.search(rf"\b{re.escape(words[0])}\b", flow) is not None
+    head = _head_noun(name)
+    if not head or head in GENERIC_HEADS:
+        return False
+    return re.search(rf"\b{re.escape(head)}(?:e?s)?\b", flow) is not None
 
 
 def suggestions(spec):

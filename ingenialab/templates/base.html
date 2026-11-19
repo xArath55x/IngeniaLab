@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}IngeniaLab{% endblock %} · IngeniaLab</title>
   {# ACT-313B: sin este enlace los navegadores piden /favicon.ico y registran un 404 en la consola (OBS-01). #}
+  <link rel="icon" href="{% static 'img/favicon.ico' %}" sizes="any">
   <link rel="icon" type="image/svg+xml" href="{% static 'img/favicon.svg' %}">
   <link rel="stylesheet" href="{% static 'css/app.css' %}?v=orden-cu10">
 </head>
@@ -42,7 +43,7 @@
   </main>
 </div>
 {% endwith %}
-<script src="{% static 'js/app.js' %}?v=tablero-cu10"></script>
+<script src="{% static 'js/app.js' %}?v=313b"></script>
 {% block scripts %}{% endblock %}
 </body>
 </html>

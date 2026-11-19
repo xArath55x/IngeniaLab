@@ -3,6 +3,8 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils import timezone
 
+from apps.locking import lock_and_refresh
+
 from .models import DEFECT_LABELS, InspectionAttempt, InspectionFinding, InspectionFragment
 
 POINTS_PER_DEFECT = 10
@@ -40,17 +42,6 @@ def summary(attempt):
     }
 
 
-def _lock(attempt):
-    """Bloquea el intento y relee sus contadores dentro de la transacción (ACT-313B).
-
-    La vista carga el intento antes de abrir la transacción; sin esto, dos registros simultáneos parten
-    del mismo valor de `registrations` y uno se pierde. En PostgreSQL bloquea la fila; en SQLite la
-    transacción ya tiene el bloqueo de escritura (BEGIN IMMEDIATE) y basta con releer.
-    """
-    list(InspectionAttempt.objects.select_for_update().filter(pk=attempt.pk).values_list("pk"))
-    attempt.refresh_from_db()
-
-
 def _ensure_open(attempt):
     if attempt.is_concluded:
         raise AuditError("Esta práctica ya fue concluida.")
@@ -58,7 +49,7 @@ def _ensure_open(attempt):
 
 @transaction.atomic
 def register_finding(attempt: InspectionAttempt, fragment_id, defect_type: str) -> dict:
-    _lock(attempt)
+    lock_and_refresh(attempt)
     _ensure_open(attempt)
     if defect_type not in DEFECT_LABELS:
         raise AuditError("Selecciona un tipo de defecto de la lista.")
@@ -98,7 +89,7 @@ def register_finding(attempt: InspectionAttempt, fragment_id, defect_type: str) 
 
 @transaction.atomic
 def request_hint(attempt: InspectionAttempt) -> dict:
-    _lock(attempt)
+    lock_and_refresh(attempt)
     _ensure_open(attempt)
     found = found_defect_ids(attempt)
     pending = attempt.exercise.fragments.exclude(defect_type="").exclude(id__in=found).first()
@@ -113,7 +104,7 @@ def request_hint(attempt: InspectionAttempt) -> dict:
 
 @transaction.atomic
 def conclude(attempt: InspectionAttempt) -> dict:
-    _lock(attempt)
+    lock_and_refresh(attempt)
     _ensure_open(attempt)
     _, attempt.precision, attempt.score = compute(attempt)
     attempt.concluded_at = timezone.now()

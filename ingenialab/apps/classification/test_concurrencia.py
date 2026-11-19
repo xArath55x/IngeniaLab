@@ -22,3 +22,13 @@ class StaleAttemptTests(BaseCase):
         services.request_hint(attempt, req.id)
         r = services.classify_statement(stale, req.id, req.expected_type)
         self.assertEqual(r.score, services.POINTS_PER_CORRECT - services.HINT_PENALTY)
+
+
+class HintOutsideClassificationTests(BaseCase):  # Revisión del PR #48
+    def test_hint_is_rejected_and_not_charged_while_interviewing(self):
+        attempt = self.new_attempt()
+        req = attempt.version.requirements.first()
+        with self.assertRaises(services.ClassificationError):
+            services.request_hint(attempt, req.id)
+        attempt.refresh_from_db()
+        self.assertEqual(attempt.hints_used, 0)
