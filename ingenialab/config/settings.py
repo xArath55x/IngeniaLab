@@ -79,6 +79,10 @@ else:
             "ENGINE": "django.db.backends.sqlite3",
             # ACT-214C: el script E2E apunta a una BD de staging aparte con INGENIALAB_SQLITE_PATH.
             "NAME": os.environ.get("INGENIALAB_SQLITE_PATH", BASE_DIR / "db.sqlite3"),
+            # ACT-313B: BEGIN IMMEDIATE toma el bloqueo de escritura al abrir cada transacción, así dos
+            # peticiones simultáneas esperan su turno (hasta `timeout` s) en lugar de fallar con
+            # «database is locked» al pasar de leer a escribir (OBS-05 de la Matriz de Compatibilidad).
+            "OPTIONS": {"transaction_mode": "IMMEDIATE", "timeout": 20},
         }
     }
 

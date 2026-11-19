@@ -18,11 +18,13 @@ function setup(fetch) {
   const body = new Element('body'); body.dataset.userId = '1';
   const document = { body, cookie: 'csrftoken=token-viejo', createElement: tag => new Element(tag),
     querySelector: selector => nodes(body).find(n => (n.className || '').split(' ').includes(selector.slice(1))) || null,
+    // app.js enlaza el filtro del tablero (ACT-308) al cargar; aquí no hay tablero.
+    querySelectorAll: () => [],
     addEventListener() {}, removeEventListener() {} };
   let counter = 0;
   const window = { addEventListener() {}, crypto: { randomUUID: () => '00000000-0000-4000-8000-' + String(++counter).padStart(12,'0') } };
   vm.runInNewContext(code, { document, window, fetch, AbortController, setTimeout, clearTimeout, console });
-  return { api: window.IL.api, document, body, find: text => nodes(body).find(n => n.textContent === text), modalCount: () => nodes(body).filter(n => n.className === 'modal-back').length };
+  return { IL: window.IL, api: window.IL.api, document, body, find: text => nodes(body).find(n => n.textContent === text), modalCount: () => nodes(body).filter(n => n.className === 'modal-back').length };
 }
 const response = (status, data) => ({ status, json: async () => data });
 const cases = [];
@@ -123,6 +125,44 @@ test('sesión todavía ausente no reenvía el POST hasta autenticarse', async ()
 test('403 de permisos no se transforma en una nueva sesión', async () => {
   const e = setup(async () => response(403, { ok: false, error: 'permission_denied' }));
   assert.equal((await e.api('/api/test/', {})).error, 'permission_denied'); assert.equal(e.modalCount(), 0);
+});
+
+/* ---- ACT-313B: un clic a la vez (revisión del PR #48) ---- */
+const button = () => ({ disabled: false, attrs: {}, setAttribute(k, v) { this.attrs[k] = v; }, removeAttribute(k) { delete this.attrs[k]; } });
+
+test('IL.actionGroup bloquea todo el grupo mientras espera e ignora clics', async () => {
+  const { IL } = setup(async () => response(200, { ok: true }));
+  const [a, b, c] = [button(), button(), button()];
+  let selected = false, calls = 0, release;
+  const group = IL.actionGroup([a, b, c], btn => btn !== c || selected);
+  const first = group.run(a, () => { calls++; return new Promise(r => { release = r; }); });
+  assert.equal(group.busy, true);
+  assert.deepEqual([a.disabled, b.disabled, c.disabled], [true, true, true]);
+  assert.equal(a.attrs['aria-busy'], 'true');
+  await group.run(b, async () => { calls++; });
+  assert.equal(calls, 1);
+  release(); await first;
+  assert.equal(group.busy, false);
+  assert.deepEqual([a.disabled, b.disabled, c.disabled], [false, false, true]);  // c depende de la selección
+  assert.equal(a.attrs['aria-busy'], undefined);
+});
+
+test('IL.actionGroup con KEEP_LOCKED deja los botones bloqueados (concluir y recargar)', async () => {
+  const { IL } = setup(async () => response(200, { ok: true }));
+  const [a, b] = [button(), button()];
+  const group = IL.actionGroup([a, b]);
+  await group.run(a, async () => IL.KEEP_LOCKED);
+  assert.deepEqual([a.disabled, b.disabled], [true, true]);
+  assert.equal(group.busy, false);
+});
+
+test('IL.actionGroup restaura los botones aunque la acción falle', async () => {
+  const { IL } = setup(async () => response(200, { ok: true }));
+  const a = button();
+  const group = IL.actionGroup([a]);
+  await assert.rejects(group.run(a, async () => { throw new Error('x'); }));
+  assert.equal(a.disabled, false);
+  assert.equal(group.busy, false);
 });
 
 (async () => {

@@ -67,5 +67,4 @@ def api_hint(request, attempt_id):
         hint = services.request_hint(attempt, read_json(request).get("requirement_id"))
     except services.ClassificationError as e:
         return fail(str(e))
-    attempt.refresh_from_db()
     return ok(hint=hint, score=attempt.classification_score, hints_used=attempt.hints_used)

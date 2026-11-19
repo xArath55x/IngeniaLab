@@ -187,8 +187,12 @@ def api_checkpoint_get(request, module, key):
 
 @require_POST
 def api_checkpoint_discard(request, module, key):
+    # ACT-313B: descartar es idempotente. El editor descarta el borrador de un caso de uso cada vez que lo
+    # guarda, haya o no borrador; un 404 aquí dejaba un error en la consola del navegador (RNF-04).
     try:
         checkpoints.discard(request.user, module, key)
     except checkpoints.CheckpointError as e:
+        if e.code == "no_checkpoint":  # Práctica propia sin borrador.
+            return JsonResponse({"ok": True, "discarded": False})
         return JsonResponse(e.as_json(), status=e.status)
-    return JsonResponse({"ok": True})
+    return JsonResponse({"ok": True, "discarded": True})

@@ -3,6 +3,8 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils import timezone
 
+from apps.locking import lock_and_refresh
+
 from .models import DEFECT_LABELS, InspectionAttempt, InspectionFinding, InspectionFragment
 
 POINTS_PER_DEFECT = 10
@@ -47,6 +49,7 @@ def _ensure_open(attempt):
 
 @transaction.atomic
 def register_finding(attempt: InspectionAttempt, fragment_id, defect_type: str) -> dict:
+    lock_and_refresh(attempt)
     _ensure_open(attempt)
     if defect_type not in DEFECT_LABELS:
         raise AuditError("Selecciona un tipo de defecto de la lista.")
@@ -86,6 +89,7 @@ def register_finding(attempt: InspectionAttempt, fragment_id, defect_type: str) 
 
 @transaction.atomic
 def request_hint(attempt: InspectionAttempt) -> dict:
+    lock_and_refresh(attempt)
     _ensure_open(attempt)
     found = found_defect_ids(attempt)
     pending = attempt.exercise.fragments.exclude(defect_type="").exclude(id__in=found).first()
@@ -100,6 +104,7 @@ def request_hint(attempt: InspectionAttempt) -> dict:
 
 @transaction.atomic
 def conclude(attempt: InspectionAttempt) -> dict:
+    lock_and_refresh(attempt)
     _ensure_open(attempt)
     _, attempt.precision, attempt.score = compute(attempt)
     attempt.concluded_at = timezone.now()
