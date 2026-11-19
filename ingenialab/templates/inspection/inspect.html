@@ -64,7 +64,7 @@
 
 {% block scripts %}
 {% if not attempt.is_concluded %}
-<script src="{% static 'js/autosave.js' %}?v=cu10-3"></script>
+<script src="{% static 'js/autosave.js' %}?v=cu10-4"></script>
 <script>
 (function () {
   const BASE = "/inspeccion/api/intento/{{ attempt.id }}/";
@@ -142,6 +142,8 @@
   if (IL.autosave) {
     saver = IL.autosave.mount({
       module: "inspection", key: "{{ attempt.id }}",
+      // Solo hay una selección en pantalla; lo confirmado ya está en el servidor: no se pregunta al salir.
+      warnOnLeave: false,
       collect: () => ({ fragment: selected ? selected.dataset.id : null, defect_type: typeSel.value || null }),
       restore: (p) => {
         const f = p.fragment && document.querySelector(`.frag[data-id="${CSS.escape(String(p.fragment))}"]`);

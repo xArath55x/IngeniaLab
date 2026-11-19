@@ -161,7 +161,10 @@
       const urls = { validate: form.dataset.validateUrl, generate: form.dataset.generateUrl, save: form.dataset.saveUrl };
       // CU-10: lo que se escriba mientras viaja el guardado sigue pendiente de autoguardar.
       const sentUpTo = saver ? saver.snapshot() : 0;
-      const response = await IL.api(urls[action], { ...result.data, lesson_id: form.dataset.lessonId || null, format: document.getElementById("preview-format").value });
+      // CU-10: al guardar un caso nuevo, el servidor borra su borrador en la misma transacción.
+      const draftKey = action === "save" && saver && saver.key.startsWith("nuevo:") ? saver.key : null;
+      const response = await IL.api(urls[action], { ...result.data, lesson_id: form.dataset.lessonId || null,
+        format: document.getElementById("preview-format").value, draft_key: draftKey });
       feedback(response, response.ok ? TITLES[action] : "No se pudo completar la operación.");
       if (!response.ok) { rendered = null; return; }
       applyNormalized(response.spec);
@@ -186,7 +189,7 @@
         // URL absoluta desde el prefijo actual, sin concatenar a /nuevo/.
         history.replaceState(null, "", form.dataset.listUrl + response.id + "/");
         ucId = response.id; document.getElementById("title").textContent = response.spec.name;
-        // Lo guardado ya tiene registro propio: el borrador autoguardado sobra (CU-10).
+        // Lo guardado ya tiene registro propio: el servidor ya borró el borrador; aquí solo se cambia de clave (CU-10).
         if (saver) saver.switchKey(ucId, sentUpTo);
         document.getElementById("diagram-downloads").style.display = "flex";
         document.getElementById("download-svg").href = form.dataset.listUrl + ucId + "/diagrama/svg/";

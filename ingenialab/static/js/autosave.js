@@ -3,10 +3,13 @@
  * const saver = IL.autosave.start({ module, key, collect, onState });
  *   collect()  → objeto con lo que hay en pantalla y aún no tiene registro propio.
  *   onState(state, info) → "dirty" | "saving" | "saved" | "offline" | "session" | "conflict" | "closed" | "limit"
- *                          | "error" | "held" | "found" (había un punto de guardado previo; info.checkpoint, info.dirty).
+ *                          | "error" | "held" | "found" (había un punto de guardado previo; info.checkpoint, info.dirty)
+ *                          | "resolved" (se dejó de esperar la elección: el autoguardado anterior ya no aplica).
+ *   warnOnLeave → false para no pedir confirmación al salir (p. ej. si solo hay una selección en pantalla).
  * saver.markDirty()               → hubo un cambio; se guarda en el siguiente ciclo (cada 30 s).
  * saver.snapshot()                → marca de los cambios hechos hasta ahora (para switchKey).
  * saver.saveNow({ pause })        → guarda ya; reautentica si hace falta. Nunca queda colgado sin red.
+ *                                   Un caso de uso nuevo sin cambios no crea punto de guardado ({ ok, skipped }).
  * saver.resolveFound("restore")   → la pantalla ya muestra el autoguardado: no hay cambios pendientes.
  * saver.resolveFound("keep")      → conservar lo escrito; el siguiente guardado reemplaza al anterior.
  * saver.discard()                 → borra el punto de guardado; devuelve false si no se pudo (sin red).
@@ -58,6 +61,7 @@
     const collect = options.collect;
     const notify = options.onState || function () {};
     const interval = options.intervalMs || INTERVAL_MS;
+    const warnOnLeave = options.warnOnLeave !== false;
     let revision = 0, loaded = false, held = false, changes = 0, savedChanges = 0, lastSent = null;
     let inFlight = null, stopped = false, timer = null;
     let loadIssue = null;  // Por qué no se pudo consultar el punto de guardado: { state, message }.
@@ -81,15 +85,12 @@
         if (!quiet) notify(dirty() ? "dirty" : "saved", { savedAt: data.saved_at, paused: data.paused });
         return true;
       }
-      if (needsAuth(status, data)) { notify("session", { message: data.message }); return false; }
-      if (data.error === "session_changed") {  // Otra cuenta en otra pestaña: se reintenta en cada ciclo.
-        notify("session", { message: data.message || "La cuenta activa cambió; vuelve a tu cuenta para seguir guardando." });
-        return false;
-      }
       if (data.error === "revision_conflict") { halt("conflict", { message: data.message }); return false; }
       if (data.error === "practice_closed") { savedChanges = changes; halt("closed", { message: data.message }); return false; }
       if (data.error === "too_many_drafts") { halt("limit", { message: data.message }); return false; }
-      notify("error", { message: data.message || "No se pudo autoguardar." });
+      // Sesión vencida u otra cuenta en otra pestaña: se reintenta en cada ciclo.
+      const issue = issueFor(status, data);
+      notify(issue.state, { message: issue.state === "error" ? data.message || "No se pudo autoguardar." : issue.message });
       return false;
     }
 
@@ -151,7 +152,7 @@
 
     const onOnline = () => { tick(); };
     const onBeforeUnload = (event) => {
-      if (!stopped && dirty()) { event.preventDefault(); event.returnValue = ""; }
+      if (warnOnLeave && !stopped && dirty()) { event.preventDefault(); event.returnValue = ""; }
     };
 
     const saver = {
@@ -170,6 +171,11 @@
       async saveNow(opts) {
         await settle();
         if (stopped) return { ok: false, error: "stopped", message: "El autoguardado está detenido; recarga la página." };
+        // Un caso de uso nuevo sin punto de guardado ni cambios no tiene nada que conservar: no se crea un borrador
+        // vacío que cuente contra el límite de borradores.
+        if (loaded && revision === 0 && !dirty() && String(key).startsWith("nuevo:")) {
+          return { ok: true, skipped: true };
+        }
         return track((async () => {
           let csrf = "", upTo = 0, sentKey = key, signature = null;
           for (let tries = 0; tries < 2; tries++) {
@@ -180,7 +186,8 @@
                 if (reply.offline) { notify("offline", {}); return OFFLINE; }
               }
               if (loaded) {
-                held = false;  // Guardar a propósito es elegir lo que está en pantalla.
+                // Guardar a propósito es elegir lo que está en pantalla: el autoguardado anterior ya no se ofrece.
+                if (held) { held = false; notify("resolved", {}); }
                 upTo = changes; sentKey = key;
                 const request = body(opts && opts.pause);
                 signature = JSON.stringify(request.payload);
@@ -248,7 +255,7 @@
   }
 
   /* ACT-307B: indicador, «Guardar y pausar» y reanudación sobre la barra de templates/progress/_autosave.html.
-   * IL.autosave.mount({ module, key, collect, restore, notice, afterDiscard })
+   * IL.autosave.mount({ module, key, collect, restore, notice, afterDiscard, warnOnLeave })
    *   restore(payload) → vuelve a poner en pantalla lo autoguardado.
    *   afterDiscard(key) → qué hacer tras «Descartar estos cambios» (por omisión, recargar la página).
    *   notice → elemento donde avisar «Recuperamos cambios…» (si falta, el aviso va en la barra). */
@@ -328,8 +335,13 @@
       notice("Hay cambios autoguardados el " + lastSaved + " que no están en pantalla. ", [recover, keep]);
     }
     const saver = start({
-      module: options.module, key: options.key, collect: options.collect,
-      onState(state, info) { if (state === "found") found(info.checkpoint, info.dirty); else show(state, info); },
+      module: options.module, key: options.key, collect: options.collect, warnOnLeave: options.warnOnLeave,
+      onState(state, info) {
+        if (state === "found") found(info.checkpoint, info.dirty);
+        // «Guardar y pausar» reemplazó el autoguardado anterior: ofrecer recuperarlo traería datos que ya no existen.
+        else if (state === "resolved") { if (note) { note.remove(); note = null; } }
+        else show(state, info);
+      },
     });
     if (pause) {
       pause.addEventListener("click", async () => {
@@ -337,7 +349,7 @@
         const response = await saver.saveNow({ pause: true });
         if (response.ok) {
           saver.stop();
-          IL.toast("Práctica guardada y pausada. Puedes retomarla desde Mi progreso.", "ok");
+          IL.toast(response.skipped ? "No había cambios que guardar." : "Práctica guardada y pausada. Puedes retomarla desde Mi progreso.", "ok");
           setTimeout(() => { window.location.href = "/"; }, 800);
           return;
         }

@@ -78,7 +78,7 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{% static 'js/autosave.js' %}?v=cu10-3"></script>
+<script src="{% static 'js/autosave.js' %}?v=cu10-4"></script>
 <script>
 (function () {
   const BASE = "/clasificacion/api/intento/{{ attempt.id }}/";
@@ -166,6 +166,8 @@
   if (IL.autosave) {
     saver = IL.autosave.mount({
       module: "classification", key: "{{ attempt.id }}",
+      // Solo hay una selección en pantalla; lo confirmado ya está en el servidor: no se pregunta al salir.
+      warnOnLeave: false,
       collect: () => {
         const cat = document.querySelector('input[name="category"]:checked');
         return { selected, category: cat ? cat.value : null };

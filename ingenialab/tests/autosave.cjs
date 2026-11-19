@@ -313,6 +313,7 @@ test('mount (rev. 1): «Recuperar autoguardado» restaura y deja la pantalla sin
 test('«Guardar y pausar» guarda con pause y vuelve a Mi progreso', async () => {
   const e = setupMount(req => req.method === 'GET' ? notFound : ok(1));
   await e.saver.ready;
+  e.saver.markDirty();  // Hay algo que guardar (un caso nuevo sin cambios no crea borrador).
   await e.pause.click(); await flush();
   const post = e.requests.find(r => r.method === 'POST');
   assert.equal(post.body.pause, true);
@@ -326,6 +327,7 @@ test('«Guardar y pausar» con conflicto no redirige y lo explica', async () => 
   const e = setupMount(req => req.method === 'GET' ? notFound
     : response(409, { ok: false, error: 'revision_conflict', message: 'Abierta en otra pestaña.' }));
   await e.saver.ready;
+  e.saver.markDirty();  // Hay algo que guardar (un caso nuevo sin cambios no crea borrador).
   await e.pause.click(); await flush();
   assert.equal(e.later.length, 0);
   assert.equal(e.location.href, '/modelado/nuevo/');
@@ -411,6 +413,7 @@ test('rev. 5: un 401 al pausar reautentica con el modal y reintenta una vez', as
   });
   e.window.IL.sessionExpired = async () => { session = true; return { user_id: '7', csrf_token: 'nuevo' }; };
   await e.saver.ready;
+  e.saver.markDirty();  // Hay algo que guardar (un caso nuevo sin cambios no crea borrador).
   const result = await e.saver.saveNow({ pause: true });
   assert.equal(result.ok, true);
   assert.equal(e.posts().at(-1).headers['X-CSRFToken'], 'nuevo');
@@ -560,10 +563,49 @@ test('PR #43 (6): un 403 de CSRF al pausar abre el modal de sesión y reintenta 
   let modal = 0;
   e.window.IL.sessionExpired = async () => { modal++; token = true; return { user_id: '7', csrf_token: 'nuevo' }; };
   await e.saver.ready;
+  e.saver.markDirty();  // Hay algo que guardar (un caso nuevo sin cambios no crea borrador).
   const result = await e.saver.saveNow({ pause: true });
   assert.equal(modal, 1);
   assert.equal(result.ok, true);
   assert.equal(e.posts().at(-1).headers['X-CSRFToken'], 'nuevo');
+});
+
+/* ---- Correcciones de la segunda revisión del PR #43 ---- */
+test('PR #43 rev. 2 (3): «Guardar y pausar» mientras se espera la elección quita «Recuperar autoguardado»', async () => {
+  const e = setupMount(req => req.method === 'GET' ? found : response(409, { ok: false, error: 'practice_closed' }));
+  e.saver.markDirty();  // Ya escribió antes de que llegara el autoguardado: se retiene y se pregunta.
+  await e.saver.ready; await flush();
+  assert.equal(e.saver.held, true);
+  assert.ok(all(e.notice).some(n => n.textContent === 'Recuperar autoguardado'));
+  await e.pause.click(); await flush();
+  assert.equal(e.saver.held, false);
+  assert.ok(!all(e.notice).some(n => n.textContent === 'Recuperar autoguardado'));
+  assert.equal(e.restored.length, 0);
+});
+
+test('PR #43 rev. 2 (5): «Guardar y pausar» en un caso nuevo sin cambios no crea un borrador vacío', async () => {
+  const e = setupMount(req => req.method === 'GET' ? notFound : ok(1));
+  await e.saver.ready;
+  await e.pause.click(); await flush();
+  assert.equal(e.requests.filter(r => r.method === 'POST').length, 0);
+  assert.ok(all(e.body).some(n => /No había cambios/.test(n.textContent || '')));
+  e.later[0]();
+  assert.equal(e.location.href, '/');
+});
+
+test('PR #43 rev. 2 (4): con warnOnLeave false no pide confirmación al salir', async () => {
+  const e = setup(req => req.method === 'GET' ? notFound : ok(1));
+  await e.saver.ready;
+  e.saver.markDirty();
+  const event = { prevented: false, preventDefault() { this.prevented = true; } };
+  e.listeners.beforeunload[0](event);
+  assert.equal(event.prevented, true);  // Por omisión sí avisa.
+  const quiet = e.window.IL.autosave.start({ module: 'classification', key: '33333333-3333-4333-8333-333333333333',
+    collect: () => ({}), warnOnLeave: false });
+  await quiet.ready; quiet.markDirty();
+  const other = { prevented: false, preventDefault() { this.prevented = true; } };
+  e.listeners.beforeunload.at(-1)(other);
+  assert.equal(other.prevented, false);
 });
 
 (async () => {

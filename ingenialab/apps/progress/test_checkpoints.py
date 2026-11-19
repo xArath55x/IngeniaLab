@@ -273,8 +273,10 @@ class CheckpointResumeTests(BaseCase):
         self.ask_rounds(attempt)  # La entrevista termina: su autoguardado ya no aplica (RN-01).
         PracticeCheckpoint.objects.create(user=self.user, module="modeling", key=str(uuid.uuid4()),
                                           payload={"schema": 1})  # Caso de uso que ya no existe.
-        self.client.get("/")
-        self.assertEqual(list(PracticeCheckpoint.objects.values_list("key", flat=True)), [uc_key])
+        # El tablero no los muestra, pero un GET no escribe en la BD: `close` y `purge` los borran (RN-01, RN-03).
+        index, drafts = checkpoints.for_dashboard(self.user)
+        self.assertEqual(list(index), [("modeling", uc_key)])
+        self.assertEqual(PracticeCheckpoint.objects.count(), 2)
 
     def test_dashboard_does_not_show_other_users_drafts(self):
         PracticeCheckpoint.objects.create(user=self.other, module="modeling", key=f"nuevo:{uuid.uuid4()}",
@@ -436,3 +438,74 @@ class CheckpointPr43ReviewTests(BaseCase):
         user_table = self.user._meta.db_table
         self.assertTrue(any(user_table in q["sql"] and "FOR UPDATE" in q["sql"].upper() for q in queries)
                         or not connection.features.has_select_for_update)
+
+
+@override_settings(INGENIALAB_MODULES=settings.ALL_MODULES, PLANTUML_ALLOW_FALLBACK=True, PLANTUML_JAR="/no/existe-prueba.jar")
+class CheckpointPr43SecondReviewTests(BaseCase):
+    """Correcciones de la segunda revisión del PR #43 (ACT-307B)."""
+
+    SPEC = {"name": "Registrar préstamo", "system_name": "Biblioteca", "primary_actors": ["Bibliotecario"],
+            "secondary_actors": [], "preconditions": "El bibliotecario inició sesión.",
+            "main_flow": ["El Bibliotecario captura la matrícula.", "El sistema registra el préstamo."],
+            "alternate_flows": [], "postconditions": "El préstamo queda registrado.", "relations": [], "attempt_id": ""}
+
+    def save(self, module, key, payload=None, revision=0, pause=False):
+        return self.post(SAVE, {"module": module, "key": str(key), "revision": revision,
+                                "payload": payload or {}, "pause": pause})
+
+    def save_use_case(self, **extra):
+        self.finished_attempt()
+        return self.post("/modelado/api/guardar/", {**self.SPEC, **extra})
+
+    def test_saving_a_new_use_case_consumes_its_draft(self):  # Hallazgo 1
+        key = f"nuevo:{uuid.uuid4()}"
+        other = f"nuevo:{uuid.uuid4()}"
+        self.save("modeling", key, payload={"name": "Borrador"})
+        self.save("modeling", other, payload={"name": "Otro"})
+        r = self.save_use_case(draft_key=key)
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertEqual(list(PracticeCheckpoint.objects.values_list("key", flat=True)), [other])
+        self.assertNotContains(self.client.get("/"), "Caso de uso · Borrador")
+
+    def test_invalid_draft_key_does_not_break_the_save(self):  # Hallazgo 1
+        for bad in ["nuevo:no-es-uuid", str(uuid.uuid4()), 7]:
+            self.assertEqual(self.save_use_case(draft_key=bad).status_code, 200)
+
+    def test_plain_new_editor_ignores_lesson_drafts(self):  # Hallazgo 2
+        self.finished_attempt()
+        lesson_draft, plain = f"nuevo:{uuid.uuid4()}", f"nuevo:{uuid.uuid4()}"
+        self.save("modeling", lesson_draft, payload={"lesson_id": str(uuid.uuid4())})
+        self.assertContains(self.client.get("/modelado/nuevo/"), 'data-draft-key=""')
+        self.save("modeling", plain, payload={"name": "Libre"})
+        self.save("modeling", lesson_draft, payload={"lesson_id": str(uuid.uuid4())}, revision=1)  # Más reciente.
+        self.assertContains(self.client.get("/modelado/nuevo/"), f'data-draft-key="{plain}"')
+
+    def test_disabled_module_hides_and_rejects_checkpoints(self):  # Hallazgo 6
+        attempt = self.new_attempt()
+        self.save("interview", attempt.id)
+        key = f"nuevo:{uuid.uuid4()}"
+        self.save("modeling", key, payload={"name": "Oculto"})
+        with override_settings(INGENIALAB_MODULES=["interviews", "classification", "progress"]):
+            index, drafts = checkpoints.for_dashboard(self.user)
+            self.assertEqual((list(index), drafts), ([("interview", str(attempt.id))], []))
+            self.assertEqual(self.save("modeling", f"nuevo:{uuid.uuid4()}").status_code, 404)
+            self.assertEqual(self.client.get(f"{SAVE}modeling/{key}/").status_code, 404)
+
+    def test_reset_and_discard_interview_clear_its_checkpoint(self):  # Hallazgos 7 y 8
+        from apps.interviews.services import discard_interview, reset_interview
+        attempt = self.new_attempt()
+        self.save("interview", attempt.id, pause=True)
+        reset_interview(attempt)
+        self.assertFalse(PracticeCheckpoint.objects.exists())
+        self.save("interview", attempt.id)
+        discard_interview(attempt)
+        self.assertFalse(PracticeCheckpoint.objects.exists())
+
+    def test_deleting_a_use_case_clears_its_checkpoint(self):  # Hallazgo 8
+        self.assertEqual(self.save_use_case().status_code, 200)
+        from apps.modeling.models import UseCaseSpecification
+        uc = UseCaseSpecification.objects.get(user=self.user)
+        self.save("modeling", uc.id, payload={"name": "Cambiado"})
+        self.client.post(f"/modelado/{uc.id}/eliminar/")
+        self.assertFalse(UseCaseSpecification.objects.exists())
+        self.assertFalse(PracticeCheckpoint.objects.exists())

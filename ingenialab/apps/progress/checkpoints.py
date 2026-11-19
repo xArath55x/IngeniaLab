@@ -17,6 +17,7 @@ import re
 from collections import defaultdict
 from datetime import timedelta
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError, transaction
 from django.utils import timezone
@@ -43,10 +44,25 @@ def _not_found():
     return CheckpointError("not_found", "No se encontró esa práctica.", status=404)
 
 
+# Módulo del punto de guardado → módulo de INGENIALAB_MODULES que lo atiende (ModuleGateMiddleware).
+APP_MODULE = {
+    PracticeCheckpoint.INTERVIEW: "interviews", PracticeCheckpoint.CLASSIFICATION: "classification",
+    PracticeCheckpoint.MODELING: "modeling", PracticeCheckpoint.LESSON: "modeling",
+    PracticeCheckpoint.INSPECTION: "inspection",
+}
+
+
+def enabled_modules():
+    """Módulos de punto de guardado cuyo módulo de la aplicación está habilitado."""
+    return [module for module, app in APP_MODULE.items() if app in settings.INGENIALAB_MODULES]
+
+
 def validate_key(module, key):
     """Normaliza la clave: UUID de la práctica o, en modelado, `nuevo:<uuid>` para un caso sin guardar."""
     if module not in dict(PracticeCheckpoint.MODULES):
         raise CheckpointError("invalid_module", "El módulo indicado no admite autoguardado.")
+    if module not in enabled_modules():
+        raise CheckpointError("module_disabled", "Este módulo no está disponible.", status=404)
     key = key.strip().lower() if isinstance(key, str) else ""
     raw = key[len(NEW_USE_CASE_PREFIX):] if module == PracticeCheckpoint.MODELING and key.startswith(NEW_USE_CASE_PREFIX) else key
     if not _UUID.match(raw):
@@ -182,6 +198,21 @@ def close(user, module, key):
     PracticeCheckpoint.objects.filter(user=user, module=module, key=str(key)).delete()
 
 
+def consume_new_draft(user, key):
+    """Borra el borrador `nuevo:<uuid>` de un caso de uso que se acaba de guardar, en la misma transacción.
+
+    Así el borrador no sobrevive aunque el navegador cierre la pestaña antes de descartarlo. Una clave inválida
+    se ignora: el guardado del caso de uso no debe fallar por el autoguardado.
+    """
+    if not isinstance(key, str) or not key.strip().lower().startswith(NEW_USE_CASE_PREFIX):
+        return
+    try:
+        key = validate_key(PracticeCheckpoint.MODELING, key)
+    except CheckpointError:
+        return
+    close(user, PracticeCheckpoint.MODELING, key)
+
+
 def discard(user, module, key):
     key = validate_key(module, key)
     deleted, _ = PracticeCheckpoint.objects.filter(user=user, module=module, key=key).delete()
@@ -209,7 +240,9 @@ def latest_new_draft_key(user, lesson_id=None, attempt_id=None):
 
     Con `lesson_id` solo vale un borrador de esa lección; con `attempt_id`, uno de esa entrevista que no venga de
     una lección. Así ?leccion= y ?attempt= retoman su propio borrador en vez de dejar uno huérfano en cada visita.
-    Hay a lo más MAX_NEW_DRAFTS borradores, así que se filtran aquí y no con consultas sobre el JSON.
+    Sin filtros solo vale un borrador que no venga de una lección: retomarlo copiaría su `lesson_id` y el caso
+    nuevo se guardaría como el de esa lección. Hay a lo más MAX_NEW_DRAFTS borradores, así que se filtran aquí y no
+    con consultas sobre el JSON.
     """
     drafts = (PracticeCheckpoint.objects.filter(user=user, module=PracticeCheckpoint.MODELING,
                                                 key__startswith=NEW_USE_CASE_PREFIX)
@@ -217,6 +250,8 @@ def latest_new_draft_key(user, lesson_id=None, attempt_id=None):
     for key, payload in drafts:
         payload = payload if isinstance(payload, dict) else {}
         if lesson_id is not None and str(payload.get("lesson_id") or "") != str(lesson_id):
+            continue
+        if lesson_id is None and payload.get("lesson_id"):
             continue
         if attempt_id is not None and (payload.get("lesson_id") or str(payload.get("attempt_id") or "") != str(attempt_id)):
             continue
@@ -268,23 +303,21 @@ def for_dashboard(user):
 
     Devuelve un índice por (módulo, clave) para marcar las prácticas que ya lista el tablero (incluidos los casos
     de uso guardados con cambios autoguardados) y los borradores de casos de uso nuevos, que solo existen como punto
-    de guardado. Los servicios borran el punto al cerrar cada práctica (`close`); aquí solo se limpian, en bloque,
-    los que quedaran de prácticas cerradas o borradas (RN-01).
+    de guardado. Los servicios borran el punto al cerrar, reiniciar o borrar cada práctica (`close`); aquí solo se
+    omiten los que quedaran de prácticas cerradas, sin escribir en la BD en un GET (los borra `purge`, RN-03).
+    Tampoco se listan los de módulos deshabilitados en INGENIALAB_MODULES.
     """
-    found = list(PracticeCheckpoint.objects.filter(user=user).order_by("-updated_at"))
+    found = list(PracticeCheckpoint.objects.filter(user=user, module__in=enabled_modules()).order_by("-updated_at"))
     keys = defaultdict(list)
     for checkpoint in found:
         keys[checkpoint.module].append(checkpoint.key)
     open_keys = {module: _open_keys(user, module, module_keys) for module, module_keys in keys.items()}
-    index, drafts, stale = {}, [], []
+    index, drafts = {}, []
     for checkpoint in found:
         if checkpoint.key not in open_keys[checkpoint.module]:
-            stale.append(checkpoint.pk)
             continue
         checkpoint.resume_url = resume_url(checkpoint)
         index[(checkpoint.module, checkpoint.key)] = checkpoint
         if checkpoint.module == PracticeCheckpoint.MODELING and checkpoint.key.startswith(NEW_USE_CASE_PREFIX):
             drafts.append(checkpoint)
-    if stale:
-        PracticeCheckpoint.objects.filter(pk__in=stale).delete()
     return index, drafts

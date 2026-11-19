@@ -233,6 +233,8 @@ def discard_interview(attempt: StudentAttempt):
     """Elimina una entrevista en curso que el estudiante abandonó; las concluidas se conservan."""
     if attempt.status != StudentAttempt.INTERVIEWING:
         raise InterviewError("Solo puede descartarse una entrevista en curso.")
+    from apps.progress import checkpoints  # Diferido: progress depende de interviews.
+    checkpoints.close(attempt.user, "interview", attempt.id)  # CU-10, RN-01
     attempt.delete()
 
 
@@ -240,4 +242,7 @@ def reset_interview(attempt: StudentAttempt):
     """Vacía la conversación y vuelve a la primera ronda (CU-01 FA-1)."""
     if attempt.status != StudentAttempt.INTERVIEWING:
         raise InterviewError("Solo puede reiniciarse una entrevista en curso.")
+    # CU-10: la entrevista reiniciada empieza sin punto de guardado (no debe seguir «Pausada»).
+    from apps.progress import checkpoints  # Diferido: progress depende de interviews.
+    checkpoints.close(attempt.user, "interview", attempt.id)
     attempt.log_entries.all().delete()
