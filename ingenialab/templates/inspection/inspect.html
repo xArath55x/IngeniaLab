@@ -94,27 +94,41 @@
     document.getElementById("m-score").textContent = s.score;
   }
 
-  regBtn.addEventListener("click", async () => {
+  // ACT-313B: un clic a la vez. Mientras el servidor responde, los botones quedan deshabilitados (un doble
+  // clic ya no envía dos registros) y el resultado se pinta en la sección y el tipo elegidos al hacer clic,
+  // aunque el alumno seleccione otra sección mientras espera.
+  let busy = false;
+  async function once(button, action) {
+    if (busy) return;
+    busy = true; button.disabled = true; button.setAttribute("aria-busy", "true");
+    try { await action(); } finally { busy = false; button.disabled = false; button.removeAttribute("aria-busy"); }
+  }
+
+  regBtn.addEventListener("click", () => {
     if (!selected) return;
     if (!typeSel.value) { fb.innerHTML = IL.feedback("bad", "Elige el tipo de defecto detectado."); typeSel.focus(); return; }
-    const r = await IL.api(BASE + "hallazgo/", { fragment_id: selected.dataset.id, defect_type: typeSel.value });
-    if (!r.ok) { fb.innerHTML = IL.feedback("bad", r.message); return; }
-    if (r.status === "already_found") { fb.innerHTML = IL.feedback("ok", r.message, " " + r.explanation); return; }
-    setSummary(r.summary);
-    const status = selected.querySelector(".frag-status");
-    selected.classList.remove("found", "wrong", "hinted");
-    if (r.status === "correct") {
-      selected.classList.add("found");
-      status.innerHTML = `<span class="tag ok">✔ ${IL.esc(LABELS[typeSel.value])}</span>`;
-      fb.innerHTML = IL.feedback("ok", r.message, " " + r.explanation);
-    } else {
-      selected.classList.add("wrong");
-      status.innerHTML = r.status === "no_defect" ? '<span class="tag bad">✖ Sin defecto</span>' : `<span class="tag bad">✖ ${IL.esc(LABELS[typeSel.value])}</span>`;
-      fb.innerHTML = IL.feedback("bad", r.message, " " + r.explanation);
-    }
+    const target = selected, type = typeSel.value;
+    return once(regBtn, async () => {
+      const r = await IL.api(BASE + "hallazgo/", { fragment_id: target.dataset.id, defect_type: type });
+      if (!r.ok) { fb.innerHTML = IL.feedback("bad", r.message); return; }
+      if (r.status === "already_found") { fb.innerHTML = IL.feedback("ok", r.message, " " + r.explanation); return; }
+      setSummary(r.summary);
+      const status = target.querySelector(".frag-status");
+      target.classList.remove("found", "wrong", "hinted");
+      if (r.status === "correct") {
+        target.classList.add("found");
+        status.innerHTML = `<span class="tag ok">✔ ${IL.esc(LABELS[type])}</span>`;
+        fb.innerHTML = IL.feedback("ok", r.message, " " + r.explanation);
+      } else {
+        target.classList.add("wrong");
+        status.innerHTML = r.status === "no_defect" ? '<span class="tag bad">✖ Sin defecto</span>' : `<span class="tag bad">✖ ${IL.esc(LABELS[type])}</span>`;
+        fb.innerHTML = IL.feedback("bad", r.message, " " + r.explanation);
+      }
+    });
   });
 
-  document.getElementById("btn-hint").addEventListener("click", async () => {
+  const hintBtn = document.getElementById("btn-hint");
+  hintBtn.addEventListener("click", () => once(hintBtn, async () => {
     const r = await IL.api(BASE + "pista/");
     if (!r.ok) return IL.toast(r.message, "bad");
     fb.innerHTML = IL.feedback("hint", "Pista:", " " + r.hint);
@@ -124,17 +138,21 @@
       f.classList.add("hinted");
       f.scrollIntoView({ behavior: "smooth", block: "center" });
     }
-  });
+  }));
 
-  document.getElementById("btn-conclude").addEventListener("click", async () => {
+  const concludeBtn = document.getElementById("btn-conclude");
+  concludeBtn.addEventListener("click", async () => {
+    if (busy) return;
     const found = document.getElementById("m-found").textContent;
     if (!(await IL.confirmModal("Concluir práctica", `Llevas ${found} defectos encontrados. Al concluir ya no podrás registrar hallazgos y verás la clave completa.`, "Concluir"))) return;
-    const r = await IL.api(BASE + "concluir/");
-    if (!r.ok) return IL.toast(r.message, "bad");
-    IL.showBadges(r.badges);
-    if (saver) saver.stop();  // Concluida: el servidor ya borró o rechaza su autoguardado (RN-01).
-    IL.toast(`Práctica concluida: ${r.summary.score} puntos, precisión ${r.summary.precision} %.`, "ok");
-    setTimeout(() => window.location.reload(), 900);
+    return once(concludeBtn, async () => {
+      const r = await IL.api(BASE + "concluir/");
+      if (!r.ok) return IL.toast(r.message, "bad");
+      IL.showBadges(r.badges);
+      if (saver) saver.stop();  // Concluida: el servidor ya borró o rechaza su autoguardado (RN-01).
+      IL.toast(`Práctica concluida: ${r.summary.score} puntos, precisión ${r.summary.precision} %.`, "ok");
+      setTimeout(() => window.location.reload(), 900);
+    });
   });
 
   // CU-10: autoguarda el fragmento seleccionado y el tipo de defecto aún sin registrar.
