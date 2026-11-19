@@ -217,7 +217,8 @@ def discard(user, module, key):
     key = validate_key(module, key)
     deleted, _ = PracticeCheckpoint.objects.filter(user=user, module=module, key=key).delete()
     if not deleted:
-        raise CheckpointError("not_found", "No hay un autoguardado para esta práctica.", status=404)
+        practice_state(user, module, key)  # Práctica ajena o inexistente: 404 (not_found), como en get().
+        raise CheckpointError("no_checkpoint", "No hay un autoguardado para esta práctica.", status=404)
 
 
 def purge(days=PURGE_DAYS, now=None):

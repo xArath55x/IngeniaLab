@@ -18,6 +18,8 @@ function setup(fetch) {
   const body = new Element('body'); body.dataset.userId = '1';
   const document = { body, cookie: 'csrftoken=token-viejo', createElement: tag => new Element(tag),
     querySelector: selector => nodes(body).find(n => (n.className || '').split(' ').includes(selector.slice(1))) || null,
+    // app.js enlaza el filtro del tablero (ACT-308) al cargar; aquí no hay tablero.
+    querySelectorAll: () => [],
     addEventListener() {}, removeEventListener() {} };
   let counter = 0;
   const window = { addEventListener() {}, crypto: { randomUUID: () => '00000000-0000-4000-8000-' + String(++counter).padStart(12,'0') } };

@@ -154,11 +154,14 @@ class CheckpointApiTests(BaseCase):
         attempt = self.new_attempt()
         self.assertEqual(self.post(f"{SAVE}interview/{attempt.id}/").status_code, 405)
 
-    def test_discard_deletes_then_404(self):
+    def test_discard_deletes_and_is_idempotent(self):
         attempt = self.new_attempt()
         self.save("interview", attempt.id)
-        self.assertEqual(self.post(f"{SAVE}interview/{attempt.id}/descartar/").status_code, 200)
-        self.assertEqual(self.post(f"{SAVE}interview/{attempt.id}/descartar/").status_code, 404)
+        r = self.post(f"{SAVE}interview/{attempt.id}/descartar/")
+        self.assertEqual((r.status_code, r.json()), (200, {"ok": True, "discarded": True}))
+        # Sin borrador: 200 y no 404, para no dejar un error en la consola (ACT-313B).
+        r = self.post(f"{SAVE}interview/{attempt.id}/descartar/")
+        self.assertEqual((r.status_code, r.json()), (200, {"ok": True, "discarded": False}))
         r = self.client.get(f"{SAVE}interview/{attempt.id}/")
         self.assertEqual((r.status_code, r.json()), (200, {"ok": True, "found": False}))
 
