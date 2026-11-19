@@ -45,6 +45,27 @@ def structural_errors(spec):
         seen.add(identity)
     return errors
 
+ARTICLES = {"el", "la", "los", "las", "un", "una", "unos", "unas"}
+# «Sistema» es el sujeto de casi todos los pasos («El sistema muestra…»): no basta para nombrar a un actor
+# como «Sistema de pagos».
+GENERIC_HEADS = {"sistema"}
+
+
+def mentions_actor(flow, actor):
+    """True si el flujo nombra al actor completo o por su sustantivo principal (ACT-313B, OBS-02).
+
+    Un flujo bien redactado dice «La coordinadora elige…» aunque el actor sea «Coordinadora de la
+    biblioteca»; exigir el nombre completo daba una sugerencia falsa en 3 de los 14 casos de referencia.
+    """
+    name = key(actor)
+    if name in flow:
+        return True
+    words = [w for w in re.findall(r"\w+", name) if w not in ARTICLES]
+    if len(words) < 2 or words[0] in GENERIC_HEADS:
+        return False
+    return re.search(rf"\b{re.escape(words[0])}\b", flow) is not None
+
+
 def suggestions(spec):
     warnings = []
     if spec.get("name") and not INFINITIVE.match(spec["name"]):
@@ -53,7 +74,7 @@ def suggestions(spec):
         warnings.append("Considera documentar al menos un flujo alterno o de excepción.")
     if spec.get("main_flow") and spec.get("primary_actors"):
         flow = key(" ".join(spec["main_flow"]))
-        if not any(key(a) in flow for a in spec["primary_actors"]):
+        if not any(mentions_actor(flow, a) for a in spec["primary_actors"]):
             warnings.append("Consistencia: el flujo principal no menciona a ningún actor principal.")
     return warnings
 
