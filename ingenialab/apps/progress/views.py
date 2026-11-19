@@ -12,7 +12,7 @@ from apps.interviews.services import progress as interview_progress
 from apps.inspection.services import summary as inspection_summary
 from integrations.pdf.generator import build_report
 
-from . import checkpoints
+from . import checkpoints, partidas
 from .models import ReportExport
 from .services import badge_list, evaluate_badges, lesson_summary, level_for, open_interviews, total_points
 
@@ -22,10 +22,21 @@ def dashboard(request):
     user = request.user
     points = total_points(user)
     attempts = user.attempts.select_related("version")
-    interview_groups = open_interviews(user)
+    current = partidas.active(user)
+    game = partidas.state(current) if current else None
+    # Lo de la partida en curso ya se ve en su tarjeta; aquí solo quedan las prácticas sueltas anteriores.
+    skip_attempt = current.attempt_id if current else None
+    skip_inspection = current.inspection_id if current else None
+    interview_groups = []
+    for group in open_interviews(user):
+        items = [a for a in [group["latest"], *group["older"]] if a.id != skip_attempt]
+        if items:
+            interview_groups.append({**group, "latest": items[0], "older": items[1:]})
     lessons = lesson_summary(user)
-    classifying = list(attempts.filter(status=StudentAttempt.CLASSIFYING)[:5])
-    open_inspections = list(user.inspections.filter(concluded_at__isnull=True).select_related("exercise"))
+    lessons["in_progress"] = [lesson for lesson in lessons["in_progress"] if lesson.attempt_id != skip_attempt]
+    classifying = [a for a in attempts.filter(status=StudentAttempt.CLASSIFYING)[:6] if a.id != skip_attempt][:5]
+    open_inspections = [i for i in user.inspections.filter(concluded_at__isnull=True).select_related("exercise")
+                        if i.id != skip_inspection]
     use_cases = list(user.use_cases.all()[:5])
     # CU-10: cada práctica que ya lista el tablero muestra si tiene autoguardado o quedó pausada.
     saved, drafts = checkpoints.for_dashboard(user)
@@ -38,6 +49,8 @@ def dashboard(request):
         "points": points,
         "level": level_for(points),
         "badges": badge_list(user),
+        "game": game,
+        "history": partidas.history(user),
         "interview_groups": interview_groups,
         "lessons": lessons,
         "classifying": classifying,
@@ -57,6 +70,42 @@ def checkpoint_discard(request, module, key):
         messages.success(request, "Borrador descartado.")
     except checkpoints.CheckpointError:
         messages.info(request, "Ese borrador ya no existe.")
+    return redirect("progress:dashboard")
+
+
+@login_required
+@require_POST
+def partida_start(request):
+    """«Iniciar nueva partida»: escenario aleatorio y directo a la entrevista."""
+    try:
+        partida = partidas.start(request.user)
+    except partidas.PartidaError as e:
+        messages.error(request, str(e))
+        return redirect("progress:dashboard")
+    messages.success(request, f"¡Nueva partida! Tu escenario es «{partida.attempt.version.title}».")
+    return redirect(partidas.continue_url(partida))
+
+
+@login_required
+def partida_continue(request):
+    """Lleva a la pantalla de la primera etapa sin terminar de la partida en curso."""
+    partida = partidas.active(request.user)
+    if partida is None:
+        return redirect("progress:dashboard")
+    try:
+        return redirect(partidas.continue_url(partida))
+    except partidas.PartidaError as e:
+        messages.error(request, str(e))
+        return redirect("progress:dashboard")
+
+
+@login_required
+@require_POST
+def partida_abandon(request):
+    partida = partidas.active(request.user)
+    if partida is not None:
+        partidas.abandon(partida)
+        messages.info(request, "Abandonaste la partida. Lo que hiciste en ella sigue en Reportes.")
     return redirect("progress:dashboard")
 
 

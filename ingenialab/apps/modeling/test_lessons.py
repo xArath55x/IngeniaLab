@@ -49,6 +49,15 @@ class LessonTests(BaseCase):
     def test_seed_loads_reference_use_cases(self):
         self.assertEqual(ReferenceUseCase.objects.filter(version=self.version).count(), 4)
         self.assertEqual(ReferenceUseCase.objects.filter(version__scenario_code="ESC-CAFETERIA-01").count(), 4)
+        # Escenario de tutorías (ACT-329A): 11 requisitos y 2 casos de uso guiados.
+        tutorias = ReferenceUseCase.objects.filter(version__scenario_code="ESC-TUTORIAS-01")
+        self.assertEqual(sorted(tutorias.values_list("key", flat=True)), ["UC-T1", "UC-T2"])
+        self.assertEqual(tutorias.first().version.requirements.count(), 11)
+        # Escenarios del consultorio y del gimnasio (ACT-329B): 11 requisitos y 2 casos de uso guiados cada uno.
+        for code, keys in (("ESC-CONSULTORIO-01", ["UC-M1", "UC-M2"]), ("ESC-GIMNASIO-01", ["UC-G1", "UC-G2"])):
+            refs = ReferenceUseCase.objects.filter(version__scenario_code=code)
+            self.assertEqual(sorted(refs.values_list("key", flat=True)), keys)
+            self.assertEqual(refs.first().version.requirements.count(), 11)
 
     def test_locked_until_requirements_are_classified_as_rf(self):
         attempt = self.finished_attempt()
@@ -57,6 +66,15 @@ class LessonTests(BaseCase):
         self.assertEqual(len(status["not_classified"]), 2)
         self.classify(attempt)
         self.assertTrue(lessons.lesson_status(attempt, self.reference())["unlocked"])
+
+    def test_return_lesson_needs_return_goal_and_fine_rule(self):
+        """ACT-328: «Registrar devolución» tiene su propia meta (B12) y B05 es su regla de multa."""
+        ref = self.reference("UC-B2")
+        self.assertEqual(ref.requirement_keys, ["B12", "B05"])
+        locked = self.finished_attempt()
+        self.classify(locked, overrides={"B12": "RNF"})
+        self.assertFalse(lessons.lesson_status(locked, ref)["unlocked"])
+        self.assertTrue(lessons.lesson_status(self.ready_attempt(), ref)["unlocked"])
 
     def test_misclassified_requirement_keeps_lesson_locked(self):
         attempt = self.finished_attempt()
@@ -303,6 +321,50 @@ class ExerciseTests(SimpleTestCase):
                 self.assertEqual(lessons.is_correct(exercise, value), expected)
 
 
+@override_settings(INGENIALAB_MODULES=settings.ALL_MODULES)
+class TutoriasScenarioTests(BaseCase):
+    """Escenario de tutorías (ACT-329A): entrevista, clasificación y sus dos lecciones guiadas."""
+
+    SCENARIO = "ESC-TUTORIAS-01"
+    LESSONS = (("UC-T1", "Agendar tutoría"), ("UC-T2", "Registrar seguimiento de tutoría"))
+
+    classify, ready_attempt, reference = LessonTests.classify, LessonTests.ready_attempt, LessonTests.reference
+    start, reply, solve = LessonTests.start, LessonTests.reply, LessonTests.solve
+
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        cls.version = cls.version.__class__.objects.get(scenario_code=cls.SCENARIO)
+
+    def test_interview_unlocks_and_completes_both_lessons(self):
+        attempt = self.ready_attempt()
+        self.assertEqual(attempt.classifications.filter(is_correct=True).count(), 11)
+        for key, name in self.LESSONS:
+            with self.subTest(key=key):
+                ref = self.reference(key)
+                self.assertTrue(lessons.lesson_status(attempt, ref)["unlocked"])
+                self.start(attempt, ref)
+                lesson = UseCaseLesson.objects.get(reference=ref)
+                self.assertEqual(self.solve(lesson)["lesson_status"], "completed")
+                r = self.post(f"/modelado/api/leccion/{lesson.id}/guardar/").json()
+                self.assertIn("<svg", r["svg"])
+                self.assertTrue(self.user.use_cases.filter(name=name).exists())
+
+
+class ConsultorioScenarioTests(TutoriasScenarioTests):
+    """Escenario del consultorio médico (ACT-329B): entrevista, clasificación y sus dos lecciones guiadas."""
+
+    SCENARIO = "ESC-CONSULTORIO-01"
+    LESSONS = (("UC-M1", "Solicitar cita médica"), ("UC-M2", "Registrar consulta médica"))
+
+
+class GimnasioScenarioTests(TutoriasScenarioTests):
+    """Escenario del gimnasio (ACT-329B): entrevista, clasificación y sus dos lecciones guiadas."""
+
+    SCENARIO = "ESC-GIMNASIO-01"
+    LESSONS = (("UC-G1", "Reservar clase grupal"), ("UC-G2", "Pasar lista de clase"))
+
+
 class SeedValidationTests(BaseCase):
     def test_seed_rejects_use_case_built_on_non_functional_requirement(self):
         with open(settings.BASE_DIR / "data" / "usecases.json", encoding="utf-8") as fh:
@@ -313,3 +375,120 @@ class SeedValidationTests(BaseCase):
             tmp.flush()
             with self.assertRaisesMessage(ValueError, "B07 debe ser un requisito funcional"):
                 call_command("seed_ingenialab", usecases=tmp.name, stdout=StringIO())
+
+
+class QuestionClarityTests(BaseCase):
+    """Preguntas de las lecciones: sin ambigüedad y con el caso de uso en cada enunciado."""
+
+    def exercises(self, ref):
+        statements = list(ref.version.requirements.filter(key__in=ref.requirement_keys)
+                          .values_list("statement_text", flat=True))
+        return {e["id"]: e for e in lessons.build_exercises(ref, statements, seed="claridad")}
+
+    def test_every_prompt_names_the_use_case(self):
+        for ref in ReferenceUseCase.objects.all():
+            for ex_id, exercise in self.exercises(ref).items():
+                with self.subTest(caso=ref.key, ejercicio=ex_id):
+                    if ex_id != "name":  # La de nombre pregunta justamente cuál es.
+                        self.assertIn(f"«{ref.spec['name']}»", exercise["prompt"])
+
+    def test_flow_selection_asks_for_the_single_intruder(self):
+        for ref in ReferenceUseCase.objects.all():
+            exercise = self.exercises(ref)["main_flow_select"]
+            with self.subTest(caso=ref.key):
+                self.assertEqual(exercise["type"], "choice")
+                self.assertIn("NO", exercise["prompt"])
+                options = [o["text"] for o in exercise["options"]]
+                intruder = options[exercise["answer"]]
+                self.assertIn(intruder, ref.exercises["main_flow"]["distractors"])
+                self.assertEqual(sorted(o for o in options if o != intruder), sorted(ref.spec["main_flow"]))
+
+    def test_card_does_not_show_the_intruder_as_a_flow_step(self):
+        ref = ReferenceUseCase.objects.get(version=self.version, key="UC-B1")
+        lesson = UseCaseLesson(exercises=list(self.exercises(ref).values()), solved=["main_flow_select"])
+        self.assertNotIn("main_flow_select", [part["id"] for part in lessons.built(lesson)])
+
+    def test_every_reference_use_case_passes_the_editor_validation(self):
+        from apps.interviews.models import StudentAttempt
+        from apps.modeling.forms import UseCaseForm
+
+        for ref in ReferenceUseCase.objects.select_related("version"):
+            attempt = StudentAttempt.objects.create(user=self.user, version=ref.version,
+                                                    status=StudentAttempt.CLASSIFYING)
+            form = UseCaseForm(data={**ref.spec, "attempt_id": str(attempt.id)}, user=self.user)
+            with self.subTest(caso=ref.key):
+                self.assertTrue(form.is_valid(), form.errors)
+
+
+@override_settings(INGENIALAB_MODULES=settings.ALL_MODULES)
+class RefreshInProgressTests(BaseCase):
+    """Al corregir el contenido, las lecciones a medias lo toman sin perder lo resuelto (seed_ingenialab)."""
+
+    classify, ready_attempt, reference = LessonTests.classify, LessonTests.ready_attempt, LessonTests.reference
+    start, reply, solve = LessonTests.start, LessonTests.reply, LessonTests.solve
+
+    def test_seed_updates_in_progress_lesson_text_and_keeps_progress(self):
+        attempt = self.ready_attempt()
+        ref = self.reference()
+        self.start(attempt, ref)
+        lesson = UseCaseLesson.objects.get()
+        first = lesson.queue[0]
+        self.reply(lesson, first, {e["id"]: e for e in lesson.exercises}[first]["answer"])
+        lesson.refresh_from_db()
+        # Simula una lección creada con el texto anterior.
+        old = [{**e, "prompt": "Texto anterior"} for e in lesson.exercises]
+        UseCaseLesson.objects.filter(pk=lesson.pk).update(exercises=old)
+        call_command("seed_ingenialab", stdout=StringIO())
+        refreshed = UseCaseLesson.objects.get()
+        self.assertNotIn("Texto anterior", [e["prompt"] for e in refreshed.exercises])
+        self.assertEqual(refreshed.solved, lesson.solved)
+        self.assertEqual(refreshed.queue, lesson.queue)
+        self.assertEqual(refreshed.lives, lesson.lives)
+        self.assertEqual(refreshed.status, UseCaseLesson.IN_PROGRESS)
+
+    def test_finished_lessons_are_not_touched(self):
+        attempt = self.ready_attempt()
+        self.start(attempt, self.reference())
+        lesson = UseCaseLesson.objects.get()
+        self.solve(lesson)
+        UseCaseLesson.objects.filter(pk=lesson.pk).update(exercises=[{"id": "name", "prompt": "Texto anterior"}])
+        call_command("seed_ingenialab", stdout=StringIO())
+        self.assertEqual(UseCaseLesson.objects.get().exercises, [{"id": "name", "prompt": "Texto anterior"}])
+
+
+class FlowOrderTests(BaseCase):
+    """El orden del flujo debe deducirse del texto: lo respalda la pista del enunciado."""
+
+    def test_every_main_flow_starts_with_the_actor(self):
+        for ref in ReferenceUseCase.objects.all():
+            with self.subTest(caso=ref.key):
+                self.assertFalse(ref.spec["main_flow"][0].startswith("El sistema"), ref.spec["main_flow"][0])
+
+
+@override_settings(INGENIALAB_MODULES=settings.ALL_MODULES)
+class OrderFeedbackTests(BaseCase):
+    """Al fallar el orden, la respuesta trae el orden correcto para marcar cada paso en verde o rojo."""
+
+    classify = LessonTests.classify
+
+    def test_order_answer_returns_correct_order(self):
+        attempt = LessonTests.ready_attempt(self)
+        LessonTests.start(self, attempt, LessonTests.reference(self))
+        lesson = UseCaseLesson.objects.get()
+        while lesson.queue[0] != "main_flow":
+            first = lesson.queue[0]
+            LessonTests.reply(self, lesson, first, {e["id"]: e for e in lesson.exercises}[first]["answer"])
+            lesson.refresh_from_db()
+        expected = next(e for e in lesson.exercises if e["id"] == "main_flow")["answer"]
+        wrong = [expected[1], expected[0], *expected[2:]]
+        r = LessonTests.reply(self, lesson, "main_flow", wrong).json()
+        self.assertFalse(r["correct"])
+        self.assertEqual(r["correct_order"], expected)
+        self.assertEqual(r["correct_ids"], [])
+
+    def test_other_exercises_do_not_send_an_order(self):
+        attempt = LessonTests.ready_attempt(self)
+        LessonTests.start(self, attempt, LessonTests.reference(self))
+        lesson = UseCaseLesson.objects.get()
+        r = LessonTests.reply(self, lesson, lesson.queue[0], -1).json()
+        self.assertEqual(r["correct_order"], [])

@@ -184,6 +184,30 @@
       `<div><strong>${esc(title)}</strong>${body ? esc(body) : ""}</div></div>`;
   }
 
+  /* ---------- Filtro por módulo del tablero (CU-09 FA-1) ---------- */
+  // Oculta los elementos de la lista cuyo data-module no coincide; no recarga la página.
+  document.querySelectorAll("[data-filter-for]").forEach((group) => {
+    const list = document.getElementById(group.dataset.filterFor);
+    const empty = document.getElementById(`${group.dataset.filterFor}-empty`);
+    if (!list) return;
+    group.addEventListener("click", (event) => {
+      const chip = event.target.closest("[data-filter]");
+      if (!chip) return;
+      group.querySelectorAll("[data-filter]").forEach((c) => {
+        const active = c === chip;
+        c.classList.toggle("active", active);
+        c.setAttribute("aria-pressed", String(active));
+      });
+      let visible = 0;
+      list.querySelectorAll(":scope > li[data-module]").forEach((item) => {
+        const show = !chip.dataset.filter || item.dataset.module === chip.dataset.filter;
+        item.hidden = !show;
+        if (show) visible += 1;
+      });
+      if (empty) empty.hidden = visible > 0;
+    });
+  });
+
   window.IL = { api, toast, showBadges, confirmModal, el, esc, feedback,
     // Compartidas con autosave.js para que CSRF, identidad y reautenticación vivan en un solo lugar.
     getCookie, requestId, fetchJSON, sessionExpired };

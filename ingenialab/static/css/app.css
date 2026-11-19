@@ -57,12 +57,30 @@ p { margin: 0 0 .75rem; }
 @media (max-width: 1000px) { .grid-2, .grid-2.wide-left { grid-template-columns: 1fr; } }
 @media (max-width: 760px) {
   .layout { flex-direction: column; }
-  .sidebar { width: 100%; height: auto; position: static; }
+  /* En celular el menú se compacta en una barra para que el contenido aparezca en la primera pantalla (RNF-01). */
+  .sidebar { width: 100%; height: auto; position: static; padding: .6rem 1rem .7rem;
+    display: grid; grid-template-columns: 1fr auto; align-items: center; gap: .45rem .75rem; }
+  .brand { margin-bottom: 0; font-size: 1.1rem; }
+  .brand-mark { width: 28px; height: 28px; font-size: .9rem; }
+  .nav { grid-column: 1 / -1; grid-row: 2; display: flex; gap: .25rem; overflow-x: auto; }
+  .nav a { margin-bottom: 0; padding: .4rem .6rem; font-size: .9rem; white-space: nowrap; }
+  .nav-section { display: none; }
+  .side-progress { grid-column: 1 / -1; grid-row: 3; margin-top: 0; padding: .4rem .7rem; font-size: .8rem;
+    display: flex; align-items: center; gap: .6rem; }
+  .side-progress .bar { flex: 1; margin: 0 !important; }
+  .side-progress > div:last-child { display: none; }
+  .side-user { grid-column: 2; grid-row: 1; margin-top: 0 !important; gap: .6rem; }
   .main { padding: 1.25rem 1rem; }
+  .item-list li { flex-wrap: wrap; }
+  .resume-actions { margin-left: auto; }
 }
 
 .card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 1.1rem 1.25rem; }
 .card + .card { margin-top: 1rem; }
+/* Las tarjetas lado a lado en una cuadrícula ya se separan con gap; el margen las desalineaba. */
+.grid-2 > .card + .card, .grid-3 > .card + .card { margin-top: 0; }
+.scenario-card { display: flex; flex-direction: column; }
+.scenario-card form { margin-top: auto; }
 .card-head { display: flex; justify-content: space-between; align-items: center; gap: .5rem; margin-bottom: .75rem; }
 .sticky { position: sticky; top: 1rem; }
 
@@ -207,6 +225,8 @@ details.advanced { margin-top: .75rem; }
 .resume-older details summary { cursor: pointer; color: var(--accent); font-size: .9rem; padding: .2rem 0; }
 .resume-older details[open] summary { margin-bottom: .3rem; }
 .resume-older { display: block !important; }
+.resume-older[hidden] { display: none !important; }
+.resume-filter { margin-bottom: .6rem; }
 .badge .b-name { font-weight: 700; font-size: .85rem; }
 .item-list { list-style: none; padding: 0; margin: 0; }
 .item-list li { display: flex; justify-content: space-between; align-items: center; gap: .5rem; padding: .55rem 0; border-bottom: 1px solid var(--border); }
@@ -328,3 +348,35 @@ textarea.wizard-input { min-height: 90px; }
 .autosave-notice .btn { margin-left: .4rem; }
 .lesson-top .autosave { margin-left: .5rem; }
 @media (max-width: 760px) { .lesson-top { flex-wrap: wrap; } .lesson-top .autosave { width: 100%; margin-left: 0; } }
+
+/* Partida única: tarjeta del tablero, etapas y barra en cada pantalla de etapa. */
+.partida-card { border-top: 4px solid var(--accent); }
+.partida-bar { height: 12px; margin: .4rem 0 1rem; }
+.partida-stages { list-style: none; margin: 0 0 1rem; padding: 0; display: grid; gap: .55rem; }
+.partida-stage { display: flex; gap: .75rem; align-items: center; padding: .55rem .7rem; border: 1px solid var(--border); border-radius: 10px; }
+.partida-stage.done { background: var(--ok-bg); border-color: transparent; }
+.partida-stage.current { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+.partida-dot { flex: none; width: 2rem; height: 2rem; border-radius: 50%; display: grid; place-items: center; background: #e8eef1; font-weight: 700; }
+.partida-stage.done .partida-dot { background: var(--ok); color: #fff; }
+.partida-stage.current .partida-dot { background: var(--accent); color: #fff; }
+.partida-stage-body { min-width: 0; }
+.partida-stage-name { font-weight: 600; display: flex; gap: .4rem; flex-wrap: wrap; align-items: center; }
+.partida-start { text-align: center; padding: 1rem .5rem; }
+.partida-start-icon { font-size: 2.6rem; line-height: 1; }
+.partida-start h2 { margin: .5rem 0 .25rem; }
+.partida-start p { max-width: 34rem; margin-left: auto; margin-right: auto; }
+.partida-start-btn { font-size: 1.1rem; padding: .8rem 1.6rem; margin-top: .5rem; }
+.partida-strip { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .35rem 1rem; align-items: center; background: var(--card); border: 1px solid var(--border); border-left: 4px solid var(--accent); border-radius: var(--radius); padding: .6rem 1rem; margin-bottom: 1rem; }
+.partida-strip .bar { grid-column: 1; }
+.partida-strip .btn { grid-column: 2; grid-row: 1 / span 2; }
+@media (max-width: 760px) {
+  .partida-strip { grid-template-columns: 1fr; }
+  .partida-strip .btn { grid-column: 1; grid-row: auto; justify-self: start; }
+}
+
+/* Lecciones: al ordenar, cada paso se marca en su lugar (verde) o fuera de él (rojo). */
+.lesson-tile.is-correct { border-color: var(--ok); background: var(--ok-bg); color: var(--text); opacity: 1; }
+.lesson-tile.is-wrong { border-color: var(--bad); background: var(--bad-bg); color: var(--text); opacity: 1; }
+.lesson-tile .order-mark { font-weight: 700; }
+.lesson-tile.is-correct .order-mark { color: var(--ok); }
+.lesson-tile.is-wrong .order-mark, .lesson-tile .order-hint { color: var(--bad); font-weight: 600; }

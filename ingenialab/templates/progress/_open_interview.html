@@ -1,4 +1,4 @@
-<li><div><span class="tag hint">Entrevista en curso</span> {{ a.version.title }}<div class="small muted">Pregunta {{ a.asked }} de {{ a.total_rounds }} · iniciada {{ a.started_at|date:"d/m/Y H:i" }}{% if a.checkpoint %} · {% include "progress/_checkpoint_tag.html" with cp=a.checkpoint %}{% endif %}</div></div>
+<li data-module="elicitacion"><div><span class="tag hint">Entrevista en curso</span> {{ a.version.title }}<div class="small muted">Pregunta {{ a.asked }} de {{ a.total_rounds }} · iniciada {{ a.started_at|date:"d/m/Y H:i" }}{% if a.checkpoint %} · {% include "progress/_checkpoint_tag.html" with cp=a.checkpoint %}{% endif %}</div></div>
   <div class="resume-actions">
     <form method="post" action="{% url 'interviews:discard' a.id %}" onsubmit="return confirm('¿Descartar esta entrevista? Se borrará su bitácora.')">{% csrf_token %}
       <button type="submit" class="btn small ghost">Descartar</button>

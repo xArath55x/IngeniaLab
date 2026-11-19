@@ -13,7 +13,7 @@ function setup(handler) {
   const listeners = {};
   const requests = [];
   const body = { dataset: { userId: '7' }, append() {} };
-  const document = { body, cookie: 'csrftoken=tok', createElement: () => ({}), querySelector: () => null, addEventListener() {} };
+  const document = { body, cookie: 'csrftoken=tok', querySelectorAll: () => [], createElement: () => ({}), querySelector: () => null, addEventListener() {} };
   let n = 0;
   const window = {
     addEventListener: (k, f) => { (listeners[k] = listeners[k] || []).push(f); },
@@ -215,7 +215,7 @@ function setupMount(handler, opts) {
   const later = [];
   const location = { href: '/modelado/nuevo/', reloaded: false, reload() { this.reloaded = true; } };
   const requests = [];
-  const document = { body, cookie: 'csrftoken=tok', createElement: tag => new Node(tag),
+  const document = { body, cookie: 'csrftoken=tok', querySelectorAll: () => [], createElement: tag => new Node(tag),
     querySelector: sel => sel === '[data-autosave]' ? bar : null, addEventListener() {} };
   const listeners = {};
   const window = { location, addEventListener: (k, f) => { (listeners[k] = listeners[k] || []).push(f); },

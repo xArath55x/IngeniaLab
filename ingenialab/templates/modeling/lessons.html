@@ -39,6 +39,13 @@
         </form>
         {% if c.completed %}<a class="btn ghost" href="{% url 'modeling:new' %}?leccion={{ c.completed.id }}">Abrir en el editor</a>{% endif %}
       </div>
+      {% if c.not_discovered or c.not_classified %}
+      {# Solo en una partida: la lección se juega aunque la entrevista no haya descubierto todo. #}
+      <ul class="small lock-list lesson-warning">
+        {% for topic in c.not_discovered %}<li>⚠ En tu entrevista no descubriste el tema <b>{{ topic }}</b>.</li>{% endfor %}
+        {% for s in c.not_classified %}<li>⚠ No clasificaste como requisito funcional: «{{ s }}»</li>{% endfor %}
+      </ul>
+      {% endif %}
     {% else %}
       <p class="small" style="margin-bottom:.3rem">Para desbloquearla:</p>
       <ul class="small lock-list">
