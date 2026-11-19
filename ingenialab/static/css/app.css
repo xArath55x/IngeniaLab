@@ -338,6 +338,17 @@ textarea.wizard-input { min-height: 90px; }
 .hint-text { color: var(--hint); }
 
 
+/* CU-10 (ACT-307B): indicador de autoguardado y «Guardar y pausar». */
+.autosave { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; font-size: .85rem; color: var(--muted); }
+.autosave-status { display: inline-flex; align-items: center; gap: .3rem; }
+.autosave-icon { font-weight: 700; min-width: 1rem; text-align: center; }
+.autosave[data-state="saved"] .autosave-icon, .autosave[data-state="found"] .autosave-icon { color: var(--ok); }
+.autosave[data-state="offline"], .autosave[data-state="session"], .autosave[data-state="conflict"], .autosave[data-state="error"] { color: var(--hint); }
+.autosave-notice { margin-bottom: 1rem; }
+.autosave-notice .btn { margin-left: .4rem; }
+.lesson-top .autosave { margin-left: .5rem; }
+@media (max-width: 760px) { .lesson-top { flex-wrap: wrap; } .lesson-top .autosave { width: 100%; margin-left: 0; } }
+
 /* Partida única: tarjeta del tablero, etapas y barra en cada pantalla de etapa. */
 .partida-card { border-top: 4px solid var(--accent); }
 .partida-bar { height: 12px; margin: .4rem 0 1rem; }

@@ -104,4 +104,6 @@ def conclude(attempt: InspectionAttempt) -> dict:
     _, attempt.precision, attempt.score = compute(attempt)
     attempt.concluded_at = timezone.now()
     attempt.save()
+    from apps.progress import checkpoints  # Diferido: progress depende de inspection.
+    checkpoints.close(attempt.user, "inspection", attempt.id)  # CU-10, RN-01
     return summary(attempt)

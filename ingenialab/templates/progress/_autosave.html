@@ -1,0 +1,5 @@
+{# CU-10 (ACT-307B): indicador de autoguardado y botón «Guardar y pausar». Lo controla static/js/autosave.js. #}
+<div class="autosave" data-autosave data-state="idle">
+  <span class="autosave-status" role="status" aria-live="polite"><span class="autosave-icon" aria-hidden="true">✔</span> <span class="autosave-text">{{ hint|default:"Autoguardado activo" }}</span></span>
+  <button type="button" class="btn small secondary" data-autosave-pause title="Guarda lo que tienes en pantalla y vuelve a Mi progreso">Guardar y pausar</button>
+</div>

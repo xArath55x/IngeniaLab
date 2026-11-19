@@ -38,7 +38,7 @@
         <div class="partida-start-icon" aria-hidden="true">🎮</div>
         <h2>Nueva partida</h2>
         <p class="muted">Te tocará un escenario al azar. Recorrerás <strong>Entrevista → Clasificación → Modelado → Inspección</strong>; cada etapa terminada queda guardada como checkpoint para que continúes cuando quieras.</p>
-        {% if not history and not interview_groups and not lessons.in_progress and not classifying and not open_inspections %}<p class="empty">Aún no tienes prácticas. Pulsa «Iniciar nueva partida» para empezar.</p>{% endif %}
+        {% if not history and not interview_groups and not lessons.in_progress and not classifying and not open_inspections and not drafts %}<p class="empty">Aún no tienes prácticas. Pulsa «Iniciar nueva partida» para empezar.</p>{% endif %}
         <form method="post" action="{% url 'progress:partida_start' %}">{% csrf_token %}
           <button type="submit" class="btn partida-start-btn">▶ Iniciar nueva partida</button>
         </form>
@@ -58,7 +58,7 @@
     </div>
     {% endif %}
 
-    {% if interview_groups or lessons.in_progress or classifying or open_inspections %}
+    {% if interview_groups or lessons.in_progress or classifying or open_inspections or drafts %}
     <div class="card">
       <div class="card-head"><h2>Prácticas sueltas en curso</h2></div>
       <p class="small muted">Las empezaste antes de las partidas. Puedes terminarlas aquí.</p>
@@ -71,6 +71,16 @@
       </div>
       <p class="small muted" id="resume-list-empty" hidden>No tienes prácticas pendientes en este módulo.</p>
       <ul class="item-list" id="resume-list">
+        {% for d in drafts %}
+        <li data-module="modelado"><div><span class="tag rf">Caso de uso sin guardar</span> {{ d.title|cut:"Caso de uso · " }}
+          <div class="small muted">{% include "progress/_checkpoint_tag.html" with cp=d %}</div></div>
+          <div class="resume-actions">
+            <form method="post" action="{% url 'progress:checkpoint_discard_html' d.module d.key %}" onsubmit="return confirm('¿Descartar este borrador? Se perderán los cambios que no guardaste.')">{% csrf_token %}
+              <button type="submit" class="btn small ghost">Descartar</button>
+            </form>
+            <a class="btn small" href="{{ d.resume_url }}">Reanudar</a>
+          </div></li>
+        {% endfor %}
         {% for g in interview_groups %}
         {% include "progress/_open_interview.html" with a=g.latest %}
         {% if g.older %}
@@ -83,15 +93,15 @@
         {% endif %}
         {% endfor %}
         {% for l in lessons.in_progress %}
-        <li data-module="modelado"><div><span class="tag rf">Lección guiada</span> {{ l.reference.spec.name }}<div class="small muted">{{ l.attempt.version.title }} · {{ l.solved|length }} de {{ l.exercises|length }} partes · {{ l.lives }} vida{{ l.lives|pluralize }}</div></div>
+        <li data-module="modelado"><div><span class="tag rf">Lección guiada</span> {{ l.reference.spec.name }}<div class="small muted">{{ l.attempt.version.title }} · {{ l.solved|length }} de {{ l.exercises|length }} partes · {{ l.lives }} vida{{ l.lives|pluralize }}{% if l.checkpoint %} · {% include "progress/_checkpoint_tag.html" with cp=l.checkpoint %}{% endif %}</div></div>
           <a class="btn small" href="{% url 'modeling:lesson' l.id %}">Continuar</a></li>
         {% endfor %}
         {% for a in classifying %}
-        <li data-module="elicitacion"><div><span class="tag rf">Clasificación</span> {{ a.version.title }}<div class="small muted">Precisión {{ a.classification_precision }} % · {{ a.total_score }} pts</div></div>
+        <li data-module="elicitacion"><div><span class="tag rf">Clasificación</span> {{ a.version.title }}<div class="small muted">Precisión {{ a.classification_precision }} % · {{ a.total_score }} pts{% if a.checkpoint %} · {% include "progress/_checkpoint_tag.html" with cp=a.checkpoint %}{% endif %}</div></div>
           <a class="btn small secondary" href="{% url 'classification:classify' a.id %}">Abrir</a></li>
         {% endfor %}
         {% for i in open_inspections %}
-        <li data-module="inspeccion"><div><span class="tag hint">Inspección en curso</span> {{ i.exercise.title }}</div>
+        <li data-module="inspeccion"><div><span class="tag hint">Inspección en curso</span> {{ i.exercise.title }}{% if i.checkpoint %}<div class="small muted">{% include "progress/_checkpoint_tag.html" with cp=i.checkpoint %}</div>{% endif %}</div>
           <a class="btn small" href="{% url 'inspection:inspect' i.id %}">Reanudar</a></li>
         {% endfor %}
       </ul>
@@ -105,7 +115,7 @@
       {% endif %}
       <ul class="item-list">
         {% for uc in use_cases %}
-        <li><span>📐 {{ uc.name }}</span><a class="btn small ghost" href="{% url 'modeling:edit' uc.id %}">Editar</a></li>
+        <li><span>📐 {{ uc.name }}{% if uc.checkpoint %}<span class="small muted"> · Cambios sin guardar · {% include "progress/_checkpoint_tag.html" with cp=uc.checkpoint %}</span>{% endif %}</span><a class="btn small ghost" href="{% url 'modeling:edit' uc.id %}">Editar</a></li>
         {% empty %}<li class="muted">Sin casos de uso guardados.</li>{% endfor %}
       </ul>
     </div>

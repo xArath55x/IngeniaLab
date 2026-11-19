@@ -41,6 +41,7 @@
       {% include "interviews/_summary.html" %}
     {% else %}
     <div class="card">
+      {% if not finished %}<div style="margin-bottom:.6rem">{% include "progress/_autosave.html" with hint="Cada respuesta se guarda al instante" %}</div>{% endif %}
       <h2>{{ attempt.version.title }}</h2>
       <p class="small muted">{{ attempt.version.client_name }} · {{ attempt.version.client_role }}</p>
       <p class="small">{{ attempt.version.summary }}</p>
@@ -82,6 +83,13 @@
 {% endblock %}
 
 {% block scripts %}
+{% if not finished %}
+<script src="{% static 'js/autosave.js' %}?v=cu10-4"></script>
+<script>
+  // CU-10: cada pregunta ya se guarda al elegirla; aquí solo se marca la entrevista como pausada.
+  if (IL.autosave) IL.autosave.mount({ module: "interview", key: "{{ attempt.id }}", collect: () => ({}) });
+</script>
+{% endif %}
 <script>
 (function () {
   const BASE = "/elicitacion/api/intento/{{ attempt.id }}/";

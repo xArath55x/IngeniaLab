@@ -14,6 +14,7 @@ from django.views.decorators.http import require_POST
 
 from apps.accounts.api import fail, ok, read_json
 from apps.interviews.models import StudentAttempt
+from apps.progress import checkpoints
 from apps.progress.services import evaluate_badges
 from integrations.plantuml import service as plantuml
 from integrations.plantuml.builder import build_usecase_diagram
@@ -77,7 +78,18 @@ def editor(request, uc_id=None):
         except ValidationError:
             return HttpResponse("La entrevista seleccionada no es válida.", status=400)
     guide = _guide(attempts)
+    # CU-10: un caso de uso nuevo retoma el último borrador autoguardado en vez de abrir otro (se puede descartar).
+    # Con ?leccion= o ?attempt= se retoma el borrador de esa lección o entrevista, no uno ajeno ni uno nuevo cada vez.
+    if uc:
+        draft_key = ""
+    elif lesson:
+        draft_key = checkpoints.latest_new_draft_key(request.user, lesson_id=lesson.id)
+    elif request.GET.get("attempt"):
+        draft_key = checkpoints.latest_new_draft_key(request.user, attempt_id=reference.id)
+    else:
+        draft_key = checkpoints.latest_new_draft_key(request.user)
     return render(request, "modeling/editor.html", {
+        "draft_key": draft_key,
         "uc": uc,
         "form_data": uc.as_form_data() if uc else (
             {**lesson.reference.spec, "attempt_id": str(lesson.attempt_id)} if lesson else None),
@@ -161,9 +173,10 @@ def api_generate(request):
 
 
 
-def _replay_saved(uc, spec, user):
+def _replay_saved(uc, spec, user, draft_key=None):
     if uc.user_id != user.pk or uc.as_form_data() != spec or not hasattr(uc, "diagram"):
         return fail("La solicitud ya se utilizó con otros datos. Conserva el borrador e inicia un nuevo guardado.", status=409)
+    checkpoints.consume_new_draft(user, draft_key)  # CU-10: el reintento también consume el borrador.
     return ok(id=str(uc.id), plantuml_code=uc.plantuml_code, svg=uc.diagram.svg,
               engine=uc.diagram.engine, warnings=validators.suggestions(spec), cached=True,
               duration_ms=0, code_hash=uc.diagram.code_hash, cache_warning="", spec=spec,
@@ -203,7 +216,7 @@ def api_save(request):
             return fail("El identificador de solicitud no es válido.")
         previous = UseCaseSpecification.objects.select_related("diagram").filter(id=request_id).first()
         if previous is not None:
-            return _replay_saved(previous, spec, request.user)
+            return _replay_saved(previous, spec, request.user, data.get("draft_key"))
     code = build_usecase_diagram(spec)
     try: result = plantuml.render(code)
     except plantuml.PlantUMLError as e:
@@ -233,7 +246,7 @@ def api_save(request):
         uc, created = UseCaseSpecification.objects.get_or_create(
             id=request_id, defaults={"user": request.user, **fields})
         if not created:
-            return _replay_saved(uc, spec, request.user)
+            return _replay_saved(uc, spec, request.user, data.get("draft_key"))
     else:
         uc = UseCaseSpecification.objects.create(user=request.user, **fields)
     GeneratedDiagram.objects.update_or_create(
@@ -242,6 +255,8 @@ def api_save(request):
     if lesson and not lesson.use_case_id:
         lesson.use_case = uc
         lesson.save(update_fields=["use_case"])
+    # CU-10: el borrador `nuevo:<uuid>` ya tiene registro propio; se borra en esta misma transacción.
+    checkpoints.consume_new_draft(request.user, data.get("draft_key"))
     return ok(id=str(uc.id), plantuml_code=code, svg=result.svg, engine=result.engine, warnings=warnings,
               cached=result.cached, duration_ms=result.duration_ms, code_hash=result.code_hash,
               cache_warning=result.warning, spec=spec, message="Especificación guardada correctamente en tu cuenta.", badges=evaluate_badges(request.user))
@@ -251,6 +266,7 @@ def api_save(request):
 @require_POST
 def delete(request, uc_id):
     uc = get_object_or_404(UseCaseSpecification, id=uc_id, user=request.user)
+    checkpoints.close(request.user, "modeling", uc.id)  # CU-10, RN-01
     uc.delete()
     messages.success(request, "Caso de uso eliminado.")
     return redirect("modeling:list")

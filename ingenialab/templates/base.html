@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}IngeniaLab{% endblock %} · IngeniaLab</title>
-  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=orden-1">
+  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=orden-cu10">
 </head>
 <body data-user-id="{{ user.pk }}">
 {% with url=request.resolver_match.namespace %}
@@ -40,7 +40,7 @@
   </main>
 </div>
 {% endwith %}
-<script src="{% static 'js/app.js' %}?v=tablero-3"></script>
+<script src="{% static 'js/app.js' %}?v=tablero-cu10"></script>
 {% block scripts %}{% endblock %}
 </body>
 </html>
