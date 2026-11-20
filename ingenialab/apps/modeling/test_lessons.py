@@ -15,7 +15,27 @@ from apps.progress.tests import BaseCase
 
 
 @override_settings(INGENIALAB_MODULES=settings.ALL_MODULES)
-class LessonTests(BaseCase):
+def wrong_answer(exercise):
+    """Respuesta completa (como la que habilita «Comprobar») pero incorrecta, para cualquier tipo de ejercicio."""
+    ids = [o["id"] for o in exercise["options"]]
+    kind, answer = exercise["type"], exercise["answer"]
+    if kind == "choice":
+        return next(i for i in ids if i != answer)
+    if kind == "multi":
+        return [i for i in ids if i not in answer][:1] + answer[1:]
+    if kind == "order":
+        return list(reversed(answer))
+    categories = [c["id"] for c in exercise["categories"]]
+    return {str(i): next(c for c in categories if c != answer[str(i)]) for i in ids}
+
+
+def exercise(lesson, exercise_id):
+    return next(e for e in lesson.exercises if e["id"] == exercise_id)
+
+
+class LessonHelpers:
+    """Pasos comunes para llegar a una lección; los reutilizan otras pruebas (p. ej. progress/test_act313c)."""
+
     def classify(self, attempt, overrides=None):
         """Clasifica todo lo descubierto con su tipo correcto, salvo las claves de overrides."""
         for req in available_requirements(attempt):
@@ -45,6 +65,9 @@ class LessonTests(BaseCase):
             r = self.reply(lesson, lesson.queue[0], by_id[lesson.queue[0]]["answer"]).json()
             lesson.refresh_from_db()
         return r
+
+
+class LessonTests(LessonHelpers, BaseCase):
 
     def test_seed_loads_reference_use_cases(self):
         self.assertEqual(ReferenceUseCase.objects.filter(version=self.version).count(), 4)
@@ -127,7 +150,7 @@ class LessonTests(BaseCase):
         self.start(attempt, self.reference())
         lesson = UseCaseLesson.objects.get()
         first = lesson.queue[0]
-        r = self.reply(lesson, first, -1).json()
+        r = self.reply(lesson, first, wrong_answer(exercise(lesson, first))).json()
         self.assertFalse(r["correct"])
         self.assertTrue(r["solution"] and r["explanation"])
         self.assertEqual(r["lives"], lessons.LIVES - 1)
@@ -141,7 +164,7 @@ class LessonTests(BaseCase):
         lesson = UseCaseLesson.objects.get()
         for _ in range(lessons.LIVES):
             lesson.refresh_from_db()
-            r = self.reply(lesson, lesson.queue[0], -1).json()
+            r = self.reply(lesson, lesson.queue[0], wrong_answer(exercise(lesson, lesson.queue[0]))).json()
         self.assertEqual(r["lesson_status"], "failed")
         self.assertIsNone(r["current"])
         lesson.refresh_from_db()
@@ -302,7 +325,7 @@ class LessonTests(BaseCase):
         self.start(attempt, self.reference())
         lesson = UseCaseLesson.objects.get()
         first = next(e for e in lesson.exercises if e["id"] == lesson.queue[0])
-        r = self.reply(lesson, first["id"], -1).json()
+        r = self.reply(lesson, first["id"], wrong_answer(first)).json()
         self.assertEqual(r["correct_ids"], [first["answer"]])
 
 
@@ -490,5 +513,5 @@ class OrderFeedbackTests(BaseCase):
         attempt = LessonTests.ready_attempt(self)
         LessonTests.start(self, attempt, LessonTests.reference(self))
         lesson = UseCaseLesson.objects.get()
-        r = LessonTests.reply(self, lesson, lesson.queue[0], -1).json()
+        r = LessonTests.reply(self, lesson, lesson.queue[0], wrong_answer(exercise(lesson, lesson.queue[0]))).json()
         self.assertEqual(r["correct_order"], [])

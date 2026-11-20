@@ -70,6 +70,10 @@ def classify_statement(attempt: StudentAttempt, master_req_id, category: str) ->
         obj.save()
 
     recalculate(attempt)
+    from apps.progress import checkpoints  # Diferido: progress depende de classification.
+    if checkpoints.classification_complete(attempt):
+        # CU-10, RN-01 (ACT-313C): con todo clasificado, la práctica terminó y su autoguardado sobra.
+        checkpoints.close(attempt.user, "classification", attempt.id)
     return ClassificationResult(
         classification=obj,
         is_correct=is_correct,

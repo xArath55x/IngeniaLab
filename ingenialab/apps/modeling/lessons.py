@@ -156,6 +156,32 @@ def solution_text(exercise):
     return [options[i] for i in exercise.get("order", answer)]
 
 
+def is_complete(exercise, answer):
+    """True si la respuesta tiene la forma que exige la pantalla para habilitar «Comprobar» (ACT-313C, DEF-S01).
+
+    Una respuesta vacía o a medias (doble envío, fallo de red o llamada directa a la API) no se califica:
+    no debe costar una vida.
+    """
+    ids = {o["id"] for o in exercise["options"]}
+    kind = exercise["type"]
+    try:
+        if kind == "choice":
+            return not isinstance(answer, bool) and int(answer) in ids
+        if kind == "multi":
+            chosen = [int(a) for a in answer]
+            return bool(chosen) and len(set(chosen)) == len(chosen) == len(exercise["answer"]) and set(chosen) <= ids
+        if kind == "order":
+            chosen = [int(a) for a in answer]
+            return sorted(chosen) == sorted(ids)
+        if kind == "classify":
+            categories = {c["id"] for c in exercise["categories"]}
+            return (isinstance(answer, dict) and {str(k) for k in answer} == {str(i) for i in ids}
+                    and all(v in categories for v in answer.values()))
+    except (TypeError, ValueError):
+        return False
+    return False
+
+
 def is_correct(exercise, answer):
     expected = exercise["answer"]
     kind = exercise["type"]
@@ -247,6 +273,8 @@ def answer(lesson, exercise_id, value):
     if not lesson.queue or exercise_id != lesson.queue[0]:
         raise LessonError("Responde el ejercicio que tienes en pantalla.")
     exercise = next(e for e in lesson.exercises if e["id"] == exercise_id)
+    if not is_complete(exercise, value):
+        raise LessonError("Elige tu respuesta antes de comprobar.")
     correct = is_correct(exercise, value)
     lesson.queue.pop(0)
     if correct:

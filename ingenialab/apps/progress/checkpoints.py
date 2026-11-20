@@ -98,7 +98,10 @@ def _practice_state(user, module, key, payload=None):
             attempt = StudentAttempt.objects.select_related("version").get(id=key, user=user)
             wanted = StudentAttempt.INTERVIEWING if module == PracticeCheckpoint.INTERVIEW else StudentAttempt.CLASSIFYING
             label = "Entrevista" if module == PracticeCheckpoint.INTERVIEW else "Clasificación"
-            return f"{label} · {attempt.version.title}", attempt.status == wanted
+            is_open = attempt.status == wanted
+            if is_open and module == PracticeCheckpoint.CLASSIFICATION:
+                is_open = not classification_complete(attempt)  # ACT-313C: clasificó todo, ya terminó
+            return f"{label} · {attempt.version.title}", is_open
         if module == PracticeCheckpoint.INSPECTION:
             attempt = InspectionAttempt.objects.select_related("exercise").get(id=key, user=user)
             return f"Inspección · {attempt.exercise.title}", attempt.concluded_at is None
@@ -112,6 +115,13 @@ def _practice_state(user, module, key, payload=None):
     except (StudentAttempt.DoesNotExist, InspectionAttempt.DoesNotExist, UseCaseLesson.DoesNotExist,
             UseCaseSpecification.DoesNotExist):
         raise _not_found()
+
+
+def classification_complete(attempt):
+    """La clasificación termina cuando cada enunciado de la bitácora tiene RF o RNF (como en la partida)."""
+    from apps.classification.services import available_requirements
+    available = available_requirements(attempt).count()
+    return available > 0 and attempt.classifications.count() >= available
 
 
 def _clean_payload(payload):
