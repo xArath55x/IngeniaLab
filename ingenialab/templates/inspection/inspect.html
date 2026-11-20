@@ -91,7 +91,9 @@
     f.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); select(f); } });
   });
 
+  let registrations = {{ summary.registrations }};
   function setSummary(s) {
+    registrations = s.registrations;
     document.getElementById("m-found").textContent = `${s.found} / ${s.total}`;
     document.getElementById("m-precision").textContent = s.precision + " %";
     document.getElementById("m-score").textContent = s.score;
@@ -137,6 +139,10 @@
 
   concludeBtn.addEventListener("click", async () => {
     if (actions.busy) return;
+    if (!registrations) {  // CP-14 (ACT-313C): el servidor también lo rechaza.
+      document.getElementById("feedback").innerHTML = IL.feedback("bad", "Registra al menos un hallazgo antes de concluir la práctica.");
+      return;
+    }
     const found = document.getElementById("m-found").textContent;
     if (!(await IL.confirmModal("Concluir práctica", `Llevas ${found} defectos encontrados. Al concluir ya no podrás registrar hallazgos y verás la clave completa.`, "Concluir"))) return;
     return actions.run(concludeBtn, async () => {

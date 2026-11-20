@@ -42,6 +42,7 @@ class StaleAttemptTests(InspectionBase):
 
     def test_registration_on_attempt_concluded_by_another_request_is_rejected(self):
         stale = InspectionAttempt.objects.get(pk=self.attempt.pk)
+        services.register_finding(self.attempt, self.red.id, "redundancy")
         services.conclude(self.attempt)
         with self.assertRaises(services.AuditError):
             services.register_finding(stale, self.amb.id, "ambiguity")

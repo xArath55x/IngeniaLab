@@ -106,6 +106,10 @@ def request_hint(attempt: InspectionAttempt) -> dict:
 def conclude(attempt: InspectionAttempt) -> dict:
     lock_and_refresh(attempt)
     _ensure_open(attempt)
+    if attempt.registrations == 0:
+        # CU-07 E-1 / CP-14 (ACT-313C, BR-11): sin hallazgos no hay precisión que calcular, y concluir daba la
+        # insignia «Sin ayuda» por una práctica vacía.
+        raise AuditError("Registra al menos un hallazgo antes de concluir la práctica.")
     _, attempt.precision, attempt.score = compute(attempt)
     attempt.concluded_at = timezone.now()
     attempt.save()

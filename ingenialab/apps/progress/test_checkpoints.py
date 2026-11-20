@@ -429,7 +429,8 @@ class CheckpointPr43ReviewTests(BaseCase):
         exercise = InspectionExercise.objects.filter(is_active=True).first()
         inspection = InspectionAttempt.objects.create(user=self.user, exercise=exercise)
         self.save("inspection", inspection.id)
-        from apps.inspection.services import conclude
+        from apps.inspection.services import conclude, register_finding
+        register_finding(inspection, exercise.fragments.first().id, "ambiguity")
         conclude(inspection)
         self.assertFalse(PracticeCheckpoint.objects.filter(module="inspection").exists())
 

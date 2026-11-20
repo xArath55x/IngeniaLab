@@ -1,30 +1,56 @@
-ACT-221A - IngeniaLab 2.0 - 03/11/2026
-Base: rama it-2 del repositorio. Las pruebas se ejecutaron sobre el commit
-3fa84ee (registrado en evidencia/ACT221A/e2e_report.json).
-232 pruebas Django OK sin omisiones, con motor real Java/Graphviz
-(INGENIALAB_TEST_PLANTUML=1).
-10 pruebas JS de resiliencia y 24 casos de validacion JS OK.
-E2E HTTP de staging (scripts/e2e_staging.py): 8/8 pasos PASA, PlantUML real.
-Entro despues de bfe07b2: reintento de PlantUML y calentamiento en la demo
-(H-03), leccion ligada al editor (H-05), PDF sin emojis (H-01) y entrevista
-sin declaraciones (H-02).
-Timeouts de PlantUML: la evidencia se corrio con la maquina sin carga. Con la
-CPU saturada a proposito (8 procesos), 1 de 2 corridas de la suite fallo en
-test_cold_png_certifies_svg porque el PNG tardo mas de 2 s; el E2E paso 3 de 3.
-En la revision del PR, otra Mac reporto 3 de 232 pruebas y 1 de 3 corridas E2E
-con timeout de PlantUML. Falta correr plantuml_check --strict y el E2E en el
-equipo de la demo.
-Entrega: repositorio mas lanzador. El WBS de ACT-221A describe un ZIP con base
-precargada; ese cambio debe registrarse. Release_sprint_2.zip y los checksums
-de ACT-225 en Drive son anteriores a estas correcciones.
-El campo "actividad" del reporte E2E dice ACT-214C porque es el identificador
-fijo del script que lo genera; la ejecucion corresponde a ACT-221A.
-La ejecucion fue macOS 27/Python 3.13.3, Java 25 y Graphviz 16.1.0.
-CI verifica Python 3.11 y 3.13 en Linux. No acredita pruebas Windows,
-proveedor IA en vivo, UX con alumnos ni carga/RNF-03 global.
-El JAR de PlantUML y db.sqlite3 no se versionan: el lanzador los prepara
-en cada equipo (install_plantuml, migrate y seed_ingenialab).
-Se preservan codigo, pruebas, banco de respuestas, migraciones y E2E.
-Se integran manuales Word originales y guia release actual en Markdown.
-No se publican tags ni releases remotos; aceptacion y cierre formal del
-equipo y evidencias ACT-214/ACT-220 no se sustituyen por el empaquetado.
+ACT-317 - IngeniaLab 3.0.0 - Línea Base 03 - 20/11/2026
+Base: rama it-3 del repositorio. Las pruebas se ejecutaron sobre el commit
+bb42d99 (ACT-313C), que tiene el mismo código que el tag v3.0.0: después solo
+cambian estos textos de versión y la evidencia de evidencia/ACT317/.
+
+Novedades respecto a 2.0.1 (iteración 3)
+- Partida única: Entrevista, Clasificación, Modelado e Inspección con avance y
+  checkpoints por etapa; tablero con filtro por módulo y 5 niveles
+  (0, 225, 525, 900 y 1400 puntos) (ACT-308, CU-09, CU-11).
+- Autoguardado cada 30 s, «Guardar y pausar» y reanudación desde el tablero
+  (CU-10, ACT-307A/B, PR #43).
+- 5 escenarios (Biblioteca, Cafetería, Tutorías, Consultorio y Gimnasio) y
+  14 casos de uso de referencia para las lecciones (ACT-328, ACT-329).
+- Banco de respuestas del cliente virtual y comandos export_answer_bank e
+  import_answer_bank para llevarlo a otra base por código de escenario
+  (CU-06, ACT-309, ACT-326, PR #47).
+- Correcciones de ACT-313B (PR #48): escrituras simultáneas en SQLite sin
+  «database is locked» ni conteos perdidos, un clic a la vez en inspección y
+  clasificación, consola del navegador sin errores de la aplicación y
+  sugerencia de actores del editor sin falsos positivos.
+- Correcciones de ACT-313C: una inspección sin hallazgos ya no se concluye
+  (BR-11, CP-14); la lección rechaza respuestas vacías sin quitar vidas
+  (DEF-S01); la clasificación completa cierra su autoguardado.
+
+Pruebas sobre bb42d99 (20/11/2026, evidencia/ACT317/)
+- 351 pruebas Django OK con motor real Java/Graphviz (INGENIALAB_TEST_PLANTUML=1)
+  en SQLite; las mismas 351 OK en PostgreSQL 16 (5 omitidas, solo de SQLite).
+- 3 de 3 pruebas JS (api-resilience, autosave y modeling-validation).
+- E2E de staging (scripts/e2e_staging.py): 8/8 pasos, PlantUML real.
+- plantuml_check --strict: SVG y PNG reales, generación 0.53 a 0.62 s y
+  caché menor a 1 ms.
+- Recorrido de compatibilidad en Chrome (compat_navegadores.py de ACT-312):
+  7/7 pasos y 0 eventos de consola de la aplicación.
+- Antes, sobre bb02cc7: regresión de ACT-313D (344 pruebas, 8/8), pruebas en
+  producción de ACT-313A (8/8, 0 errores 5xx), carga de 30 alumnos de
+  ACT-311 (RNF-03 cumple) y Chrome, Edge y Firefox en Windows 10 en ACT-312
+  (sobre b924d3c).
+Ejecución: Linux, Python 3.13, Django 5.1.7, Java 21, Graphviz 2.43 y
+PlantUML 1.2026.2. Con Python 3.15 la suite falla: Django 5.1.7 no es
+compatible con esa versión (ACT-313D).
+
+Diferencias con el SRS v1.3 que la cliente aprueba en ACT-320
+- CU-08 (BR-10): pistas sin límite de 3 ni niveles.
+- CU-12 (BR-05): aviso de conexión y reintento, sin cola IndexedDB.
+
+Pendientes conocidos (no críticos)
+- D3-02: con muchos diagramas simultáneos en un equipo lento, PlantUML pasa de
+  2 s; en producción cumple (p95 1.20 s con 30 alumnos).
+- D3-03: con 30 alumnos iniciando la entrevista en el mismo instante, parte
+  recibe 502 del túnel de producción; al reintentar entran. Falta el log del
+  servidor de producción para saber la causa.
+- iniciar_produccion.sh no está en el repositorio (Guía de Operación A.13).
+
+Entrega: repositorio más lanzador (iniciar_local.bat / iniciar_local.sh). El JAR
+de PlantUML y db.sqlite3 no se versionan: el lanzador los prepara en cada equipo.
+Integridad: evidencia/ACT317/MANIFIESTO.txt y SHA256SUMS.txt.

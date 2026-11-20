@@ -1,4 +1,4 @@
-"""ACT-214: levanta la demo v2.0 en un paso (entorno, BD poblada y servidor).
+"""ACT-214: levanta IngeniaLab en un paso (entorno, BD poblada y servidor).
 
 Crea o repara .venv, reinstala las dependencias si cambio requirements.txt, instala el JAR de
 PlantUML si falta, aplica migraciones, carga seed_ingenialab (idempotente) y arranca runserver
@@ -82,7 +82,7 @@ def warm_up(env):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Levanta la demo v2.0 de IngeniaLab.')
+    parser = argparse.ArgumentParser(description='Levanta IngeniaLab 3.0.0 en este equipo.')
     parser.add_argument('--port', type=port, default=8000)
     parser.add_argument('--allow-plantuml-fallback', action='store_true',
                         help='acepta el respaldo SVG si no hay Java/Graphviz (solo para revisar la demo)')

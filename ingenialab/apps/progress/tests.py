@@ -394,8 +394,9 @@ class InspectionTests(BaseCase):
         self.assertEqual(r["summary"]["hints_used"], 1)
 
     def test_concluded_practice_is_locked(self):
-        self.post(self.base + "concluir/")
         fr = self.exercise.fragments.first()
+        self.post(self.base + "hallazgo/", {"fragment_id": str(fr.id), "defect_type": "redundancy"})
+        self.assertEqual(self.post(self.base + "concluir/").status_code, 200)
         r = self.post(self.base + "hallazgo/", {"fragment_id": str(fr.id), "defect_type": "ambiguity"})
         self.assertEqual(r.status_code, 400)
 
