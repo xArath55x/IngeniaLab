@@ -1,11 +1,13 @@
-# IngeniaLab 2.0 - ACT-221A
+# IngeniaLab 3.0.0 - ACT-317
 
-Empaquetado final de la versión 2.0 (WP.17). La distribución es el árbol de la
-rama `it-2` (y después `main`) de este repositorio; comience por este archivo.
+Versión final del proyecto (Línea Base 03, tag `v3.0.0`). La distribución es el
+árbol de ese tag en este repositorio (rama `it-3`, integrada en `main`); comience
+por este archivo. Las novedades y las pruebas están en NOTAS_RELEASE.txt.
 
 ## Requisitos
 
-Instale Python 3.12 (compatibles 3.11-3.13), Java 17+ y Graphviz. En Windows
+Instale Python 3.12 (compatibles 3.11-3.13; con 3.14 o posterior Django 5.1.7
+no funciona), Java 17+ y Graphviz. En Windows
 habilite Python y Graphviz en PATH y abra una terminal nueva. Compruebe
 `java -version` y `dot -V`. La primera preparación necesita Internet para
 instalar dependencias y descargar el JAR de PlantUML (1.2026.2, verificado por
@@ -25,8 +27,8 @@ El lanzador usa `ingenialab/scripts/demo.py`, que en cada arranque:
 1. crea o repara `ingenialab/.venv` y reinstala dependencias si cambió
    `requirements.txt`;
 2. instala el JAR de PlantUML si falta y comprueba Java y Graphviz;
-3. aplica migraciones y carga `seed_ingenialab` (idempotente: escenarios,
-   requisitos maestros, inspecciones y las ocho lecciones de modelado);
+3. aplica migraciones y carga `seed_ingenialab` (idempotente: 5 escenarios,
+   requisitos maestros, 2 inspecciones y 14 casos de uso de referencia);
 4. calienta PlantUML para acelerar el primer diagrama; si falla, muestra un
    aviso y continúa;
 5. arranca el servidor en http://127.0.0.1:8000 con los seis módulos.
@@ -54,18 +56,24 @@ funcione.
 
 ## Contenido y uso
 
-Consulte docs/GUIA_RELEASE_2_0.md para la operación actual. Los documentos
-Word de docs/ se conservan como antecedentes. El README de ingenialab contiene
-los detalles del banco de respuestas e IA opcional de esta versión;
-ingenialab/README_ACT214C.md explica staging E2E.
+La operación, el despliegue en producción, el respaldo y el mantenimiento están
+en la «Guía de Operación (WP.08) y Mantenimiento v3.0 (WP.06)» y el uso para el
+estudiante en el «Manual de Usuario v2.0», ambos en Google Drive (Iteración 3,
+03_Design). docs/GUIA_RELEASE_2_0.md y los documentos Word de docs/ se conservan
+como antecedentes de la versión 2.0. El README de ingenialab contiene los
+detalles del banco de respuestas (incluidos `export_answer_bank` e
+`import_answer_bank`) y de la IA opcional; ingenialab/README_ACT214C.md explica
+staging E2E.
 
-Las pruebas ejecutadas y sus resultados se encuentran en evidencia/ACT221A/.
+Las pruebas de esta versión y sus resultados están en evidencia/ACT317/; las de
+la 2.0, en evidencia/ACT221A/.
 Se pueden reejecutar desde ingenialab/:
 
 ```sh
 INGENIALAB_TEST_PLANTUML=1 .venv/bin/python manage.py test apps integrations
 node tests/api-resilience.cjs
 node tests/modeling-validation.cjs
+node tests/autosave.cjs
 .venv/bin/python scripts/e2e_staging.py
 ```
 
@@ -75,6 +83,7 @@ var/staging: no contiene sus usuarios reales.
 
 ## Respaldo y alcance
 
-Detenga el servidor y respalde `ingenialab/db.sqlite3` antes de actualizar.
-Esta entrega no publica un tag ni un release remoto, y no sustituye la
-aceptación formal del equipo ni las evidencias de ACT-214/ACT-220.
+Detenga el servidor y respalde `ingenialab/db.sqlite3` antes de actualizar (la
+guía explica cómo hacerlo con el servidor encendido). La integridad de esta
+versión se verifica con evidencia/ACT317/MANIFIESTO.txt. Esta entrega no
+sustituye la aceptación formal de la cliente (ACT-320).

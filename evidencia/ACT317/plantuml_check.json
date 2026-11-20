@@ -1,0 +1,67 @@
+{
+  "engine": "plantuml",
+  "layout": "graphviz",
+  "samples": [
+    {
+      "format": "svg",
+      "run": 1,
+      "code_hash": "6ca3591d43a450f5905af20108db6acee995d97a2890ae5c2a43bf3e9cdb93c0",
+      "generation_ms": 587.623,
+      "cache_ms": 0.33,
+      "generation_under_2s": true,
+      "cache_under_50ms": true,
+      "bytes": 5487
+    },
+    {
+      "format": "png",
+      "run": 1,
+      "code_hash": "6ca3591d43a450f5905af20108db6acee995d97a2890ae5c2a43bf3e9cdb93c0",
+      "generation_ms": 621.426,
+      "cache_ms": 0.272,
+      "generation_under_2s": true,
+      "cache_under_50ms": true,
+      "bytes": 11811
+    },
+    {
+      "format": "svg",
+      "run": 2,
+      "code_hash": "3b4bfb6b5d6bac9e740f1f9e3e171e9b06c5f1c3dc709e9468656424685b872a",
+      "generation_ms": 551.138,
+      "cache_ms": 0.353,
+      "generation_under_2s": true,
+      "cache_under_50ms": true,
+      "bytes": 5489
+    },
+    {
+      "format": "png",
+      "run": 2,
+      "code_hash": "3b4bfb6b5d6bac9e740f1f9e3e171e9b06c5f1c3dc709e9468656424685b872a",
+      "generation_ms": 577.435,
+      "cache_ms": 0.24,
+      "generation_under_2s": true,
+      "cache_under_50ms": true,
+      "bytes": 11865
+    },
+    {
+      "format": "svg",
+      "run": 3,
+      "code_hash": "5de4d8b079bc1207b131a089d0f2212eaff4b59df0a876bc84f5278e97b7c70a",
+      "generation_ms": 530.561,
+      "cache_ms": 0.348,
+      "generation_under_2s": true,
+      "cache_under_50ms": true,
+      "bytes": 5489
+    },
+    {
+      "format": "png",
+      "run": 3,
+      "code_hash": "5de4d8b079bc1207b131a089d0f2212eaff4b59df0a876bc84f5278e97b7c70a",
+      "generation_ms": 577.293,
+      "cache_ms": 0.269,
+      "generation_under_2s": true,
+      "cache_under_50ms": true,
+      "bytes": 11888
+    }
+  ],
+  "all_targets_met": true
+}
