@@ -1,0 +1,67 @@
+ACT-317 - Manifiesto de integridad de la Linea Base 03 (WP.12) - IngeniaLab 3.0.0
+Generado: 20/11/2026
+
+Repositorio: https://github.com/xArath55x/IngeniaLab
+Tag de la release: v3.0.0 (se crea al integrar it-3 en main; ver "Tag")
+Contenido cubierto: arbol del commit 2b13458da35b44289d5a7f8b9455140f18952b3c (rama
+fix/act-313c-317-v3.0.0), sin este manifiesto ni SHA256SUMS.txt
+Archivos: 200
+Bytes: 1058569
+SHA-256 de SHA256SUMS.txt: 43b466bc0d0232e07beb8afd73007edea36ae1ff9fa18233c841234fe8147b8f
+
+Registro del hash
+Este hash esta junto a lo que protege, asi que tambien se registra fuera de este
+archivo: en el mensaje del tag v3.0.0 y en ACT-317 del WBS. Compare contra esos
+registros: git show v3.0.0
+
+Tag
+El tag v3.0.0 va sobre el commit de main que integra it-3. Su arbol debe ser el
+mismo que el del commit de arriba mas evidencia/ACT317/MANIFIESTO.txt y
+evidencia/ACT317/SHA256SUMS.txt. Si alguien integra otro cambio antes de crear el
+tag, la verificacion falla y hay que generar el manifiesto otra vez.
+
+Alcance
+SHA256SUMS.txt cubre cada archivo versionado: codigo, pruebas, migraciones,
+contenido de data/, documentos de docs/, LEEME_RELEASE.md, NOTAS_RELEASE.txt y la
+evidencia de evidencia/ (incluidos los JSON de evidencia/ACT317/).
+No cubre:
+- este manifiesto ni SHA256SUMS.txt, que estan en el mismo tag;
+- db.sqlite3, la base de produccion ni el JAR de PlantUML, que no se versionan.
+  El JAR lo verifica install_plantuml con su propio SHA-256;
+- iniciar_produccion.sh, que no esta en el repositorio (Guia de Operacion A.13);
+- los documentos que solo estan en Google Drive.
+
+Verificacion
+Los tres procedimientos revisan los 200 archivos desde la carpeta raiz de la
+copia. El conteo debe dar 200: los hashes no detectan archivos de mas. Hagalo
+antes de instalar, porque el lanzador agrega .venv, db.sqlite3 y otros archivos
+locales. En Linux use sha256sum -c si no tiene shasum.
+
+A. Copia obtenida de Git (Linux o macOS, desde la raiz de un clon)
+  d=$(mktemp -d)
+  git archive v3.0.0 | tar -x -C "$d"
+  cd "$d"
+  shasum -a 256 -c evidencia/ACT317/SHA256SUMS.txt
+  find . -type f ! -path ./evidencia/ACT317/SHA256SUMS.txt ! -path ./evidencia/ACT317/MANIFIESTO.txt | wc -l
+
+B. ZIP descargado de GitHub (Linux o macOS)
+Descargue https://github.com/xArath55x/IngeniaLab/archive/refs/tags/v3.0.0.zip y
+descomprimalo. GitHub nombra la carpeta IngeniaLab-3.0.0.
+  cd IngeniaLab-3.0.0
+  shasum -a 256 -c evidencia/ACT317/SHA256SUMS.txt
+  find . -type f ! -path ./evidencia/ACT317/SHA256SUMS.txt ! -path ./evidencia/ACT317/MANIFIESTO.txt | wc -l
+
+C. ZIP descargado de GitHub (Windows, PowerShell)
+Prepare la carpeta como en B y ejecute dentro de ella. Es el procedimiento C de
+ACT-225, que se probo en Windows 10 en ACT-312 (0 lineas FALLA).
+  Get-Content evidencia\ACT317\SHA256SUMS.txt | ForEach-Object {
+    $hash, $ruta = $_ -split '  ', 2
+    if ((Get-FileHash -LiteralPath $ruta -Algorithm SHA256).Hash -ne $hash) { "FALLA: $ruta" }
+  }
+  (Get-ChildItem -Recurse -File | Where-Object {
+    $_.FullName -notlike '*\evidencia\ACT317\SHA256SUMS.txt' -and
+    $_.FullName -notlike '*\evidencia\ACT317\MANIFIESTO.txt' }).Count
+
+C no debe mostrar ninguna linea FALLA. No verifique un clon de Windows directamente:
+una conversion de fin de linea puede cambiar los hashes sin que el contenido en Git
+cambie. Por eso se usa git archive o el ZIP.
