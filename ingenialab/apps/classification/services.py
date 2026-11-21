@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from django.core.exceptions import ValidationError
 from django.db import transaction
 
+from apps.locking import lock_and_refresh
 from apps.interviews.models import MasterRequirement, StudentAttempt
 
 from .models import StudentClassification
@@ -46,6 +47,7 @@ def recalculate(attempt: StudentAttempt):
 
 @transaction.atomic
 def classify_statement(attempt: StudentAttempt, master_req_id, category: str) -> ClassificationResult:
+    lock_and_refresh(attempt)
     if attempt.status != StudentAttempt.CLASSIFYING:
         raise ClassificationError("Debes finalizar la entrevista antes de clasificar requisitos.")
     if category not in VALID_CATEGORIES:
@@ -68,6 +70,10 @@ def classify_statement(attempt: StudentAttempt, master_req_id, category: str) ->
         obj.save()
 
     recalculate(attempt)
+    from apps.progress import checkpoints  # Diferido: progress depende de classification.
+    if checkpoints.classification_complete(attempt):
+        # CU-10, RN-01 (ACT-313C): con todo clasificado, la práctica terminó y su autoguardado sobra.
+        checkpoints.close(attempt.user, "classification", attempt.id)
     return ClassificationResult(
         classification=obj,
         is_correct=is_correct,
@@ -80,6 +86,10 @@ def classify_statement(attempt: StudentAttempt, master_req_id, category: str) ->
 
 @transaction.atomic
 def request_hint(attempt: StudentAttempt, master_req_id) -> str:
+    lock_and_refresh(attempt)
+    # Solo durante la clasificación: antes o fuera de ella una pista restaría puntos que no corresponden.
+    if attempt.status != StudentAttempt.CLASSIFYING:
+        raise ClassificationError("Las pistas solo están disponibles mientras clasificas los requisitos.")
     try:
         req = available_requirements(attempt).get(id=master_req_id)
     except (MasterRequirement.DoesNotExist, ValidationError, ValueError):

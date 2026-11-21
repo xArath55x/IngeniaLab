@@ -2,7 +2,7 @@
   "scenarios": [
     {
       "code": "ESC-BIBLIOTECA-01",
-      "version": "2.0",
+      "version": "2.1",
       "title": "Sistema de Préstamos de la Biblioteca",
       "summary": "La Biblioteca Central de la Facultad quiere dejar las libretas de papel y controlar préstamos, devoluciones y multas con un sistema web.",
       "client_name": "Lic. Rosa Méndez",
@@ -57,10 +57,12 @@
            "answer": [{"text": "¡Cien años de soledad! 📚"}, {"text": "Aunque casi nunca está disponible, jaja."}]}
         ]},
         {"topic": "Devoluciones y multas", "options": [
-          {"quality": "high", "text": "¿Qué ocurre cuando un alumno devuelve un libro tarde o no lo devuelve?",
+          {"quality": "high", "text": "¿Qué pasa cuando un alumno devuelve un libro, sobre todo si lo devuelve tarde?",
            "rationale": "Explora los casos excepcionales del proceso, donde aparecen requisitos que suelen olvidarse.",
            "answer": [
              {"text": "Cobramos una multa de cinco pesos por día de retraso."},
+             {"text": "Cuando el alumno entrega un libro, el bibliotecario debe registrar la devolución y el libro debe quedar disponible otra vez.",
+              "req": {"key": "B12", "type": "RF", "feedback": "Es un Requisito Funcional: describe una acción del bibliotecario en el sistema (registrar la devolución) y su efecto (el libro vuelve a estar disponible).", "hint": "¿Alguien realiza una acción con el sistema?"}},
              {"text": "El sistema debe calcular automáticamente la multa al registrar una devolución tardía.",
               "req": {"key": "B05", "type": "RF", "feedback": "Es un Requisito Funcional: describe un cálculo que el sistema realiza como parte de su comportamiento.", "hint": "¿Es algo que el sistema hace o una característica de cómo lo hace?"}},
              {"text": "También debe enviar un correo de recordatorio dos días antes de la fecha de devolución.",
@@ -297,6 +299,456 @@
           {"quality": "low", "text": "¿Abren en vacaciones?",
            "rationale": "Dato operativo del local que no cambia lo que el sistema debe hacer.",
            "answer": [{"text": "No, en vacaciones cerramos todo. 🏖️"}]}
+        ]}
+      ]
+    },
+    {
+      "code": "ESC-TUTORIAS-01",
+      "version": "1.0",
+      "title": "Sistema de Tutorías de la Facultad",
+      "summary": "La Coordinación de Tutorías quiere un sistema web para que los alumnos agenden tutorías con su tutor y para llevar el seguimiento que pide el programa institucional.",
+      "client_name": "Mtra. Laura Esparza",
+      "client_role": "Coordinadora de Tutorías de la Facultad",
+      "greeting": "¡Hola! 📚 Qué bueno que me escribes. Las tutorías se nos salen de control y queremos un sistema. Pregúntame lo que necesites.",
+      "rounds": [
+        {"topic": "Objetivo", "options": [
+          {"quality": "high", "text": "¿Qué problema quiere resolver con el sistema?",
+           "rationale": "Pregunta abierta sobre el propósito: revela la necesidad central y el primer requisito funcional.",
+           "answer": [
+             {"text": "Hoy los alumnos buscan a su tutor en el pasillo y muchas tutorías nunca se dan."},
+             {"text": "Queremos que el alumno pueda agendar una tutoría con su tutor eligiendo un horario disponible.",
+              "req": {"key": "T01", "type": "RF", "feedback": "Es un Requisito Funcional: describe el servicio central del sistema (agendar tutorías).", "hint": "¿Es una acción que el usuario realiza con el sistema?"}}
+           ]},
+          {"quality": "medium", "text": "¿Quiere una página web para las tutorías?",
+           "rationale": "Pregunta cerrada que sugiere una solución; confirma algo sin explicar el problema de fondo.",
+           "answer": [{"text": "Sí, algo en línea, supongo."}, {"text": "Lo que nos ayude a organizarnos."}]},
+          {"quality": "low", "text": "¿Cuántos años lleva como coordinadora?",
+           "rationale": "Plática personal; no revela ninguna necesidad del sistema.",
+           "answer": [{"text": "¡Ya van ocho años! 😅"}, {"text": "Y cada semestre hay más alumnos."}]}
+        ]},
+        {"topic": "Usuarios", "options": [
+          {"quality": "high", "text": "¿Quiénes usarán el sistema y qué necesita hacer cada uno?",
+           "rationale": "Identifica a los actores y sus objetivos a la vez; de ahí surgen varios requisitos funcionales.",
+           "answer": [
+             {"text": "Lo usarían los alumnos, los tutores y yo como coordinadora."},
+             {"text": "Cada tutor debe poder publicar los horarios en que atiende tutorías cada semana.",
+              "req": {"key": "T02", "type": "RF", "feedback": "Es un Requisito Funcional: describe una acción que el tutor realiza con el sistema (publicar horarios).", "hint": "¿Quién hace algo con el sistema y qué hace?"}},
+             {"text": "La coordinadora debe poder asignar un tutor a cada alumno.",
+              "req": {"key": "T03", "type": "RF", "feedback": "Es un Requisito Funcional: describe una acción concreta de la coordinadora en el sistema (asignar tutores).", "hint": "Fíjate en el verbo: ¿es una acción o una cualidad?"}}
+           ]},
+          {"quality": "medium", "text": "¿Lo van a usar los alumnos?",
+           "rationale": "Pregunta cerrada: confirma un usuario, pero no dice qué necesita hacer ni menciona a los demás.",
+           "answer": [{"text": "Sí, principalmente ellos."}]},
+          {"quality": "low", "text": "¿Los alumnos suelen llegar puntuales?",
+           "rationale": "Curiosidad sobre el comportamiento de las personas; no aporta requisitos.",
+           "answer": [{"text": "Unos sí, otros… 🙃"}]}
+        ]},
+        {"topic": "Reglas de agenda", "options": [
+          {"quality": "high", "text": "¿Qué reglas debe respetar el sistema al agendar una tutoría?",
+           "rationale": "Busca restricciones del negocio; las reglas se convierten en requisitos verificables.",
+           "answer": [
+             {"text": "Ha pasado que dos alumnos llegan a la misma hora, o que avisan diez minutos antes."},
+             {"text": "El sistema debe impedir agendar una tutoría en un horario ocupado o con menos de 24 horas de anticipación.",
+              "req": {"key": "T04", "type": "RF", "feedback": "Es un Requisito Funcional: define una regla que el sistema aplica al agendar (validar horario y anticipación).", "hint": "¿El sistema realiza una validación o se trata de una cualidad como la rapidez?"}}
+           ]},
+          {"quality": "medium", "text": "¿Las tutorías duran una hora?",
+           "rationale": "Pregunta cerrada sobre un detalle; no descubre las reglas que importan.",
+           "answer": [{"text": "Sí, más o menos."}]},
+          {"quality": "low", "text": "¿En qué edificio son las tutorías?",
+           "rationale": "Dato logístico que no cambia lo que debe hacer el sistema.",
+           "answer": [{"text": "En los cubículos del segundo piso."}, {"text": "Los que tienen ventana, si se puede. 😄"}]}
+        ]},
+        {"topic": "Cancelaciones", "options": [
+          {"quality": "high", "text": "¿Qué pasa cuando un alumno o un tutor no puede asistir?",
+           "rationale": "Explora un caso de excepción frecuente; suele revelar requisitos de cancelación y aviso.",
+           "answer": [
+             {"text": "Muchas veces nadie avisa y el otro se queda esperando."},
+             {"text": "El alumno o el tutor deben poder cancelar una tutoría, y el sistema debe avisar por correo a la otra persona.",
+              "req": {"key": "T05", "type": "RF", "feedback": "Es un Requisito Funcional: describe una acción (cancelar) y una respuesta del sistema (avisar por correo).", "hint": "¿Describe algo que el sistema hace?"}},
+             {"text": "También debe enviar un recordatorio por correo un día antes de cada tutoría.",
+              "req": {"key": "T06", "type": "RF", "feedback": "Es un Requisito Funcional: el sistema realiza una acción automática (enviar recordatorios).", "hint": "Aunque nadie lo pide en el momento, ¿es una acción del sistema?"}}
+           ]},
+          {"quality": "medium", "text": "¿Se cancelan muchas tutorías?",
+           "rationale": "Obtiene una opinión, pero no qué debe hacer el sistema cuando ocurre.",
+           "answer": [{"text": "Bastantes, sí."}]},
+          {"quality": "low", "text": "¿Le gusta el café de la cafetería?",
+           "rationale": "Plática sin relación con el sistema.",
+           "answer": [{"text": "El de olla, sí. ☕"}]}
+        ]},
+        {"topic": "Seguimiento", "options": [
+          {"quality": "high", "text": "¿Qué debe quedar registrado después de cada tutoría?",
+           "rationale": "Pregunta por los datos que el negocio necesita conservar; revela un requisito funcional.",
+           "answer": [
+             {"text": "El programa institucional nos pide evidencia de cada tutoría."},
+             {"text": "Al terminar, el tutor debe registrar la asistencia del alumno y un comentario sobre los temas tratados.",
+              "req": {"key": "T07", "type": "RF", "feedback": "Es un Requisito Funcional: describe una acción del tutor en el sistema (registrar asistencia y comentario).", "hint": "¿Alguien realiza una acción con el sistema?"}}
+           ]},
+          {"quality": "medium", "text": "¿Quiere guardar información de las tutorías?",
+           "rationale": "Pregunta cerrada y vaga; no dice qué información ni quién la registra.",
+           "answer": [{"text": "Pues sí, algo de información."}]},
+          {"quality": "low", "text": "¿Usted también da tutorías?",
+           "rationale": "Dato personal que no cambia los requisitos del sistema.",
+           "answer": [{"text": "A unos cuantos alumnos, sí."}]}
+        ]},
+        {"topic": "Confidencialidad", "options": [
+          {"quality": "high", "text": "¿Qué tan delicada es la información de las tutorías y quién puede verla?",
+           "rationale": "Pregunta por la protección de los datos; suele revelar requisitos no funcionales de seguridad.",
+           "answer": [
+             {"text": "En los comentarios a veces se anotan problemas personales de los alumnos."},
+             {"text": "Los comentarios de las tutorías deben guardarse cifrados en la base de datos.",
+              "req": {"key": "T08", "type": "RNF", "feedback": "Es un Requisito No Funcional de seguridad (confidencialidad): no agrega una función, define cómo se protegen los datos.", "hint": "¿Agrega una función nueva o exige una cualidad a los datos que ya existen?"}}
+           ]},
+          {"quality": "medium", "text": "¿Debe ser seguro el sistema?",
+           "rationale": "Pregunta inductiva con respuesta obvia; «seguro» no es verificable.",
+           "answer": [{"text": "Claro, como todos."}]},
+          {"quality": "low", "text": "¿Usa mucho las redes sociales?",
+           "rationale": "Plática personal sin relación con el sistema.",
+           "answer": [{"text": "Solo para ver recetas. 🍲"}]}
+        ]},
+        {"topic": "Rendimiento", "options": [
+          {"quality": "high", "text": "¿En qué momentos se usará más el sistema y qué tan rápido debe responder?",
+           "rationale": "Relaciona la carga real con un tiempo de respuesta medible.",
+           "answer": [
+             {"text": "La primera semana del semestre todos los alumnos agendan su primera tutoría al mismo tiempo."},
+             {"text": "Con 300 alumnos conectados a la vez, agendar una tutoría debe tardar menos de tres segundos.",
+              "req": {"key": "T09", "type": "RNF", "feedback": "Es un Requisito No Funcional de rendimiento: fija un tiempo de respuesta medible bajo una carga definida.", "hint": "¿Agrega una función o mide qué tan bien funciona una existente?"}}
+           ]},
+          {"quality": "medium", "text": "¿Debe ser rápido el sistema?",
+           "rationale": "Pregunta inductiva; «rápido» no se puede verificar sin una cifra.",
+           "answer": [{"text": "Sí, que no tarde."}]},
+          {"quality": "low", "text": "¿Qué computadora tiene en su oficina?",
+           "rationale": "Detalle del equipo personal; no define la carga ni el rendimiento del sistema.",
+           "answer": [{"text": "Una muy viejita, la verdad. 💻"}]}
+        ]},
+        {"topic": "Reportes", "options": [
+          {"quality": "high", "text": "¿Qué información necesita para entregar sus informes?",
+           "rationale": "Busca las salidas que el negocio necesita; revela un requisito funcional de reportes.",
+           "answer": [
+             {"text": "Cada semestre entrego un informe a la Dirección."},
+             {"text": "El sistema debe generar un reporte por semestre con el número de tutorías y la asistencia de cada alumno.",
+              "req": {"key": "T10", "type": "RF", "feedback": "Es un Requisito Funcional: describe una salida concreta que el sistema produce (el reporte semestral).", "hint": "¿El sistema produce algo o se trata de una cualidad?"}}
+           ]},
+          {"quality": "medium", "text": "¿Le sirven los reportes?",
+           "rationale": "Pregunta cerrada; no dice qué datos necesita ni cada cuándo.",
+           "answer": [{"text": "Sí, eso ayudaría."}]},
+          {"quality": "low", "text": "¿Le gusta hacer informes?",
+           "rationale": "Opinión personal que no aporta requisitos.",
+           "answer": [{"text": "¡Para nada! 😂"}]}
+        ]},
+        {"topic": "Plataforma y usabilidad", "options": [
+          {"quality": "high", "text": "¿Desde qué dispositivos se conectarán los alumnos y qué tan sencillo debe ser agendar?",
+           "rationale": "Une el contexto de uso con una meta de facilidad de uso medible.",
+           "answer": [
+             {"text": "Casi todos los alumnos usan el celular entre clases."},
+             {"text": "Desde el navegador del celular, agendar una tutoría debe tomar no más de tres pantallas.",
+              "req": {"key": "T11", "type": "RNF", "feedback": "Es un Requisito No Funcional de usabilidad y portabilidad: fija un criterio medible de facilidad de uso en celular.", "hint": "¿Agrega una función o mide la facilidad de una existente?"}}
+           ]},
+          {"quality": "medium", "text": "¿Funcionará en celulares?",
+           "rationale": "Pregunta cerrada; no dice qué tan fácil debe ser ni lo vuelve verificable.",
+           "answer": [{"text": "Espero que sí."}]},
+          {"quality": "low", "text": "¿Qué celular tiene usted?",
+           "rationale": "Dato personal; no representa a los alumnos que usarán el sistema.",
+           "answer": [{"text": "Uno que me regaló mi hija. 📱"}]}
+        ]}
+      ]
+    },
+    {
+      "code": "ESC-CONSULTORIO-01",
+      "version": "1.0",
+      "title": "Sistema de Citas del Consultorio Médico",
+      "summary": "El Consultorio Médico Universitario quiere un sistema web para que los alumnos pidan cita sin hacer fila y para llevar el registro de cada consulta.",
+      "client_name": "Dr. Ernesto Salas",
+      "client_role": "Responsable del Consultorio Médico Universitario",
+      "greeting": "¡Hola! 🩺 Gracias por escribirme. Cada mañana tenemos una fila enorme y queremos un sistema de citas. Pregúntame lo que necesites.",
+      "rounds": [
+        {"topic": "Objetivo", "options": [
+          {"quality": "high", "text": "¿Qué problema quiere resolver con el sistema?",
+           "rationale": "Pregunta abierta sobre el propósito: revela la necesidad central y el primer requisito funcional.",
+           "answer": [
+             {"text": "Hoy los alumnos hacen fila desde temprano por una ficha y muchos se quedan sin consulta."},
+             {"text": "Queremos que el alumno pueda solicitar una cita en línea eligiendo un día y una hora disponibles.",
+              "req": {"key": "M01", "type": "RF", "feedback": "Es un Requisito Funcional: describe el servicio central del sistema (solicitar citas).", "hint": "¿Es una acción que el usuario realiza con el sistema?"}}
+           ]},
+          {"quality": "medium", "text": "¿Quiere un sistema de citas?",
+           "rationale": "Pregunta cerrada que sugiere una solución; confirma algo sin explicar el problema de fondo.",
+           "answer": [{"text": "Sí, eso nos ayudaría."}]},
+          {"quality": "low", "text": "¿Desde cuándo trabaja en el consultorio?",
+           "rationale": "Plática personal; no revela ninguna necesidad del sistema.",
+           "answer": [{"text": "¡Ya van doce años! 😄"}]}
+        ]},
+        {"topic": "Usuarios", "options": [
+          {"quality": "high", "text": "¿Quiénes usarán el sistema y qué necesita hacer cada uno?",
+           "rationale": "Identifica a los actores y sus objetivos a la vez; de ahí surgen varios requisitos funcionales.",
+           "answer": [
+             {"text": "Lo usarían los alumnos, la recepcionista, los médicos y yo como responsable."},
+             {"text": "La recepcionista debe poder registrar la llegada del alumno cuando se presenta a su cita.",
+              "req": {"key": "M02", "type": "RF", "feedback": "Es un Requisito Funcional: describe una acción que la recepcionista realiza con el sistema (registrar la llegada).", "hint": "¿Quién hace algo con el sistema y qué hace?"}},
+             {"text": "Cada médico debe poder ver la lista de citas de su turno.",
+              "req": {"key": "M03", "type": "RF", "feedback": "Es un Requisito Funcional: describe una consulta concreta que el médico hace en el sistema (ver sus citas).", "hint": "Fíjate en el verbo: ¿es una acción o una cualidad?"}}
+           ]},
+          {"quality": "medium", "text": "¿Lo van a usar los médicos?",
+           "rationale": "Pregunta cerrada: confirma un usuario, pero no dice qué necesita hacer ni menciona a los demás.",
+           "answer": [{"text": "Sí, ellos también."}]},
+          {"quality": "low", "text": "¿Los médicos estudiaron en esta universidad?",
+           "rationale": "Curiosidad sobre las personas; no aporta requisitos.",
+           "answer": [{"text": "Dos de ellos, sí. 🎓"}]}
+        ]},
+        {"topic": "Reglas de citas", "options": [
+          {"quality": "high", "text": "¿Qué reglas debe respetar el sistema al dar una cita?",
+           "rationale": "Busca restricciones del negocio; las reglas se convierten en requisitos verificables.",
+           "answer": [
+             {"text": "Hay alumnos que apartan varias fichas y luego no llegan a ninguna."},
+             {"text": "El sistema debe impedir que un alumno tenga más de una cita pendiente a la vez.",
+              "req": {"key": "M04", "type": "RF", "feedback": "Es un Requisito Funcional: define una regla que el sistema aplica al dar una cita (una cita pendiente por alumno).", "hint": "¿El sistema realiza una validación o se trata de una cualidad como la rapidez?"}}
+           ]},
+          {"quality": "medium", "text": "¿Las consultas duran veinte minutos?",
+           "rationale": "Pregunta cerrada sobre un detalle; no descubre las reglas que importan.",
+           "answer": [{"text": "Sí, más o menos."}]},
+          {"quality": "low", "text": "¿De qué color están pintados los consultorios?",
+           "rationale": "Dato del lugar que no cambia lo que debe hacer el sistema.",
+           "answer": [{"text": "Blancos, como todos. 😅"}]}
+        ]},
+        {"topic": "Cancelaciones", "options": [
+          {"quality": "high", "text": "¿Qué pasa cuando un alumno no puede llegar a su cita?",
+           "rationale": "Explora un caso de excepción frecuente; suele revelar requisitos de cancelación y aviso.",
+           "answer": [
+             {"text": "Casi nadie avisa, y el médico se queda sin paciente mientras otros esperan."},
+             {"text": "El alumno debe poder cancelar su cita hasta una hora antes, y la hora debe quedar libre para otro alumno.",
+              "req": {"key": "M05", "type": "RF", "feedback": "Es un Requisito Funcional: describe una acción (cancelar) y una respuesta del sistema (liberar la hora).", "hint": "¿Describe algo que el sistema hace?"}},
+             {"text": "También debe enviar un recordatorio por correo el día anterior a la cita.",
+              "req": {"key": "M06", "type": "RF", "feedback": "Es un Requisito Funcional: el sistema realiza una acción automática (enviar recordatorios).", "hint": "Aunque nadie lo pide en el momento, ¿es una acción del sistema?"}}
+           ]},
+          {"quality": "medium", "text": "¿Faltan mucho los alumnos?",
+           "rationale": "Obtiene una opinión, pero no qué debe hacer el sistema cuando ocurre.",
+           "answer": [{"text": "Bastante, sí."}]},
+          {"quality": "low", "text": "¿A qué hora llega usted al consultorio?",
+           "rationale": "Dato personal sin relación con el sistema.",
+           "answer": [{"text": "A las siete, antes que todos. ☀️"}]}
+        ]},
+        {"topic": "Registro de consultas", "options": [
+          {"quality": "high", "text": "¿Qué debe quedar registrado después de cada consulta?",
+           "rationale": "Pregunta por los datos que el negocio necesita conservar; revela un requisito funcional.",
+           "answer": [
+             {"text": "La universidad nos pide evidencia de cada atención."},
+             {"text": "Al terminar la consulta, el médico debe registrar el motivo, el diagnóstico y las indicaciones.",
+              "req": {"key": "M07", "type": "RF", "feedback": "Es un Requisito Funcional: describe una acción del médico en el sistema (registrar la consulta).", "hint": "¿Alguien realiza una acción con el sistema?"}}
+           ]},
+          {"quality": "medium", "text": "¿Quiere guardar información de las consultas?",
+           "rationale": "Pregunta cerrada y vaga; no dice qué información ni quién la registra.",
+           "answer": [{"text": "Pues sí, algo de información."}]},
+          {"quality": "low", "text": "¿Le gusta su trabajo?",
+           "rationale": "Opinión personal que no aporta requisitos.",
+           "answer": [{"text": "¡Mucho! Aunque cansa. 😅"}]}
+        ]},
+        {"topic": "Confidencialidad", "options": [
+          {"quality": "high", "text": "¿Qué tan delicada es la información de las consultas y quién puede verla?",
+           "rationale": "Pregunta por la protección de los datos; suele revelar requisitos no funcionales de seguridad.",
+           "answer": [
+             {"text": "El expediente tiene datos de salud que el alumno no quiere que nadie más conozca."},
+             {"text": "Los diagnósticos e indicaciones del expediente deben guardarse cifrados en la base de datos.",
+              "req": {"key": "M08", "type": "RNF", "feedback": "Es un Requisito No Funcional de seguridad (confidencialidad): no agrega una función, define cómo se protegen los datos.", "hint": "¿Agrega una función nueva o exige una cualidad a los datos que ya existen?"}}
+           ]},
+          {"quality": "medium", "text": "¿La información es privada?",
+           "rationale": "Pregunta inductiva con respuesta obvia; no dice qué proteger ni cómo verificarlo.",
+           "answer": [{"text": "Claro, es información médica."}]},
+          {"quality": "low", "text": "¿Ve series de médicos?",
+           "rationale": "Plática personal sin relación con el sistema.",
+           "answer": [{"text": "Algunas, pero no se parecen nada a la realidad. 📺"}]}
+        ]},
+        {"topic": "Rendimiento", "options": [
+          {"quality": "high", "text": "¿En qué momentos se usará más el sistema y qué tan rápido debe responder?",
+           "rationale": "Relaciona la carga real con un tiempo de respuesta medible.",
+           "answer": [
+             {"text": "En la semana del examen médico de nuevo ingreso cientos de alumnos piden cita el mismo día."},
+             {"text": "Con 200 alumnos conectados a la vez, mostrar las horas disponibles debe tardar menos de dos segundos.",
+              "req": {"key": "M09", "type": "RNF", "feedback": "Es un Requisito No Funcional de rendimiento: fija un tiempo de respuesta medible bajo una carga definida.", "hint": "¿Agrega una función o mide qué tan bien funciona una existente?"}}
+           ]},
+          {"quality": "medium", "text": "¿Debe ser rápido el sistema?",
+           "rationale": "Pregunta inductiva; «rápido» no se puede verificar sin una cifra.",
+           "answer": [{"text": "Sí, que no se trabe."}]},
+          {"quality": "low", "text": "¿A qué hora come usted?",
+           "rationale": "Dato personal; no define la carga ni el rendimiento del sistema.",
+           "answer": [{"text": "De dos a tres, cuando se puede. 🍽️"}]}
+        ]},
+        {"topic": "Reportes", "options": [
+          {"quality": "high", "text": "¿Qué información le pide la universidad sobre el consultorio?",
+           "rationale": "Busca las salidas que el negocio necesita; revela un requisito funcional de reportes.",
+           "answer": [
+             {"text": "Cada mes entrego estadísticas a Servicios Estudiantiles."},
+             {"text": "El sistema debe generar un reporte mensual con el número de consultas por motivo de atención.",
+              "req": {"key": "M10", "type": "RF", "feedback": "Es un Requisito Funcional: describe una salida concreta que el sistema produce (el reporte mensual).", "hint": "¿El sistema produce algo o se trata de una cualidad?"}}
+           ]},
+          {"quality": "medium", "text": "¿Necesita reportes?",
+           "rationale": "Pregunta cerrada; no dice qué datos necesita ni cada cuándo.",
+           "answer": [{"text": "Sí, eso ayudaría."}]},
+          {"quality": "low", "text": "¿Le gusta hacer estadísticas?",
+           "rationale": "Opinión personal que no aporta requisitos.",
+           "answer": [{"text": "¡Ni tantito! 😂"}]}
+        ]},
+        {"topic": "Usabilidad", "options": [
+          {"quality": "high", "text": "¿En qué condiciones pedirán cita los alumnos y qué tan fácil debe ser?",
+           "rationale": "Une el contexto real de uso con una meta de facilidad de uso medible.",
+           "answer": [
+             {"text": "Muchos piden cita cuando ya se sienten mal y no tienen ganas de leer instrucciones."},
+             {"text": "Un alumno que nunca ha usado el sistema debe poder pedir su primera cita en menos de dos minutos sin ayuda.",
+              "req": {"key": "M11", "type": "RNF", "feedback": "Es un Requisito No Funcional de usabilidad (facilidad de aprendizaje): fija un criterio medible, no una función nueva.", "hint": "¿Agrega una función o mide la facilidad de una existente?"}}
+           ]},
+          {"quality": "medium", "text": "¿Debe ser fácil de usar?",
+           "rationale": "Pregunta inductiva; «fácil» no es verificable sin un criterio.",
+           "answer": [{"text": "Claro, que sea sencillo."}]},
+          {"quality": "low", "text": "¿Qué navegador usa usted?",
+           "rationale": "Dato personal; no representa a los alumnos que usarán el sistema.",
+           "answer": [{"text": "El que venía en la computadora. 💻"}]}
+        ]}
+      ]
+    },
+    {
+      "code": "ESC-GIMNASIO-01",
+      "version": "1.0",
+      "title": "Sistema de Reservas del Gimnasio Universitario",
+      "summary": "El Gimnasio Universitario quiere un sistema web para que los alumnos reserven lugar en las clases grupales y para controlar la asistencia.",
+      "client_name": "Lic. Marco Ruvalcaba",
+      "client_role": "Coordinador del Gimnasio Universitario",
+      "greeting": "¡Qué tal! 💪 Las clases grupales se nos llenan y queremos un sistema de reservas. Pregúntame lo que necesites.",
+      "rounds": [
+        {"topic": "Objetivo", "options": [
+          {"quality": "high", "text": "¿Qué problema quiere resolver con el sistema?",
+           "rationale": "Pregunta abierta sobre el propósito: revela la necesidad central y el primer requisito funcional.",
+           "answer": [
+             {"text": "Las clases de spinning y yoga se llenan, y muchos alumnos llegan para encontrarse sin lugar."},
+             {"text": "Queremos que el alumno pueda reservar un lugar en una clase grupal desde el sistema.",
+              "req": {"key": "G01", "type": "RF", "feedback": "Es un Requisito Funcional: describe el servicio central del sistema (reservar clases).", "hint": "¿Es una acción que el usuario realiza con el sistema?"}}
+           ]},
+          {"quality": "medium", "text": "¿Quiere una aplicación para el gimnasio?",
+           "rationale": "Pregunta cerrada que sugiere una solución; confirma algo sin explicar el problema de fondo.",
+           "answer": [{"text": "Sí, algo así."}]},
+          {"quality": "low", "text": "¿Usted hace ejercicio todos los días?",
+           "rationale": "Plática personal; no revela ninguna necesidad del sistema.",
+           "answer": [{"text": "¡Claro! Bueno, casi. 😅"}]}
+        ]},
+        {"topic": "Usuarios", "options": [
+          {"quality": "high", "text": "¿Quiénes usarán el sistema y qué necesita hacer cada uno?",
+           "rationale": "Identifica a los actores y sus objetivos a la vez; de ahí surgen varios requisitos funcionales.",
+           "answer": [
+             {"text": "Lo usarían los alumnos, los instructores y yo como coordinador."},
+             {"text": "El coordinador debe poder publicar el horario semanal de clases con su instructor y su cupo.",
+              "req": {"key": "G02", "type": "RF", "feedback": "Es un Requisito Funcional: describe una acción que el coordinador realiza con el sistema (publicar el horario).", "hint": "¿Quién hace algo con el sistema y qué hace?"}},
+             {"text": "El instructor debe poder pasar lista de los alumnos que llegaron a su clase.",
+              "req": {"key": "G03", "type": "RF", "feedback": "Es un Requisito Funcional: describe una acción concreta del instructor en el sistema (pasar lista).", "hint": "Fíjate en el verbo: ¿es una acción o una cualidad?"}}
+           ]},
+          {"quality": "medium", "text": "¿Lo van a usar los alumnos?",
+           "rationale": "Pregunta cerrada: confirma un usuario, pero no dice qué necesita hacer ni menciona a los demás.",
+           "answer": [{"text": "Sí, sobre todo ellos."}]},
+          {"quality": "low", "text": "¿Qué clase es la más divertida?",
+           "rationale": "Opinión personal; no aporta requisitos.",
+           "answer": [{"text": "Zumba, sin duda. 💃"}]}
+        ]},
+        {"topic": "Reglas de reserva", "options": [
+          {"quality": "high", "text": "¿Qué reglas debe respetar el sistema al reservar una clase?",
+           "rationale": "Busca restricciones del negocio; las reglas se convierten en requisitos verificables.",
+           "answer": [
+             {"text": "Hay alumnos que apartan lugar en todas las clases y luego solo van a una."},
+             {"text": "El sistema debe impedir reservar si la clase ya llenó su cupo o si el alumno ya tiene dos reservas ese día.",
+              "req": {"key": "G04", "type": "RF", "feedback": "Es un Requisito Funcional: define una regla que el sistema aplica al reservar (cupo y límite por día).", "hint": "¿El sistema realiza una validación o se trata de una cualidad como la rapidez?"}}
+           ]},
+          {"quality": "medium", "text": "¿Las clases duran una hora?",
+           "rationale": "Pregunta cerrada sobre un detalle; no descubre las reglas que importan.",
+           "answer": [{"text": "Sí, casi todas."}]},
+          {"quality": "low", "text": "¿De qué color son los tapetes de yoga?",
+           "rationale": "Dato del equipo que no cambia lo que debe hacer el sistema.",
+           "answer": [{"text": "Morados. 🟣"}]}
+        ]},
+        {"topic": "Inasistencias", "options": [
+          {"quality": "high", "text": "¿Qué pasa cuando un alumno reserva y no llega?",
+           "rationale": "Explora un caso de excepción frecuente; suele revelar requisitos de cancelación y sanciones.",
+           "answer": [
+             {"text": "Su lugar se queda vacío y otros alumnos se quedaron sin clase."},
+             {"text": "El alumno debe poder cancelar su reserva hasta dos horas antes, y el lugar debe quedar libre para otro alumno.",
+              "req": {"key": "G05", "type": "RF", "feedback": "Es un Requisito Funcional: describe una acción (cancelar) y una respuesta del sistema (liberar el lugar).", "hint": "¿Describe algo que el sistema hace?"}},
+             {"text": "Si un alumno falta a tres clases reservadas en un mes, el sistema debe bloquear sus reservas por una semana.",
+              "req": {"key": "G06", "type": "RF", "feedback": "Es un Requisito Funcional: el sistema aplica una regla automática (bloquear reservas por inasistencias).", "hint": "Aunque nadie lo pide en el momento, ¿es una acción del sistema?"}}
+           ]},
+          {"quality": "medium", "text": "¿Faltan mucho los alumnos?",
+           "rationale": "Obtiene una opinión, pero no qué debe hacer el sistema cuando ocurre.",
+           "answer": [{"text": "Uf, bastante."}]},
+          {"quality": "low", "text": "¿Usted ha faltado a alguna clase?",
+           "rationale": "Pregunta personal sin relación con el sistema.",
+           "answer": [{"text": "Solo cuando me enfermo. 🤒"}]}
+        ]},
+        {"topic": "Acceso", "options": [
+          {"quality": "high", "text": "¿Cómo controlan hoy quién entra al gimnasio y qué le gustaría cambiar?",
+           "rationale": "Parte del proceso actual para descubrir qué debe hacer el sistema; revela un requisito funcional.",
+           "answer": [
+             {"text": "Hoy anotamos a mano la matrícula de cada alumno en una libreta en la entrada."},
+             {"text": "En la entrada, el sistema debe registrar el acceso del alumno al escanear el código QR de su credencial.",
+              "req": {"key": "G07", "type": "RF", "feedback": "Es un Requisito Funcional: describe una acción que el sistema realiza (registrar el acceso).", "hint": "¿Alguien realiza una acción con el sistema?"}}
+           ]},
+          {"quality": "medium", "text": "¿Hay control en la entrada?",
+           "rationale": "Pregunta cerrada; no dice cómo se controla ni qué debería hacer el sistema.",
+           "answer": [{"text": "Sí, más o menos."}]},
+          {"quality": "low", "text": "¿Quién pintó el mural de la entrada?",
+           "rationale": "Curiosidad sin relación con el sistema.",
+           "answer": [{"text": "Unos alumnos de Artes. 🎨"}]}
+        ]},
+        {"topic": "Confidencialidad", "options": [
+          {"quality": "high", "text": "¿Qué información de los alumnos es delicada y quién debe verla?",
+           "rationale": "Pregunta por la protección de los datos; suele revelar requisitos no funcionales de seguridad.",
+           "answer": [
+             {"text": "Al inscribirse, los alumnos llenan un cuestionario de salud con sus lesiones y padecimientos."},
+             {"text": "Las respuestas del cuestionario de salud deben guardarse cifradas en la base de datos.",
+              "req": {"key": "G08", "type": "RNF", "feedback": "Es un Requisito No Funcional de seguridad (confidencialidad): no agrega una función, define cómo se protegen los datos.", "hint": "¿Agrega una función nueva o exige una cualidad a los datos que ya existen?"}}
+           ]},
+          {"quality": "medium", "text": "¿Le preocupa la seguridad?",
+           "rationale": "Pregunta inductiva con respuesta obvia; «seguridad» no es verificable.",
+           "answer": [{"text": "Claro, como a todos."}]},
+          {"quality": "low", "text": "¿Cuánto levanta usted en press de banca?",
+           "rationale": "Plática personal sin relación con el sistema.",
+           "answer": [{"text": "Mejor no le digo. 🏋️"}]}
+        ]},
+        {"topic": "Rendimiento", "options": [
+          {"quality": "high", "text": "¿En qué momento se usará más el sistema y qué tan rápido debe responder?",
+           "rationale": "Relaciona la carga real con un tiempo de respuesta medible.",
+           "answer": [
+             {"text": "Los lunes a las siete de la mañana se abren las reservas de la semana y todos entran a la vez."},
+             {"text": "Con 250 alumnos reservando a la vez, confirmar una reserva debe tardar menos de dos segundos.",
+              "req": {"key": "G09", "type": "RNF", "feedback": "Es un Requisito No Funcional de rendimiento: fija un tiempo de respuesta medible bajo una carga definida.", "hint": "¿Agrega una función o mide qué tan bien funciona una existente?"}}
+           ]},
+          {"quality": "medium", "text": "¿Tiene que ser rápido?",
+           "rationale": "Pregunta inductiva; «rápido» no se puede verificar sin una cifra.",
+           "answer": [{"text": "Sí, que no se trabe."}]},
+          {"quality": "low", "text": "¿Qué música ponen en las clases?",
+           "rationale": "Detalle del ambiente; no define la carga ni el rendimiento del sistema.",
+           "answer": [{"text": "De todo, pero mucho reguetón. 🎶"}]}
+        ]},
+        {"topic": "Reportes", "options": [
+          {"quality": "high", "text": "¿Qué información necesita para decidir qué clases ofrecer?",
+           "rationale": "Busca las salidas que el negocio necesita; revela un requisito funcional de reportes.",
+           "answer": [
+             {"text": "Cada mes decido qué clases abrir o cerrar según cuánta gente va."},
+             {"text": "El sistema debe generar un reporte mensual con la asistencia y el porcentaje de ocupación de cada clase.",
+              "req": {"key": "G10", "type": "RF", "feedback": "Es un Requisito Funcional: describe una salida concreta que el sistema produce (el reporte mensual).", "hint": "¿El sistema produce algo o se trata de una cualidad?"}}
+           ]},
+          {"quality": "medium", "text": "¿Le servirían unos reportes?",
+           "rationale": "Pregunta cerrada; no dice qué datos necesita ni cada cuándo.",
+           "answer": [{"text": "Sí, eso ayudaría."}]},
+          {"quality": "low", "text": "¿Le gustan las matemáticas?",
+           "rationale": "Opinión personal que no aporta requisitos.",
+           "answer": [{"text": "Solo para contar repeticiones. 😂"}]}
+        ]},
+        {"topic": "Plataforma y usabilidad", "options": [
+          {"quality": "high", "text": "¿Desde dónde reservarán los alumnos y qué tan fácil debe ser?",
+           "rationale": "Une el contexto de uso con una meta de facilidad de uso medible.",
+           "answer": [
+             {"text": "Casi todos reservan desde el celular, muchas veces caminando entre clases."},
+             {"text": "Desde el navegador del celular, reservar una clase debe tomar menos de 30 segundos.",
+              "req": {"key": "G11", "type": "RNF", "feedback": "Es un Requisito No Funcional de usabilidad y portabilidad: fija un criterio medible de facilidad de uso en celular.", "hint": "¿Agrega una función o mide la facilidad de una existente?"}}
+           ]},
+          {"quality": "medium", "text": "¿Funcionará en el celular?",
+           "rationale": "Pregunta cerrada; no dice qué tan fácil debe ser ni lo vuelve verificable.",
+           "answer": [{"text": "Espero que sí."}]},
+          {"quality": "low", "text": "¿Usa alguna aplicación para contar sus pasos?",
+           "rationale": "Dato personal; no representa a los alumnos que usarán el sistema.",
+           "answer": [{"text": "¡Sí! Hoy llevo un montón. 👟"}]}
         ]}
       ]
     }

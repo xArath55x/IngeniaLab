@@ -12,6 +12,7 @@
     <a class="icon-btn" href="{% url 'modeling:lessons' %}?attempt={{ lesson.attempt_id }}" aria-label="Salir de la lección" title="Salir">✕</a>
     <div class="bar lesson-bar" role="progressbar" aria-label="Avance de la lección"><span id="progress"></span></div>
     <div class="lives" id="lives" aria-live="polite"></div>
+    {% if lesson.status == "in_progress" %}{% include "progress/_autosave.html" with hint="Cada respuesta se guarda al instante" %}{% endif %}
   </div>
 
   <div class="lesson-layout">
@@ -60,4 +61,9 @@
 </div>
 {{ state|json_script:"lesson-state" }}
 {% endblock %}
-{% block scripts %}<script src="{% static 'js/lessons.js' %}?v=tablero-1"></script>{% endblock %}
+{% block scripts %}<script src="{% static 'js/lessons.js' %}?v=orden-1"></script>
+{% if lesson.status == "in_progress" %}<script src="{% static 'js/autosave.js' %}?v=cu10-4"></script>
+<script>
+  // CU-10: cada respuesta de la lección ya se guarda en el servidor; aquí solo se marca la lección como pausada.
+  if (IL.autosave) IL.autosave.mount({ module: "lesson", key: "{{ lesson.id }}", collect: () => ({}) });
+</script>{% endif %}{% endblock %}

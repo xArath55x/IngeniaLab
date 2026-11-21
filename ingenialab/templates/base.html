@@ -4,19 +4,19 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}IngeniaLab{% endblock %} · IngeniaLab</title>
-  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=tablero-1">
+  {# ACT-313B: sin este enlace los navegadores piden /favicon.ico y registran un 404 en la consola (OBS-01). #}
+  <link rel="icon" href="{% static 'img/favicon.ico' %}" sizes="any">
+  <link rel="icon" type="image/svg+xml" href="{% static 'img/favicon.svg' %}">
+  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=orden-cu10">
 </head>
 <body data-user-id="{{ user.pk }}">
 {% with url=request.resolver_match.namespace %}
 <div class="layout">
   <aside class="sidebar">
-    <a class="brand" href="{% url 'interviews:scenarios' %}"><span class="brand-mark">IL</span> IngeniaLab</a>
+    <a class="brand" href="{% url 'progress:dashboard' %}"><span class="brand-mark">IL</span> IngeniaLab</a>
     <nav class="nav" aria-label="Módulos">
-      {% if "progress" in modules %}<a href="{% url 'progress:dashboard' %}" class="{% if url == 'progress' and request.resolver_match.url_name == 'dashboard' %}active{% endif %}"><span aria-hidden="true">🏠</span> Mi progreso</a>{% endif %}
-      <div class="nav-section">Prácticas</div>
-      <a href="{% url 'interviews:scenarios' %}" class="{% if url == 'interviews' or url == 'classification' %}active{% endif %}"><span aria-hidden="true">💬</span> Entrevistas</a>
-      {% if "modeling" in modules %}<a href="{% url 'modeling:list' %}" class="{% if url == 'modeling' %}active{% endif %}"><span aria-hidden="true">📐</span> Modelado</a>{% endif %}
-      {% if "inspection" in modules %}<a href="{% url 'inspection:list' %}" class="{% if url == 'inspection' %}active{% endif %}"><span aria-hidden="true">🔍</span> Inspección</a>{% endif %}
+      {# Partida única: las etapas se abren desde la partida, no desde el menú. #}
+      <a href="{% url 'progress:dashboard' %}" class="{% if url == 'progress' and request.resolver_match.url_name == 'dashboard' or url == 'interviews' or url == 'classification' or url == 'modeling' or url == 'inspection' %}active{% endif %}"><span aria-hidden="true">🎮</span> Mi partida</a>
       {% if "reports" in modules %}<div class="nav-section">Entregables</div>
       <a href="{% url 'progress:reports' %}" class="{% if request.resolver_match.url_name == 'reports' %}active{% endif %}"><span aria-hidden="true">📄</span> Reportes</a>{% endif %}
     </nav>
@@ -31,12 +31,19 @@
     </div>
   </aside>
   <main class="main" id="contenido">
+    {% if partida_bar %}{% with game=partida_bar %}
+    <div class="partida-strip" role="region" aria-label="Partida en curso">
+      <div class="partida-strip-text"><strong>🎮 {{ game.title }}</strong> · Etapa {{ game.current_number }} de {{ game.total }}: {{ game.current_label }} · {{ game.percent }} %</div>
+      <div class="bar" role="progressbar" aria-valuenow="{{ game.percent }}" aria-valuemin="0" aria-valuemax="100" aria-label="Avance de la partida"><span style="width:{{ game.percent }}%"></span></div>
+      <a class="btn small" href="{% url 'progress:partida_continue' %}">Continuar partida →</a>
+    </div>
+    {% endwith %}{% endif %}
     {% if messages %}<div class="messages">{% for m in messages %}<div class="message {{ m.tags }}" role="status">{{ m }}</div>{% endfor %}</div>{% endif %}
     {% block content %}{% endblock %}
   </main>
 </div>
 {% endwith %}
-<script src="{% static 'js/app.js' %}?v=tablero-2"></script>
+<script src="{% static 'js/app.js' %}?v=313b"></script>
 {% block scripts %}{% endblock %}
 </body>
 </html>

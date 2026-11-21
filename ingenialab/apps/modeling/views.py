@@ -14,6 +14,7 @@ from django.views.decorators.http import require_POST
 
 from apps.accounts.api import fail, ok, read_json
 from apps.interviews.models import StudentAttempt
+from apps.progress import checkpoints
 from apps.progress.services import evaluate_badges
 from integrations.plantuml import service as plantuml
 from integrations.plantuml.builder import build_usecase_diagram
@@ -77,7 +78,18 @@ def editor(request, uc_id=None):
         except ValidationError:
             return HttpResponse("La entrevista seleccionada no es válida.", status=400)
     guide = _guide(attempts)
+    # CU-10: un caso de uso nuevo retoma el último borrador autoguardado en vez de abrir otro (se puede descartar).
+    # Con ?leccion= o ?attempt= se retoma el borrador de esa lección o entrevista, no uno ajeno ni uno nuevo cada vez.
+    if uc:
+        draft_key = ""
+    elif lesson:
+        draft_key = checkpoints.latest_new_draft_key(request.user, lesson_id=lesson.id)
+    elif request.GET.get("attempt"):
+        draft_key = checkpoints.latest_new_draft_key(request.user, attempt_id=reference.id)
+    else:
+        draft_key = checkpoints.latest_new_draft_key(request.user)
     return render(request, "modeling/editor.html", {
+        "draft_key": draft_key,
         "uc": uc,
         "form_data": uc.as_form_data() if uc else (
             {**lesson.reference.spec, "attempt_id": str(lesson.attempt_id)} if lesson else None),
@@ -161,9 +173,10 @@ def api_generate(request):
 
 
 
-def _replay_saved(uc, spec, user):
+def _replay_saved(uc, spec, user, draft_key=None):
     if uc.user_id != user.pk or uc.as_form_data() != spec or not hasattr(uc, "diagram"):
         return fail("La solicitud ya se utilizó con otros datos. Conserva el borrador e inicia un nuevo guardado.", status=409)
+    checkpoints.consume_new_draft(user, draft_key)  # CU-10: el reintento también consume el borrador.
     return ok(id=str(uc.id), plantuml_code=uc.plantuml_code, svg=uc.diagram.svg,
               engine=uc.diagram.engine, warnings=validators.suggestions(spec), cached=True,
               duration_ms=0, code_hash=uc.diagram.code_hash, cache_warning="", spec=spec,
@@ -172,7 +185,6 @@ def _replay_saved(uc, spec, user):
 
 @login_required
 @require_POST
-@transaction.atomic
 def api_save(request):
     data, error = _read_payload(request)
     if error is not None: return error
@@ -203,11 +215,28 @@ def api_save(request):
             return fail("El identificador de solicitud no es válido.")
         previous = UseCaseSpecification.objects.select_related("diagram").filter(id=request_id).first()
         if previous is not None:
-            return _replay_saved(previous, spec, request.user)
+            return _replay_saved(previous, spec, request.user, data.get("draft_key"))
+    # ACT-313B: el diagrama se genera antes de abrir la transacción. Con SQLite en modo IMMEDIATE la
+    # transacción toma el bloqueo de escritura de toda la base; si PlantUML corriera dentro (~1.5 s en frío),
+    # todas las escrituras de la aplicación esperarían a que terminara.
     code = build_usecase_diagram(spec)
     try: result = plantuml.render(code)
     except plantuml.PlantUMLError as e:
         return fail(str(e), status=e.status, error=e.code)
+    with transaction.atomic():
+        response = _save_use_case(request, data, spec, code, result, uc, lesson, request_id)
+    if response.get("ok") is False:
+        return response["error"]
+    return ok(**response["payload"], badges=evaluate_badges(request.user))
+
+
+def _save_use_case(request, data, spec, code, result, uc, lesson, request_id):
+    """Escrituras de api_save, dentro de una transacción corta (sin PlantUML)."""
+    if lesson is not None:
+        # Otra petición pudo ligar la lección mientras se generaba el diagrama.
+        lesson = UseCaseLesson.objects.select_for_update().get(pk=lesson.pk)
+        if uc is None and lesson.use_case_id:
+            uc = UseCaseSpecification.objects.get(id=lesson.use_case_id)
     warnings = validators.suggestions(spec)
     attempt = None
     if spec["attempt_id"]:
@@ -233,7 +262,7 @@ def api_save(request):
         uc, created = UseCaseSpecification.objects.get_or_create(
             id=request_id, defaults={"user": request.user, **fields})
         if not created:
-            return _replay_saved(uc, spec, request.user)
+            return {"ok": False, "error": _replay_saved(uc, spec, request.user, data.get("draft_key"))}
     else:
         uc = UseCaseSpecification.objects.create(user=request.user, **fields)
     GeneratedDiagram.objects.update_or_create(
@@ -242,15 +271,19 @@ def api_save(request):
     if lesson and not lesson.use_case_id:
         lesson.use_case = uc
         lesson.save(update_fields=["use_case"])
-    return ok(id=str(uc.id), plantuml_code=code, svg=result.svg, engine=result.engine, warnings=warnings,
-              cached=result.cached, duration_ms=result.duration_ms, code_hash=result.code_hash,
-              cache_warning=result.warning, spec=spec, message="Especificación guardada correctamente en tu cuenta.", badges=evaluate_badges(request.user))
+    # CU-10: el borrador `nuevo:<uuid>` ya tiene registro propio; se borra en esta misma transacción.
+    checkpoints.consume_new_draft(request.user, data.get("draft_key"))
+    return {"payload": dict(
+        id=str(uc.id), plantuml_code=code, svg=result.svg, engine=result.engine, warnings=warnings,
+        cached=result.cached, duration_ms=result.duration_ms, code_hash=result.code_hash,
+        cache_warning=result.warning, spec=spec, message="Especificación guardada correctamente en tu cuenta.")}
 
 
 @login_required
 @require_POST
 def delete(request, uc_id):
     uc = get_object_or_404(UseCaseSpecification, id=uc_id, user=request.user)
+    checkpoints.close(request.user, "modeling", uc.id)  # CU-10, RN-01
     uc.delete()
     messages.success(request, "Caso de uso eliminado.")
     return redirect("modeling:list")
@@ -346,25 +379,26 @@ def api_lesson_answer(request, lesson_id):
 @require_POST
 def api_lesson_save(request, lesson_id):
     """Genera el diagrama del caso de uso construido en la lección y lo guarda una sola vez (CU-02)."""
+    lesson = get_object_or_404(UseCaseLesson.objects.select_related("reference", "attempt"),
+                               id=lesson_id, user=request.user)
+    if lesson.status != UseCaseLesson.COMPLETED:
+        return fail("Termina la lección para guardar su caso de uso.")
+    if lesson.use_case_id:
+        return _lesson_saved_before(lesson.use_case_id)
+    form = UseCaseForm(data={**lesson.reference.spec, "attempt_id": str(lesson.attempt_id)}, user=request.user)
+    if not form.is_valid():
+        return fail(validators.REQUIRED_MESSAGE, errors=form.error_messages())
+    spec = form.cleaned_data
+    code = build_usecase_diagram(spec)
+    # ACT-313B: PlantUML corre fuera de la transacción para no retener el bloqueo de escritura de SQLite.
+    try:
+        result = plantuml.render(code)
+    except plantuml.PlantUMLError as e:
+        return fail(str(e), status=e.status, error=e.code)
     with transaction.atomic():
-        lesson = get_object_or_404(
-            UseCaseLesson.objects.select_for_update().select_related("reference", "attempt"),
-            id=lesson_id, user=request.user)
-        if lesson.status != UseCaseLesson.COMPLETED:
-            return fail("Termina la lección para guardar su caso de uso.")
-        if lesson.use_case_id:
-            uc = UseCaseSpecification.objects.select_related("diagram").get(id=lesson.use_case_id)
-            return ok(id=str(uc.id), svg=uc.diagram.svg, engine=uc.diagram.engine, saved_before=True,
-                      edit_url=reverse("modeling:edit", args=[uc.id]), badges=[])
-        form = UseCaseForm(data={**lesson.reference.spec, "attempt_id": str(lesson.attempt_id)}, user=request.user)
-        if not form.is_valid():
-            return fail(validators.REQUIRED_MESSAGE, errors=form.error_messages())
-        spec = form.cleaned_data
-        code = build_usecase_diagram(spec)
-        try:
-            result = plantuml.render(code)
-        except plantuml.PlantUMLError as e:
-            return fail(str(e), status=e.status, error=e.code)
+        lesson = UseCaseLesson.objects.select_for_update().get(pk=lesson.pk)
+        if lesson.use_case_id:  # Otra petición la guardó mientras se generaba el diagrama.
+            return _lesson_saved_before(lesson.use_case_id)
         uc = UseCaseSpecification.objects.create(
             user=request.user, attempt=lesson.attempt, name=spec["name"], system_name=spec["system_name"],
             actors={"primary": spec["primary_actors"], "secondary": spec["secondary_actors"]},
@@ -377,6 +411,12 @@ def api_lesson_save(request, lesson_id):
         lesson.save(update_fields=["use_case"])
     return ok(id=str(uc.id), svg=result.svg, engine=result.engine, saved_before=False,
               edit_url=reverse("modeling:edit", args=[uc.id]), badges=evaluate_badges(request.user))
+
+
+def _lesson_saved_before(use_case_id):
+    uc = UseCaseSpecification.objects.select_related("diagram").get(id=use_case_id)
+    return ok(id=str(uc.id), svg=uc.diagram.svg, engine=uc.diagram.engine, saved_before=True,
+              edit_url=reverse("modeling:edit", args=[uc.id]), badges=[])
 
 
 @login_required

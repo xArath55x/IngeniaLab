@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load static %}
 {% block title %}Clasificación · {{ attempt.version.title }}{% endblock %}
 {% block content %}
 <div class="page-head">
@@ -6,6 +7,7 @@
     <p class="small muted" style="margin:0">Entrevista → Clasificación → Modelado · Paso 2 de 3</p>
     <h1>Clasificación de requisitos</h1>
     <p class="muted" style="margin:0">{{ attempt.version.title }} · {{ attempt.version.client_name }}</p>
+    <div style="margin-top:.5rem">{% include "progress/_autosave.html" %}</div>
   </div>
   <div class="metrics" aria-live="polite">
     <div class="metric"{% if not available %} hidden{% endif %}><b id="m-precision">{{ attempt.classification_precision }} %</b><span>Precisión</span></div>
@@ -76,12 +78,13 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="{% static 'js/autosave.js' %}?v=cu10-4"></script>
 <script>
 (function () {
   const BASE = "/clasificacion/api/intento/{{ attempt.id }}/";
   const AVAILABLE = {{ available }};
   const INTERVIEW_SCORE = {{ attempt.interview_score }};
-  let selected = null;
+  let selected = null, saver = null;
   const stmts = document.querySelectorAll(".stmt[data-req]");
 
   function renderRows(rows) {
@@ -120,6 +123,7 @@
     document.querySelectorAll('input[name="category"]').forEach((i) => (i.checked = byReq[selected] && byReq[selected].category === i.value));
     document.getElementById("feedback").innerHTML = byReq[selected]
       ? IL.feedback("hint", "Ya clasificada como " + byReq[selected].category + ".", " Puedes cambiar el tipo y confirmar para reclasificar.") : "";
+    if (saver) saver.markDirty();
   }
   stmts.forEach((s) => {
     s.addEventListener("click", () => select(s));
@@ -134,28 +138,59 @@
     if (span) select(span);
   });
 
-  document.getElementById("btn-confirm").addEventListener("click", async () => {
+  // ACT-313B: un clic a la vez (IL.actionGroup); un doble clic ya no envía dos clasificaciones ni cobra dos pistas.
+  const confirmBtn = document.getElementById("btn-confirm");
+  const hintBtn = document.getElementById("btn-hint");
+  const actions = IL.actionGroup([confirmBtn, hintBtn]);
+  confirmBtn.addEventListener("click", () => {
     const fb = document.getElementById("feedback");
     const cat = document.querySelector('input[name="category"]:checked');
     if (!selected) { fb.innerHTML = IL.feedback("bad", "Primero selecciona una declaración de la bitácora."); return; }
     if (!cat) { fb.innerHTML = IL.feedback("bad", "Debe seleccionar una clasificación válida (RF o RNF) para registrar el requisito."); return; }
-    const r = await IL.api(BASE + "clasificar/", { requirement_id: selected, category: cat.value });
-    if (!r.ok) { fb.innerHTML = IL.feedback("bad", r.message); return; }
-    fb.innerHTML = IL.feedback(r.is_correct ? "ok" : "bad",
-      (r.is_correct ? "Correcto" : "Inconsistencia detectada") + (r.reclassified ? " (reclasificado)" : "") + ".", " " + r.explanation);
-    byReq = renderRows(r.rows);
-    document.getElementById("m-precision").textContent = r.precision + " %";
-    document.getElementById("m-score").textContent = INTERVIEW_SCORE + r.score;
-    IL.showBadges(r.badges);
+    const req = selected, category = cat.value;
+    return actions.run(confirmBtn, async () => {
+      const r = await IL.api(BASE + "clasificar/", { requirement_id: req, category });
+      if (!r.ok) { fb.innerHTML = IL.feedback("bad", r.message); return; }
+      fb.innerHTML = IL.feedback(r.is_correct ? "ok" : "bad",
+        (r.is_correct ? "Correcto" : "Inconsistencia detectada") + (r.reclassified ? " (reclasificado)" : "") + ".", " " + r.explanation);
+      byReq = renderRows(r.rows);
+      document.getElementById("m-precision").textContent = r.precision + " %";
+      document.getElementById("m-score").textContent = INTERVIEW_SCORE + r.score;
+      IL.showBadges(r.badges);
+    });
   });
 
-  document.getElementById("btn-hint").addEventListener("click", async () => {
+  hintBtn.addEventListener("click", () => {
     if (!selected) { document.getElementById("feedback").innerHTML = IL.feedback("bad", "Selecciona una declaración para pedir una pista sobre ella."); return; }
-    const r = await IL.api(BASE + "pista/", { requirement_id: selected });
-    if (!r.ok) return IL.toast(r.message, "bad");
-    document.getElementById("feedback").innerHTML = IL.feedback("hint", "Pista (−3 puntos):", " " + r.hint);
-    document.getElementById("m-score").textContent = INTERVIEW_SCORE + r.score;
+    const req = selected;
+    return actions.run(hintBtn, async () => {
+      const r = await IL.api(BASE + "pista/", { requirement_id: req });
+      if (!r.ok) return IL.toast(r.message, "bad");
+      document.getElementById("feedback").innerHTML = IL.feedback("hint", "Pista (−3 puntos):", " " + r.hint);
+      document.getElementById("m-score").textContent = INTERVIEW_SCORE + r.score;
+    });
   });
+
+  // CU-10: autoguarda la declaración seleccionada y el tipo aún sin confirmar (las clasificaciones confirmadas ya se guardan).
+  document.querySelectorAll('input[name="category"]').forEach((i) => i.addEventListener("change", () => { if (saver) saver.markDirty(); }));
+  if (IL.autosave) {
+    saver = IL.autosave.mount({
+      module: "classification", key: "{{ attempt.id }}",
+      // Solo hay una selección en pantalla; lo confirmado ya está en el servidor: no se pregunta al salir.
+      warnOnLeave: false,
+      collect: () => {
+        const cat = document.querySelector('input[name="category"]:checked');
+        return { selected, category: cat ? cat.value : null };
+      },
+      restore: (p) => {
+        const span = p.selected && document.querySelector(`.stmt[data-req="${CSS.escape(String(p.selected))}"]`);
+        if (!span) return;
+        select(span);
+        const radio = document.querySelector(`input[name="category"][value="${p.category === "RNF" ? "RNF" : "RF"}"]`);
+        if (p.category && radio) radio.checked = true;
+      },
+    });
+  }
 })();
 </script>
 {% endblock %}

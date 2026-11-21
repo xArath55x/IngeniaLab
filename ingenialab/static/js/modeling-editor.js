@@ -11,7 +11,7 @@
   const saveButton = document.getElementById("btn-save");
   const F = { name: document.getElementById("f-name"), system: document.getElementById("f-system"),
     pre: document.getElementById("f-pre"), post: document.getElementById("f-post") };
-  let ucId = form.dataset.ucId || "", rendered = null, busy = false;
+  let ucId = form.dataset.ucId || "", rendered = null, busy = false, saver = null;
   const lists = {};
   const limits = {
     primary_actors: [rules.max_actors, rules.actor], secondary_actors: [rules.max_actors, rules.actor],
@@ -33,6 +33,7 @@
       : done === 2 ? "El diagrama está listo: ya puedes guardar." : "Genera el diagrama para poder guardar.";
   }
   function invalidate() {
+    if (saver) saver.markDirty();
     const hadDiagram = rendered !== null;
     rendered = null; saveButton.disabled = true; setStep(0);
     if (hadDiagram) validation.innerHTML = IL.feedback("hint", "Hiciste cambios.", " Vuelve a generar el diagrama para que coincida con la plantilla antes de guardar.");
@@ -158,7 +159,12 @@
     setBusy(true);
     try {
       const urls = { validate: form.dataset.validateUrl, generate: form.dataset.generateUrl, save: form.dataset.saveUrl };
-      const response = await IL.api(urls[action], { ...result.data, lesson_id: form.dataset.lessonId || null, format: document.getElementById("preview-format").value });
+      // CU-10: lo que se escriba mientras viaja el guardado sigue pendiente de autoguardar.
+      const sentUpTo = saver ? saver.snapshot() : 0;
+      // CU-10: al guardar un caso nuevo, el servidor borra su borrador en la misma transacción.
+      const draftKey = action === "save" && saver && saver.key.startsWith("nuevo:") ? saver.key : null;
+      const response = await IL.api(urls[action], { ...result.data, lesson_id: form.dataset.lessonId || null,
+        format: document.getElementById("preview-format").value, draft_key: draftKey });
       feedback(response, response.ok ? TITLES[action] : "No se pudo completar la operación.");
       if (!response.ok) { rendered = null; return; }
       applyNormalized(response.spec);
@@ -183,6 +189,8 @@
         // URL absoluta desde el prefijo actual, sin concatenar a /nuevo/.
         history.replaceState(null, "", form.dataset.listUrl + response.id + "/");
         ucId = response.id; document.getElementById("title").textContent = response.spec.name;
+        // Lo guardado ya tiene registro propio: el servidor ya borró el borrador; aquí solo se cambia de clave (CU-10).
+        if (saver) saver.switchKey(ucId, sentUpTo);
         document.getElementById("diagram-downloads").style.display = "flex";
         document.getElementById("download-svg").href = form.dataset.listUrl + ucId + "/diagrama/svg/";
         document.getElementById("download-png").href = form.dataset.listUrl + ucId + "/diagrama/png/";
@@ -206,4 +214,42 @@
   }
   saveButton.disabled = !rendered;
   setStep(rendered ? 3 : 0);
+  // CU-10: autoguardado cada 30 s de la plantilla que aún no se guarda, «Guardar y pausar» y reanudación (SDS v3.0 §9).
+  const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+  function restoreDraft(p) {
+    // Un borrador hecho desde una lección sigue ligado a ella al reanudarlo desde el tablero (H-05).
+    if (typeof p.lesson_id === "string" && UUID.test(p.lesson_id)) form.dataset.lessonId = p.lesson_id;
+    if (p.attempt_id && [...attempt.options].some(o => o.value === p.attempt_id)) attempt.value = p.attempt_id;
+    F.name.value = p.name || ""; F.system.value = p.system_name || "";
+    F.pre.value = p.preconditions || ""; F.post.value = p.postconditions || "";
+    Object.entries(lists).forEach(([k, box]) => {
+      box.querySelectorAll(".list-item").forEach(row => row.remove());
+      (Array.isArray(p[k]) ? p[k] : []).forEach(v => addItem(box, v, false));
+      renumber(box);
+    });
+    renderGuide();
+    document.getElementById("preview-format").value = p.format === "png" ? "png" : "svg";
+    // El diagrama mostrado ya no corresponde a la plantilla recuperada: hay que generarlo de nuevo.
+    rendered = null; saveButton.disabled = true; setStep(0);
+  }
+  if (IL.autosave) {
+    // Un caso nuevo retoma su borrador: el del tablero (?borrador=nuevo:<uuid>) o, si no, el último que dejó el
+    // alumno (data-draft-key, calculado en el servidor). Solo sin borrador se crea una clave nueva.
+    const isDraft = (k) => typeof k === "string" && k.startsWith("nuevo:") && UUID.test(k.slice(6));
+    const fromUrl = new URLSearchParams(window.location.search).get("borrador");
+    const draftKey = isDraft(fromUrl) ? fromUrl : isDraft(form.dataset.draftKey) ? form.dataset.draftKey : "";
+    saver = IL.autosave.mount({
+      module: "modeling", key: ucId || draftKey || IL.autosave.newUseCaseKey(),
+      collect: () => ({ ...payload(), lesson_id: form.dataset.lessonId || null,
+        format: document.getElementById("preview-format").value }),
+      restore: restoreDraft, notice: form,
+      // Descartar un borrador nuevo abre la plantilla limpia con otra clave; recargar retomaría el siguiente borrador.
+      afterDiscard: (key) => {
+        if (!isDraft(key)) { window.location.reload(); return; }
+        const next = new URL(window.location.href);
+        next.searchParams.set("borrador", IL.autosave.newUseCaseKey());
+        window.location.replace(next.toString());
+      },
+    });
+  }
 })();

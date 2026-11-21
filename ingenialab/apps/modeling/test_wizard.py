@@ -27,7 +27,8 @@ class WizardTests(BaseCase):
         self.assertIn("B01", guide["goals"])
         self.assertFalse(guide["goals"]["B01"]["unlocked"])
         self.assertTrue(guide["goals"]["B01"]["start_url"].endswith("/iniciar/"))
-        self.assertEqual(guide["rule_of"], {"B04": "B01"})
+        # B05 (multa al devolver tarde) es regla de «Registrar devolución», cuya meta es B12 (ACT-328).
+        self.assertEqual(guide["rule_of"], {"B04": "B01", "B05": "B12"})
         self.assertEqual(r.context["validation_rules"]["min_steps"], 2)
 
     def test_unknown_attempt_falls_back_to_first(self):

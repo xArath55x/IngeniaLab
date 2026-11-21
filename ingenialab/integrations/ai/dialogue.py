@@ -187,7 +187,7 @@ def _free_payload(question, catalog):
     un modelo pequeño tiende a repetirlos en la introducción. La validación sí usa todos los hechos.
     """
     version = question.version
-    facts = [r.statement_text for r in version.requirements.all()]
+    facts = scenario_facts(question)
     needs_follow = any(s.get('req') for s in catalog)
     payload = {
         'scenario': version.title,
@@ -230,8 +230,16 @@ def judge_relevance(question_text, answer_text, timeout):
     return value['answers_question'], str(value.get('reason', ''))[:300]
 
 
-def revalidate_variant(segments, question):
-    """Vuelve a aplicar la validación vigente a una variante guardada; lanza ValueError si ya no pasa."""
+def scenario_facts(question):
+    """Hechos del escenario con que se valida una variante (se pueden calcular una vez por pregunta)."""
+    return [r.statement_text for r in question.version.requirements.all()]
+
+
+def revalidate_variant(segments, question, facts=None):
+    """Vuelve a aplicar la validación vigente a una variante guardada; lanza ValueError si ya no pasa.
+
+    Devuelve los segmentos limpios. `facts` evita volver a consultar los hechos del escenario en cada variante.
+    """
     conversation = [s['text'] for s in segments if not s.get('req')]
     has_statements = any(s.get('req') for s in segments)
     data = {'intro': conversation[0] if conversation else '',
@@ -239,7 +247,8 @@ def revalidate_variant(segments, question):
     if len(conversation) > (2 if has_statements else 1):
         raise ValueError('Estructura de variante invalida')
     catalog = deepcopy(question.answer_segments)
-    _, facts = _free_payload(question, catalog)
+    if facts is None:
+        facts = scenario_facts(question)
     return _validate_free(data, catalog, facts, question.version.summary)
 
 

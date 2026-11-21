@@ -267,13 +267,37 @@ desactivadas se conservan y se pueden reactivar.
 No requiere configuración: si una pregunta tiene variantes activas, cada intento recibe una al azar y Ollama
 no necesita estar encendido. Con `INGENIALAB_AI_ANSWER_BANK=0` se ignora el banco.
 
-Las variantes viven en la base de datos, no en Git. Para la máquina de la demo hay dos opciones: repetir
-los pasos 1 a 3 en ella, o copiar el `db.sqlite3` donde se generaron, que incluye también usuarios y prácticas.
-No subas `db.sqlite3` al repositorio.
+Las variantes viven en la base de datos, no en Git. Para llevarlas a otra máquina (producción o la de la
+demo), usa el paso 5; no copies el `db.sqlite3` del equipo donde se generaron ni lo subas al repositorio.
 
 Las variantes se identifican por escenario, ronda y calidad, con una huella del contenido del catálogo:
 `seed_ingenialab` no las borra, y si cambia el texto de una pregunta o de su respuesta en
 `data/interviews.json`, las variantes de esa pregunta dejan de usarse y hay que generarlas de nuevo.
+
+### 5. Llevar el banco a otra base (exportar e importar)
+
+En el equipo donde se generó y revisó el banco:
+
+```bash
+.venv/bin/python manage.py export_answer_bank --scenario ESC-BIBLIOTECA-01 --output banco_biblioteca.json
+.venv/bin/python manage.py export_answer_bank --output banco_todos.json      # todos los escenarios activos
+```
+
+En la máquina de destino, con `migrate` y `seed_ingenialab` ya aplicados:
+
+```bash
+.venv/bin/python manage.py import_answer_bank banco_todos.json --dry-run    # solo informa
+.venv/bin/python manage.py import_answer_bank banco_todos.json
+```
+
+- El archivo identifica cada variante por código y versión de escenario, ronda, calidad y huella de la
+  pregunta, nunca por IDs de la base, y no contiene datos de alumnos.
+- Incluye las variantes desactivadas en la revisión (`--active-only` las omite); al importar llegan
+  desactivadas, y si aquí estaban activas se desactivan. Nunca se reactiva una variante.
+- Se descartan, y se reportan, las variantes obsoletas (la pregunta cambió en el catálogo), las que no pasan
+  los filtros vigentes y las mal formadas. Las que ya existen con el mismo texto no se duplican, así que
+  importar dos veces el mismo archivo es seguro.
+- Si falta en la base alguna versión de escenario del archivo, no se importa nada.
 
 ### Respuesta libre en vivo (opcional)
 
@@ -308,3 +332,62 @@ powershell -File scripts\demo.ps1           # Windows
 Requiere Python 3.11–3.13, Java 17+ y Graphviz, igual que el inicio rápido. Después de `git pull` basta con repetir
 el comando. Opciones: `--port 8001` y `--allow-plantuml-fallback` (respaldo SVG en un equipo sin Java/Graphviz;
 no cuenta como integración real).
+
+## ACT-307A — Autoguardado (CU-10, parte 1)
+
+Diseño en el SDS v3.0 (WP.16), sección 9. Esta parte agrega el modelo `PracticeCheckpoint`
+(migración `progress/0002_practice_checkpoint`), la API y el ciclo de autoguardado del editor de casos de uso.
+
+| Operación | Ruta | Notas |
+| --- | --- | --- |
+| Guardar | `POST /api/checkpoints/` con `{module, key, revision, payload, pause}` | `revision` = la que conoce el cliente (0 si no tiene). 409 `revision_conflict` si no coincide; 409 `practice_closed` si la práctica terminó; 413 si el payload pasa de 64 KB |
+| Consultar | `GET /api/checkpoints/<module>/<key>/` | `{ok, found: false}` si no hay; 404 si la práctica es ajena o no existe |
+| Descartar | `POST /api/checkpoints/<module>/<key>/descartar/` | 404 si no hay |
+
+Sin sesión, las tres responden 401 JSON. Módulos: `interview`, `classification`, `modeling`, `inspection`, `lesson`;
+en `modeling` la clave de un caso aún no guardado es `nuevo:<uuid>`.
+
+`static/js/autosave.js` (`IL.autosave.start`) envía cada 30 s lo que cambió, sin modales ni banners en segundo plano,
+y reintenta al volver la conexión.
+
+## ACT-307B — Guardar y pausar, indicador y reanudación (CU-10, parte 2)
+
+- **Barra de autoguardado** (`templates/progress/_autosave.html` + `IL.autosave.mount`): indicador con icono y texto
+  («Guardado 16/11, 10:42», «Sin conexión…», «Abierta en otra pestaña…») y botón **Guardar y pausar**, que guarda con
+  `pause: true` y vuelve a Mi progreso. Está en el editor de casos de uso, clasificación, inspección, entrevista y lecciones
+  mientras la práctica sigue abierta.
+- **Qué se restaura:** en el editor, la plantilla sin guardar (con aviso y opción de descartarla); en clasificación, la
+  declaración seleccionada y el tipo sin confirmar; en inspección, el fragmento y el tipo de defecto sin registrar.
+  En entrevista y lecciones cada respuesta ya se guarda en el servidor, así que solo se marca la práctica como pausada.
+  Nunca se restaura encima de lo que el alumno ya escribió.
+- **Tablero:** «Retomar trabajo» lista los casos de uso sin guardar (Reanudar abre `/modelado/nuevo/?borrador=nuevo:<uuid>`,
+  Descartar usa `POST /autoguardado/<module>/<key>/descartar/`) y marca con «⏸ Pausada» las prácticas pausadas. El enlace se
+  calcula en el servidor y al cargar el tablero se borran los autoguardados de prácticas que ya terminaron o no existen.
+
+### Revisión del PR de ACT-307A (atendida en ACT-307B)
+
+| # | Corrección |
+| --- | --- |
+| 1 | El editor restaura el borrador de un caso existente. Si el alumno ya escribió algo cuando llega el autoguardado, no se restaura ni se reemplaza: se retiene y se pregunta («Recuperar autoguardado» / «Conservar lo que escribí»). |
+| 2 | `/modelado/nuevo/` retoma el último borrador del alumno (`data-draft-key`, calculado en el servidor); solo sin borrador se crea una clave nueva. |
+| 3 | La revisión solo cambia con una respuesta del servidor. Sin red, no se guarda hasta volver a consultar la revisión; un descarte fallido no la reinicia. |
+| 4 | Los títulos se recortan a 200 caracteres (en PostgreSQL el título largo daba `DataError`). |
+| 5 | «Guardar y pausar» ya no usa `IL.api`: sin red responde de inmediato y el ciclo sigue; un 401 abre el modal de sesión y reintenta una vez. |
+| 6 | `switchKey` cambia la clave al instante, respeta lo escrito mientras viaja el guardado y reintenta el descarte de la clave anterior. |
+| 7 | Máximo 5 casos de uso sin guardar por alumno (`too_many_drafts`, 409). |
+| 8 | `session_changed` se trata como problema de sesión: se avisa y el ciclo sigue. |
+| 9 | `autosave.js` usa `getCookie`, `requestId`, `fetchJSON` y `sessionExpired` de `app.js` (expuestas en `IL`). |
+| 10 | `stop()` quita los listeners de `online` y `beforeunload`. |
+
+Para borrar los autoguardados sin cambios en 90 días (RN-03), programa en el servidor:
+
+```bash
+python manage.py purge_checkpoints --days 90
+```
+
+Pruebas:
+
+```bash
+python manage.py test apps.progress.test_checkpoints
+node tests/autosave.cjs   # opcional, solo Node.js
+```

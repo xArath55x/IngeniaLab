@@ -4,7 +4,7 @@
 <div class="page-head">
   <div>
     <h1>Hola, {{ user.first_name|default:user.username }}</h1>
-    <p class="muted">Continúa donde te quedaste o inicia una nueva práctica.</p>
+    <p class="muted">{% if game %}Continúa tu partida donde la dejaste.{% else %}Inicia una partida y recorre las cuatro etapas hasta llegar al 100 %.{% endif %}</p>
   </div>
 </div>
 
@@ -21,16 +21,70 @@
       </div>
     </div>
 
-    <div class="card">
-      <div class="card-head"><h2>Retomar trabajo</h2></div>
-      {% if not interview_groups and not lessons.in_progress and not classifying and not open_inspections %}
-        <p class="empty">Aún no tienes prácticas. Comienza con una <a href="{% url 'interviews:scenarios' %}">entrevista</a>.</p>
+    <div class="card partida-card">
+      {% if game %}
+      <div class="card-head"><h2>🎮 Partida en curso</h2><span class="tag">{{ game.percent }} %</span></div>
+      <p><strong>{{ game.title }}</strong> · Etapa {{ game.current_number }} de {{ game.total }}: {{ game.current_label }}</p>
+      <div class="bar partida-bar" role="progressbar" aria-valuenow="{{ game.percent }}" aria-valuemin="0" aria-valuemax="100" aria-label="Avance de la partida"><span style="width:{{ game.percent }}%"></span></div>
+      {% include "progress/_partida_stages.html" %}
+      <div class="btn-row">
+        <a class="btn" href="{% url 'progress:partida_continue' %}">Continuar partida →</a>
+        <form method="post" action="{% url 'progress:partida_abandon' %}" onsubmit="return confirm('¿Abandonar esta partida? Lo que hiciste se conserva en Reportes, pero la partida ya no se podrá continuar.')">{% csrf_token %}
+          <button type="submit" class="btn small ghost">Abandonar partida</button>
+        </form>
+      </div>
+      {% else %}
+      <div class="partida-start">
+        <div class="partida-start-icon" aria-hidden="true">🎮</div>
+        <h2>Nueva partida</h2>
+        <p class="muted">Te tocará un escenario al azar. Recorrerás <strong>Entrevista → Clasificación → Modelado → Inspección</strong>; cada etapa terminada queda guardada como checkpoint para que continúes cuando quieras.</p>
+        {% if not history and not interview_groups and not lessons.in_progress and not classifying and not open_inspections and not drafts %}<p class="empty">Aún no tienes prácticas. Pulsa «Iniciar nueva partida» para empezar.</p>{% endif %}
+        <form method="post" action="{% url 'progress:partida_start' %}">{% csrf_token %}
+          <button type="submit" class="btn partida-start-btn">▶ Iniciar nueva partida</button>
+        </form>
+      </div>
       {% endif %}
+    </div>
+
+    {% if history %}
+    <div class="card">
+      <div class="card-head"><h2>Partidas anteriores</h2></div>
       <ul class="item-list">
+        {% for p in history %}
+        <li><span>{{ p.attempt.version.title }}<span class="small muted"> · {{ p.started_at|date:"d/m/Y" }}</span></span>
+          {% if p.finished_at %}<span class="tag ok">✓ 100 %</span>{% else %}<span class="tag">Abandonada · {{ p.percent }} %</span>{% endif %}</li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
+    {% if interview_groups or lessons.in_progress or classifying or open_inspections or drafts %}
+    <div class="card">
+      <div class="card-head"><h2>Prácticas sueltas en curso</h2></div>
+      <p class="small muted">Las empezaste antes de las partidas. Puedes terminarlas aquí.</p>
+      {# CU-09 FA-1: filtra las prácticas por módulo sin recargar la página. #}
+      <div class="chips resume-filter" role="group" aria-label="Filtrar por módulo" data-filter-for="resume-list">
+        <button type="button" class="chip active" data-filter="" aria-pressed="true">Todas</button>
+        <button type="button" class="chip" data-filter="elicitacion" aria-pressed="false">Elicitación</button>
+        <button type="button" class="chip" data-filter="modelado" aria-pressed="false">Modelado</button>
+        <button type="button" class="chip" data-filter="inspeccion" aria-pressed="false">Inspección</button>
+      </div>
+      <p class="small muted" id="resume-list-empty" hidden>No tienes prácticas pendientes en este módulo.</p>
+      <ul class="item-list" id="resume-list">
+        {% for d in drafts %}
+        <li data-module="modelado"><div><span class="tag rf">Caso de uso sin guardar</span> {{ d.title|cut:"Caso de uso · " }}
+          <div class="small muted">{% include "progress/_checkpoint_tag.html" with cp=d %}</div></div>
+          <div class="resume-actions">
+            <form method="post" action="{% url 'progress:checkpoint_discard_html' d.module d.key %}" onsubmit="return confirm('¿Descartar este borrador? Se perderán los cambios que no guardaste.')">{% csrf_token %}
+              <button type="submit" class="btn small ghost">Descartar</button>
+            </form>
+            <a class="btn small" href="{{ d.resume_url }}">Reanudar</a>
+          </div></li>
+        {% endfor %}
         {% for g in interview_groups %}
         {% include "progress/_open_interview.html" with a=g.latest %}
         {% if g.older %}
-        <li class="resume-older"><details>
+        <li class="resume-older" data-module="elicitacion"><details>
           <summary>Ver {{ g.older|length }} entrevista{{ g.older|length|pluralize }} más de {{ g.latest.version.title }}</summary>
           <ul class="item-list">
             {% for a in g.older %}{% include "progress/_open_interview.html" %}{% endfor %}
@@ -39,19 +93,20 @@
         {% endif %}
         {% endfor %}
         {% for l in lessons.in_progress %}
-        <li><div><span class="tag rf">Lección guiada</span> {{ l.reference.spec.name }}<div class="small muted">{{ l.attempt.version.title }} · {{ l.solved|length }} de {{ l.exercises|length }} partes · {{ l.lives }} vida{{ l.lives|pluralize }}</div></div>
+        <li data-module="modelado"><div><span class="tag rf">Lección guiada</span> {{ l.reference.spec.name }}<div class="small muted">{{ l.attempt.version.title }} · {{ l.solved|length }} de {{ l.exercises|length }} partes · {{ l.lives }} vida{{ l.lives|pluralize }}{% if l.checkpoint %} · {% include "progress/_checkpoint_tag.html" with cp=l.checkpoint %}{% endif %}</div></div>
           <a class="btn small" href="{% url 'modeling:lesson' l.id %}">Continuar</a></li>
         {% endfor %}
         {% for a in classifying %}
-        <li><div><span class="tag rf">Clasificación</span> {{ a.version.title }}<div class="small muted">Precisión {{ a.classification_precision }} % · {{ a.total_score }} pts</div></div>
+        <li data-module="elicitacion"><div><span class="tag rf">Clasificación</span> {{ a.version.title }}<div class="small muted">Precisión {{ a.classification_precision }} % · {{ a.total_score }} pts{% if a.checkpoint %} · {% include "progress/_checkpoint_tag.html" with cp=a.checkpoint %}{% endif %}</div></div>
           <a class="btn small secondary" href="{% url 'classification:classify' a.id %}">Abrir</a></li>
         {% endfor %}
         {% for i in open_inspections %}
-        <li><div><span class="tag hint">Inspección en curso</span> {{ i.exercise.title }}</div>
+        <li data-module="inspeccion"><div><span class="tag hint">Inspección en curso</span> {{ i.exercise.title }}{% if i.checkpoint %}<div class="small muted">{% include "progress/_checkpoint_tag.html" with cp=i.checkpoint %}</div>{% endif %}</div>
           <a class="btn small" href="{% url 'inspection:inspect' i.id %}">Reanudar</a></li>
         {% endfor %}
       </ul>
     </div>
+    {% endif %}
 
     <div class="card">
       <div class="card-head"><h2>Casos de uso recientes</h2><a class="btn small secondary" href="{% url 'modeling:list' %}">Ver todos</a></div>
@@ -60,7 +115,7 @@
       {% endif %}
       <ul class="item-list">
         {% for uc in use_cases %}
-        <li><span>📐 {{ uc.name }}</span><a class="btn small ghost" href="{% url 'modeling:edit' uc.id %}">Editar</a></li>
+        <li><span>📐 {{ uc.name }}{% if uc.checkpoint %}<span class="small muted"> · Cambios sin guardar · {% include "progress/_checkpoint_tag.html" with cp=uc.checkpoint %}</span>{% endif %}</span><a class="btn small ghost" href="{% url 'modeling:edit' uc.id %}">Editar</a></li>
         {% empty %}<li class="muted">Sin casos de uso guardados.</li>{% endfor %}
       </ul>
     </div>
