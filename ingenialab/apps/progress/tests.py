@@ -82,7 +82,7 @@ class AuthTests(BaseCase):
     def test_signup_creates_account_and_logs_in(self):
         self.client.logout()
         r = self.client.post("/cuentas/registro/", {
-            "username": "nuevo", "first_name": "Nuevo", "email": "n@uaz.edu.mx",
+            "role": "student", "username": "nuevo", "first_name": "Nuevo", "email": "n@uaz.edu.mx",
             "password1": "Zacatecas#2026", "password2": "Zacatecas#2026"})
         self.assertRedirects(r, "/", fetch_redirect_response=False)
         self.assertTrue(User.objects.filter(username="nuevo").exists())

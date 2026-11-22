@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Reportes recibidos{% endblock %}
+{% block content %}
+<div class="page-head report-heading">
+  <div><h1>Reportes recibidos</h1><p class="muted">Consulta el avance que te compartieron tus alumnos y envíales retroalimentación.</p></div>
+</div>
+<section class="card" aria-label="Bandeja de reportes">
+  {% include "reports/_submissions.html" with empty_message="Aún no has recibido reportes." %}
+</section>
+{% endblock %}

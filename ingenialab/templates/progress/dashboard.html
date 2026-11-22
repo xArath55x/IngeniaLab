@@ -1,58 +1,52 @@
 {% extends "base.html" %}
 {% block title %}Mi progreso{% endblock %}
 {% block content %}
-<div class="page-head">
-  <div>
+<div class="dashboard">
+  <header class="page-head dashboard-heading">
     <h1>Hola, {{ user.first_name|default:user.username }}</h1>
-    <p class="muted">{% if game %}Continúa tu partida donde la dejaste.{% else %}Inicia una partida y recorre las cuatro etapas hasta llegar al 100 %.{% endif %}</p>
-  </div>
-</div>
+  </header>
 
-<div class="grid-2 wide-left">
-  <div>
-    <div class="card level-card">
-      <div style="display:flex;gap:1.2rem;align-items:center">
-        <div class="level-number">{{ level.number }}</div>
-        <div style="flex:1">
-          <div style="font-weight:700;font-size:1.1rem">{{ level.name }}</div>
-          <div class="bar" style="margin:.5rem 0" role="progressbar" aria-valuenow="{{ level.percent }}" aria-valuemin="0" aria-valuemax="100" aria-label="Avance de nivel"><span style="width:{{ level.percent }}%"></span></div>
-          <div class="small">{{ points }} puntos acumulados{% if level.next_at %} · {{ level.next_at }} para el siguiente nivel{% else %} · ¡Nivel máximo!{% endif %}</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="card partida-card">
+  <section class="game-hero" aria-labelledby="game-title">
+    <div class="game-hero-content">
       {% if game %}
-      <div class="card-head"><h2>🎮 Partida en curso</h2><span class="tag">{{ game.percent }} %</span></div>
-      <p><strong>{{ game.title }}</strong> · Etapa {{ game.current_number }} de {{ game.total }}: {{ game.current_label }}</p>
+      <p class="game-status"><span aria-hidden="true"></span>Partida en curso</p>
+      <h2 id="game-title">{{ game.title }}</h2>
+      <div class="game-progress-label"><span>Etapa {{ game.current_number }} de {{ game.total }} · {{ game.current_label }}</span><strong>{{ game.percent }} %</strong></div>
       <div class="bar partida-bar" role="progressbar" aria-valuenow="{{ game.percent }}" aria-valuemin="0" aria-valuemax="100" aria-label="Avance de la partida"><span style="width:{{ game.percent }}%"></span></div>
-      {% include "progress/_partida_stages.html" %}
       <div class="btn-row">
-        <a class="btn" href="{% url 'progress:partida_continue' %}">Continuar partida →</a>
+        <a class="btn game-cta" href="{% url 'progress:partida_continue' %}">Continuar partida <span aria-hidden="true">→</span></a>
         <form method="post" action="{% url 'progress:partida_abandon' %}" onsubmit="return confirm('¿Abandonar esta partida? Lo que hiciste se conserva en Reportes, pero la partida ya no se podrá continuar.')">{% csrf_token %}
-          <button type="submit" class="btn small ghost">Abandonar partida</button>
+          <button type="submit" class="game-abandon">Abandonar partida</button>
         </form>
       </div>
       {% else %}
-      <div class="partida-start">
-        <div class="partida-start-icon" aria-hidden="true">🎮</div>
-        <h2>Nueva partida</h2>
-        <p class="muted">Te tocará un escenario al azar. Recorrerás <strong>Entrevista → Clasificación → Modelado → Inspección</strong>; cada etapa terminada queda guardada como checkpoint para que continúes cuando quieras.</p>
-        {% if not history and not interview_groups and not lessons.in_progress and not classifying and not open_inspections and not drafts %}<p class="empty">Aún no tienes prácticas. Pulsa «Iniciar nueva partida» para empezar.</p>{% endif %}
-        <form method="post" action="{% url 'progress:partida_start' %}">{% csrf_token %}
-          <button type="submit" class="btn partida-start-btn">▶ Iniciar nueva partida</button>
-        </form>
-      </div>
+      <h2 id="game-title">Nueva partida</h2>
+      <p>Recibirás un escenario al azar. Avanza por las cuatro etapas a tu ritmo.</p>
+      <form method="post" action="{% url 'progress:partida_start' %}">{% csrf_token %}
+        <button type="submit" class="btn game-cta">Iniciar nueva partida <span aria-hidden="true">→</span></button>
+      </form>
       {% endif %}
     </div>
+  </section>
 
+  <section class="game-route" aria-labelledby="route-title">
+    <h2 id="route-title">Tu recorrido</h2>
+    {% include "progress/_partida_stages.html" %}
+  </section>
+
+  {% if not game and not history and not interview_groups and not lessons.in_progress and not classifying and not open_inspections and not drafts %}
+  <p class="muted small">Aún no tienes prácticas.</p>
+  {% endif %}
+
+  <div class="dashboard-grid">
+  <div class="dashboard-practices">
     {% if history %}
     <div class="card">
       <div class="card-head"><h2>Partidas anteriores</h2></div>
       <ul class="item-list">
         {% for p in history %}
         <li><span>{{ p.attempt.version.title }}<span class="small muted"> · {{ p.started_at|date:"d/m/Y" }}</span></span>
-          {% if p.finished_at %}<span class="tag ok">✓ 100 %</span>{% else %}<span class="tag">Abandonada · {{ p.percent }} %</span>{% endif %}</li>
+          {% if p.finished_at %}<div class="btn-row"><span class="tag ok">✓ 100 %</span><a class="btn small secondary" href="{% url 'progress:partida_report' p.id %}">Ver reporte</a></div>{% else %}<span class="tag">Abandonada · {{ p.percent }} %</span>{% endif %}</li>
         {% endfor %}
       </ul>
     </div>
@@ -61,7 +55,6 @@
     {% if interview_groups or lessons.in_progress or classifying or open_inspections or drafts %}
     <div class="card">
       <div class="card-head"><h2>Prácticas sueltas en curso</h2></div>
-      <p class="small muted">Las empezaste antes de las partidas. Puedes terminarlas aquí.</p>
       {# CU-09 FA-1: filtra las prácticas por módulo sin recargar la página. #}
       <div class="chips resume-filter" role="group" aria-label="Filtrar por módulo" data-filter-for="resume-list">
         <button type="button" class="chip active" data-filter="" aria-pressed="true">Todas</button>
@@ -75,10 +68,10 @@
         <li data-module="modelado"><div><span class="tag rf">Caso de uso sin guardar</span> {{ d.title|cut:"Caso de uso · " }}
           <div class="small muted">{% include "progress/_checkpoint_tag.html" with cp=d %}</div></div>
           <div class="resume-actions">
-            <form method="post" action="{% url 'progress:checkpoint_discard_html' d.module d.key %}" onsubmit="return confirm('¿Descartar este borrador? Se perderán los cambios que no guardaste.')">{% csrf_token %}
-              <button type="submit" class="btn small ghost">Descartar</button>
+            <a class="btn small" href="{{ d.resume_url }}">Continuar</a>
+            <form method="post" action="{% url 'progress:checkpoint_discard_html' d.module d.key %}" onsubmit="return confirm('¿Eliminar este borrador? Se borrarán sus cambios sin guardar.')">{% csrf_token %}
+              <button type="submit" class="btn small ghost">Eliminar</button>
             </form>
-            <a class="btn small" href="{{ d.resume_url }}">Reanudar</a>
           </div></li>
         {% endfor %}
         {% for g in interview_groups %}
@@ -94,15 +87,24 @@
         {% endfor %}
         {% for l in lessons.in_progress %}
         <li data-module="modelado"><div><span class="tag rf">Lección guiada</span> {{ l.reference.spec.name }}<div class="small muted">{{ l.attempt.version.title }} · {{ l.solved|length }} de {{ l.exercises|length }} partes · {{ l.lives }} vida{{ l.lives|pluralize }}{% if l.checkpoint %} · {% include "progress/_checkpoint_tag.html" with cp=l.checkpoint %}{% endif %}</div></div>
-          <a class="btn small" href="{% url 'modeling:lesson' l.id %}">Continuar</a></li>
+          <div class="resume-actions">
+            <a class="btn small" href="{% url 'modeling:lesson' l.id %}">Continuar</a>
+            {% include "progress/_dismiss_practice.html" with module="lesson" practice_id=l.id %}
+          </div></li>
         {% endfor %}
         {% for a in classifying %}
         <li data-module="elicitacion"><div><span class="tag rf">Clasificación</span> {{ a.version.title }}<div class="small muted">Precisión {{ a.classification_precision }} % · {{ a.total_score }} pts{% if a.checkpoint %} · {% include "progress/_checkpoint_tag.html" with cp=a.checkpoint %}{% endif %}</div></div>
-          <a class="btn small secondary" href="{% url 'classification:classify' a.id %}">Abrir</a></li>
+          <div class="resume-actions">
+            <a class="btn small" href="{% url 'classification:classify' a.id %}">Continuar</a>
+            {% include "progress/_dismiss_practice.html" with module="classification" practice_id=a.id %}
+          </div></li>
         {% endfor %}
         {% for i in open_inspections %}
         <li data-module="inspeccion"><div><span class="tag hint">Inspección en curso</span> {{ i.exercise.title }}{% if i.checkpoint %}<div class="small muted">{% include "progress/_checkpoint_tag.html" with cp=i.checkpoint %}</div>{% endif %}</div>
-          <a class="btn small" href="{% url 'inspection:inspect' i.id %}">Reanudar</a></li>
+          <div class="resume-actions">
+            <a class="btn small" href="{% url 'inspection:inspect' i.id %}">Continuar</a>
+            {% include "progress/_dismiss_practice.html" with module="inspection" practice_id=i.id %}
+          </div></li>
         {% endfor %}
       </ul>
     </div>
@@ -121,7 +123,18 @@
     </div>
   </div>
 
-  <div>
+  <div class="dashboard-player">
+    <section class="card level-card" aria-label="Tu nivel">
+      <div class="level-top">
+        <div class="level-number" aria-hidden="true">{{ level.number }}</div>
+        <div>
+          <p class="level-caption">Nivel {{ level.number }}</p>
+          <h2>{{ level.name }}</h2>
+        </div>
+      </div>
+      <div class="bar" role="progressbar" aria-valuenow="{{ level.percent }}" aria-valuemin="0" aria-valuemax="100" aria-label="Avance de nivel"><span style="width:{{ level.percent }}%"></span></div>
+      <p class="small"><strong>{{ points }} puntos acumulados</strong>{% if level.next_at %} · Siguiente nivel en {{ level.next_at }}{% else %} · Nivel máximo{% endif %}</p>
+    </section>
     <div class="card">
       <div class="card-head"><h2>Insignias formativas</h2></div>
       <div class="badges">
@@ -145,6 +158,7 @@
       </ul>
     </div>
     {% endif %}
+  </div>
   </div>
 </div>
 {% endblock %}

@@ -97,7 +97,7 @@ def _ensure_inspection(partida):
 def _stages(partida):
     """Avance (0 a 1) y detalle de cada etapa, a partir de lo que ya está guardado."""
     from apps.classification.services import available_requirements
-    from apps.inspection.services import summary as inspection_summary
+    from apps.inspection.services import found_defect_ids, pending_fragments
     from apps.interviews.models import StudentAttempt
     from apps.interviews.services import progress as interview_progress
     from apps.modeling.models import ReferenceUseCase, UseCaseLesson
@@ -136,12 +136,14 @@ def _stages(partida):
         stages[Partida.INSPECTION] = (0.0, "Lista para empezar")
     else:
         inspection = partida.inspection
-        found = inspection_summary(inspection)
+        total = inspection.exercise.defect_count
         if inspection.concluded_at:
-            stages[Partida.INSPECTION] = (1.0, f"{found['found']} de {found['total']} defectos")
+            found = len(found_defect_ids(inspection))
+            stages[Partida.INSPECTION] = (1.0, f"{found} de {total} defectos")
         else:
-            stages[Partida.INSPECTION] = (min(found["found"] / max(found["total"], 1), 0.99),
-                                          f"{found['found']} de {found['total']} defectos")
+            reviewed = total - pending_fragments(inspection).count()
+            stages[Partida.INSPECTION] = (min(reviewed / max(total, 1), 0.99),
+                                          f"{reviewed} de {total} fragmentos revisados")
     return stages
 
 
@@ -150,7 +152,9 @@ def state(partida, save=True):
     stages = _stages(partida)
     now = timezone.now().isoformat()
     current = next((s for s in STAGE_ORDER if stages[s][0] < 1), Partida.DONE)
-    percent = round(sum(STAGE_WEIGHT * stages[s][0] for s in STAGE_ORDER))
+    percent = 100 if current == Partida.DONE else min(
+        round(sum(STAGE_WEIGHT * stages[s][0] for s in STAGE_ORDER)), 99,
+    )
     checkpoints = dict(partida.checkpoints or {})
     for s in STAGE_ORDER:
         if stages[s][0] >= 1 and s not in checkpoints:

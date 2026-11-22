@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Reporte {{ submission.export.report_id }}{% endblock %}
+{% block content %}
+<p>
+  {% if is_teacher %}<a href="{% url 'progress:teacher_inbox' %}">← Reportes recibidos</a>
+  {% else %}<a href="{% url 'progress:reports' %}">← Reportes enviados</a>{% endif %}
+</p>
+<div class="page-head report-heading">
+  <div>
+    <h1>Reporte {{ submission.export.report_id }}</h1>
+    {% with student=submission.export.user teacher=submission.teacher %}
+    <p>De {{ student.first_name|default:student.username }} ({{ student.username }}) para {{ teacher.first_name|default:teacher.username }} ({{ teacher.username }})</p>
+    {% endwith %}
+    <p class="muted">{{ submission.export.created_at|date:'j M Y, H:i' }} · {{ submission.points }} puntos · Nivel {{ level.number }} · {{ level.name }}</p>
+  </div>
+  <a class="btn" href="{% url 'progress:submission_download' submission.pk %}">Descargar PDF</a>
+</div>
+<section class="card" aria-labelledby="retroalimentacion">
+  <h2 id="retroalimentacion">Retroalimentación</h2>
+  {% for entry in submission.feedback.all %}
+  <article>
+    <p class="small muted">{{ entry.created_at|date:'j M Y, H:i' }}</p>
+    <p style="overflow-wrap:anywhere">{{ entry.comment|linebreaksbr }}</p>
+  </article>
+  {% empty %}
+  <p class="muted">Este reporte aún no tiene retroalimentación.</p>
+  {% endfor %}
+  {% if feedback_form %}
+  <form method="post" action="{% url 'progress:submission_feedback' submission.pk %}">
+    {% csrf_token %}
+    <div class="field">
+      <label for="{{ feedback_form.comment.id_for_label }}">Escribe un comentario para el alumno</label>
+      {{ feedback_form.comment }}
+      {{ feedback_form.comment.errors }}
+    </div>
+    <button class="btn" type="submit">Enviar retroalimentación</button>
+  </form>
+  {% endif %}
+</section>
+{% endblock %}

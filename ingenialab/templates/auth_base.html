@@ -6,13 +6,16 @@
   <title>{% block title %}{% endblock %} · IngeniaLab</title>
   <link rel="icon" href="{% static 'img/favicon.ico' %}" sizes="any">
   <link rel="icon" type="image/svg+xml" href="{% static 'img/favicon.svg' %}">
-  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=ui-1">
+  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=recorrido-2">
 </head>
 <body>
 <div class="auth-wrap">
-  <div class="auth-card">
-    <div class="brand"><span class="brand-mark">IL</span> IngeniaLab</div>
-    {% block content %}{% endblock %}
+  <div class="auth-shell">
+    <div class="auth-art" aria-hidden="true"></div>
+    <main class="auth-card">
+      <div class="brand"><span class="brand-mark">IL</span> IngeniaLab</div>
+      {% block content %}{% endblock %}
+    </main>
   </div>
 </div>
 </body>

@@ -1,6 +1,7 @@
 {% extends "auth_base.html" %}
 {% block title %}Iniciar sesión{% endblock %}
 {% block content %}
+<h1>Iniciar sesión</h1>
 <p class="muted">Laboratorio práctico de Ingeniería de Requisitos · UAZ</p>
 {% if form.non_field_errors %}
   <div class="message error" role="alert">✖ {% for e in form.non_field_errors %}{{ e }}{% endfor %}</div>
@@ -10,7 +11,7 @@
   <div class="field"><label for="id_username">Usuario</label><input type="text" name="username" id="id_username" autofocus autocomplete="username" required value="{{ form.username.value|default:'' }}"></div>
   <div class="field"><label for="id_password">Contraseña</label><input type="password" name="password" id="id_password" autocomplete="current-password" required></div>
   <input type="hidden" name="next" value="{{ next }}">
-  <button class="btn" style="width:100%;justify-content:center" type="submit">Iniciar sesión</button>
+  <button class="btn auth-submit" type="submit">Iniciar sesión</button>
 </form>
 <p class="small muted" style="margin-top:1rem">¿No tienes cuenta? <a href="{% url 'accounts:signup' %}">Regístrate</a></p>
 {% endblock %}

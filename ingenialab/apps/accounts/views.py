@@ -1,30 +1,44 @@
 from django.contrib import messages
 from django.contrib.auth import login
 from django.contrib.auth.views import LoginView, LogoutView
+from django.db import transaction
 from django.shortcuts import redirect, render
+from django.urls import reverse
 
 from .forms import LoginForm, SignupForm
+from .models import AccountRole, is_teacher
 
 
-class StudentLoginView(LoginView):
+def home_for(user):
+    return "progress:teacher_inbox" if is_teacher(user) else "progress:dashboard"
+
+
+class AccountLoginView(LoginView):
     template_name = "accounts/login.html"
     authentication_form = LoginForm
     redirect_authenticated_user = True
 
+    def get_default_redirect_url(self):
+        if is_teacher(self.request.user):
+            return reverse(home_for(self.request.user))
+        return super().get_default_redirect_url()
 
-class StudentLogoutView(LogoutView):
+
+class AccountLogoutView(LogoutView):
     pass
 
 
 def signup(request):
     if request.user.is_authenticated:
-        return redirect("progress:dashboard")
-    form = SignupForm(request.POST or None)
+        return redirect(home_for(request.user))
+    form = SignupForm(request.POST if request.method == "POST" else None)
     if request.method == "POST" and form.is_valid():
-        user = form.save()
+        with transaction.atomic():
+            user = form.save()
+            AccountRole.objects.create(user=user, role=form.cleaned_data["role"])
         login(request, user)
         messages.success(request, f"Bienvenido(a) a IngeniaLab, {user.first_name}.")
-        return redirect("progress:dashboard")
+        return redirect(home_for(user))
     return render(request, "accounts/signup.html", {"form": form})
 
 

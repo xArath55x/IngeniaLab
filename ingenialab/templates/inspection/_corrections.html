@@ -1,0 +1,10 @@
+{% if corrections %}
+<details>
+  <summary>Ver correcciones</summary>
+  <ul class="item-list">
+    {% for item, example in corrections %}
+    <li><div><strong>{{ item.label }}</strong> · {{ item.explanation }}{% if example %}<br><b>Ejemplo de corrección</b><br>{{ example }}{% endif %}</div></li>
+    {% endfor %}
+  </ul>
+</details>
+{% endif %}

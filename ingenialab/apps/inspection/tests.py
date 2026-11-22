@@ -146,3 +146,44 @@ class InspectionApiTests(InspectionBase):
         r = self.client.post(reverse("inspection:start", args=[self.ex.id]))
         self.assertEqual(r.status_code, 302)
         self.assertEqual(InspectionAttempt.objects.filter(user=self.user).count(), 2)
+
+    def test_guided_review_resumes_and_finishes_with_one_answer_per_fragment(self):
+        self.client.force_login(self.user)
+        page_url = reverse("inspection:inspect", args=[self.attempt.id])
+        finish_url = reverse("inspection:finish", args=[self.attempt.id])
+        first_url = reverse("inspection:answer", args=[self.attempt.id, self.amb.id])
+        second_url = reverse("inspection:answer", args=[self.attempt.id, self.red.id])
+
+        page = self.client.get(page_url)
+        self.assertContains(page, self.amb.text)
+        self.assertNotContains(page, self.red.text)
+        self.assertNotContains(page, self.amb.explanation)
+        self.assertContains(page, 'name="defect_type"', count=2)
+        self.client.post(finish_url)
+        self.client.post(second_url, {"defect_type": "redundancy"})
+        self.assertFalse(self.refresh().is_concluded)
+        self.assertEqual(self.attempt.registrations, 0)
+
+        data = {"defect_type": "incomplete"}
+        feedback = self.client.post(first_url, data, follow=True)
+        self.assertContains(feedback, "Esta era la corrección")
+        self.assertContains(feedback, self.amb.explanation)
+        self.client.post(first_url, data)
+        self.assertEqual(self.refresh().registrations, 1)
+        self.assertContains(self.client.get(page_url), self.red.text)
+
+        feedback = self.client.post(second_url, {"defect_type": "redundancy"}, follow=True)
+        self.assertContains(feedback, "¡Correcto!")
+        self.assertContains(feedback, "Ver resultado")
+        final = self.client.post(finish_url, follow=True)
+        self.assertContains(final, "Inspección terminada")
+        self.assertTrue(self.refresh().is_concluded)
+        self.assertEqual((self.attempt.registrations, self.attempt.precision, self.attempt.score), (2, 50, 7))
+
+    def test_guided_review_keeps_legacy_findings(self):
+        self.client.force_login(self.user)
+        services.register_finding(self.attempt, self.amb.id, "ambiguity")
+        page = self.client.get(reverse("inspection:inspect", args=[self.attempt.id]))
+        self.assertContains(page, self.red.text)
+        self.assertEqual(self.refresh().registrations, 1)
+        self.assertEqual(services.summary(self.attempt)["found"], 1)

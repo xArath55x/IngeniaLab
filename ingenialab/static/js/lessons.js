@@ -127,6 +127,7 @@
     $("ex-context").replaceChildren(...ex.context.map((t) => IL.el("li", { text: t })));
     const area = $("ex-area"); area.replaceChildren();
     area.className = ex.type === "order" ? "" : "lesson-options";
+    if (ex.hint) area.append(IL.el("p", { class: "small muted", text: ex.hint }));
     ({ choice: renderChoice, multi: renderMulti, order: renderOrder, classify: renderClassify })[ex.type](ex, area);
     $("feedback").replaceChildren(); $("footer").className = "lesson-footer";
     checkBtn.textContent = "Comprobar"; setReady(false);

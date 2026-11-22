@@ -442,7 +442,8 @@ def wizard(request):
                            if ref.version_id == attempt.version_id for k in ref.requirement_keys[1:]}
         # Metas con caso de uso de referencia: el asistente pasa al modo guiado (lección con opciones).
         item["goals"] = {
-            ref.requirement_keys[0]: {"start_url": reverse("modeling:lesson_start", args=[ref.id]),
+            ref.requirement_keys[0]: {"title": ref.spec["name"],
+                                      "start_url": reverse("modeling:lesson_start", args=[ref.id]),
                                       **lesson_engine.lesson_status(attempt, ref)}
             for ref in references if ref.version_id == attempt.version_id
         }

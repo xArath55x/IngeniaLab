@@ -3,14 +3,18 @@ from unittest import mock
 
 from django.conf import settings
 from django.test import override_settings
+from django.urls import reverse
+from reportlab import rl_config
 
+from apps.accounts.models import AccountRole
 from apps.classification.services import available_requirements
+from apps.inspection import guided
 from apps.inspection.models import InspectionAttempt
 from apps.interviews.models import ScenarioVersion, StudentAttempt
 from apps.modeling import lessons as lesson_engine
 from apps.modeling.models import ReferenceUseCase, UseCaseLesson
 from apps.progress import partidas
-from apps.progress.models import Partida
+from apps.progress.models import Partida, ReportSubmission
 
 from .tests import BaseCase
 
@@ -105,17 +109,65 @@ class PartidaTests(BaseCase):
         self.client.get("/partida/continuar/")
         self.assertEqual(InspectionAttempt.objects.filter(user=self.user).count(), 1)
 
-        base = f"/inspeccion/api/intento/{partida.inspection_id}/"
-        for fragment in partida.inspection.exercise.fragments.exclude(defect_type=""):
-            self.post(base + "hallazgo/", {"fragment_id": str(fragment.id), "defect_type": fragment.defect_type})
-        self.post(base + "concluir/")
+        fragments = partida.inspection.exercise.fragments.exclude(defect_type="")
+        for index, fragment in enumerate(fragments):
+            answer = fragment.defect_type
+            if index == 0:
+                answer = next(key for key, _ in guided.options(fragment) if key != fragment.defect_type)
+            self.client.post(reverse("inspection:answer", args=[partida.inspection_id, fragment.id]),
+                             {"defect_type": answer})
+            if index == 0:
+                stage = partidas.state(partida)["stages"][-1]
+                self.assertGreater(stage["percent"], 0)
+                self.assertIn("1 de", stage["detail"])
+        self.assertEqual(partidas.state(partida)["percent"], 99)
+        self.user.use_cases.create(name="Caso de esta partida", attempt=attempt, actors={}, main_flow=[])
+        self.user.use_cases.create(name="Caso ajeno a esta partida", actors={}, main_flow=[])
+        report_url = reverse("progress:partida_report", args=[partida.id])
+        download_url = reverse("progress:partida_report_download", args=[partida.id])
+        submission_url = reverse("progress:partida_report_submit", args=[partida.id])
+        self.assertEqual(self.client.get(report_url).status_code, 404)
+        finish = self.client.post(reverse("inspection:finish", args=[partida.inspection_id]))
+        self.assertRedirects(finish, report_url)
+        self.assertRedirects(self.client.get(reverse("inspection:inspect", args=[partida.inspection_id])), report_url)
+
+        report = self.client.get(report_url)
+        for section in ("Entrevista", "Clasificación", "Modelado", "Inspección"):
+            self.assertContains(report, f"<h2>{section}</h2>", html=True)
+        self.assertContains(report, "Caso de esta partida")
+        self.assertContains(report, "Registrar préstamo")
+        self.assertNotContains(report, "Caso ajeno a esta partida")
+        with mock.patch.object(rl_config, "pageCompression", 0):
+            pdf = self.client.get(download_url)
+        self.assertEqual(pdf["Content-Type"], "application/pdf")
+        self.assertIn(b"Caso de esta partida", pdf.content)
+        self.assertNotIn(b"Caso ajeno a esta partida", pdf.content)
+        self.assertIn(b"Lecci", pdf.content)
+
         r = self.client.get("/")
         partida.refresh_from_db()
         self.assertEqual((partida.stage, partida.percent), (Partida.DONE, 100))
         self.assertIsNotNone(partida.finished_at)
         self.assertEqual(set(partida.checkpoints), set(partidas.STAGE_ORDER))
         self.assertContains(r, "Partidas anteriores")
+        self.assertContains(r, report_url)
         self.assertContains(r, "Iniciar nueva partida")
+
+        self.client.force_login(self.other)
+        self.assertEqual(self.client.get(report_url).status_code, 404)
+        self.assertEqual(self.client.get(download_url).status_code, 404)
+        self.assertEqual(self.client.post(submission_url).status_code, 404)
+        self.client.force_login(self.user)
+        AccountRole.objects.create(user=self.other, role=AccountRole.Role.TEACHER)
+        report = self.client.get(report_url)
+        self.assertContains(report, submission_url)
+        self.assertContains(report, f'<option value="{self.other.username}">@{self.other.username}</option>', html=True)
+        with mock.patch.object(rl_config, "pageCompression", 0):
+            sent = self.client.post(submission_url, {"teacher": self.other.username})
+        submission = ReportSubmission.objects.get(teacher=self.other)
+        self.assertRedirects(sent, reverse("progress:submission_detail", args=[submission.pk]))
+        self.assertIn(b"Caso de esta partida", bytes(submission.pdf))
+        self.assertNotIn(b"Caso ajeno a esta partida", bytes(submission.pdf))
 
     def test_stage_pages_show_the_partida_strip(self):
         _, partida = self.start()

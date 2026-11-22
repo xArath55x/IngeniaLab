@@ -1,0 +1,20 @@
+{% if submissions %}
+<ul class="item-list">
+  {% for submission in submissions %}
+  <li>
+    <div>
+      <a href="{% url 'progress:submission_detail' submission.pk %}"><strong>{{ submission.export.report_id }}</strong></a>
+      {% if is_teacher %}
+        {% with student=submission.export.user %}<div>{{ student.first_name|default:student.username }} ({{ student.username }})</div>{% endwith %}
+      {% else %}
+        <div>Para {{ submission.teacher.first_name|default:submission.teacher.username }} ({{ submission.teacher.username }})</div>
+      {% endif %}
+      <div class="small muted">{{ submission.export.created_at|date:'j M Y, H:i' }} · {{ submission.points }} puntos</div>
+    </div>
+    <span class="tag">{% if submission.feedback_count %}{{ submission.feedback_count }} comentario{{ submission.feedback_count|pluralize }}{% else %}Sin retroalimentación{% endif %}</span>
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<p class="muted">{{ empty_message }}</p>
+{% endif %}

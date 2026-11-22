@@ -4,10 +4,13 @@ Así el cliente JS puede conservar el estado en pantalla y pedir reautenticació
 en lugar de recibir una redirección HTML.
 """
 import json
-from django.core.exceptions import RequestDataTooBig
+from django.core.exceptions import PermissionDenied, RequestDataTooBig
 from django.conf import settings
 from django.http import JsonResponse
 from django.shortcuts import redirect
+from django.utils.deprecation import MiddlewareMixin
+
+from .models import is_teacher
 
 
 class ApiSessionGuardMiddleware:
@@ -47,11 +50,28 @@ class ModuleGateMiddleware:
         enabled = settings.INGENIALAB_MODULES
         path = request.path
         module = "progress" if path == "/" else next((m for p, m in MODULE_PREFIXES if path.startswith(p)), None)
-        if module and module not in enabled:
+        if module and module not in enabled and not is_teacher(request.user):
             if "/api/" in path:
                 return JsonResponse({"ok": False, "message": "Este módulo no está disponible."}, status=404)
             return redirect("interviews:scenarios")
         return self.get_response(request)
+
+
+class AccountRoleMiddleware(MiddlewareMixin):
+    def process_view(self, request, view_func, view_args, view_kwargs):
+        match = request.resolver_match
+        if match.app_name not in {"progress", "interviews", "classification", "modeling", "inspection"}:
+            return
+        if not is_teacher(request.user):
+            return
+        if match.namespace == "progress":
+            if match.url_name == "dashboard":
+                return redirect("progress:teacher_inbox")
+            if match.url_name in {"teacher_inbox", "submission_detail", "submission_download", "submission_feedback"}:
+                return
+        if "/api/" in request.path_info:
+            return JsonResponse({"ok": False, "message": "Esta actividad es para alumnos."}, status=403)
+        raise PermissionDenied
 
 
 class ApiRequestGuardMiddleware:

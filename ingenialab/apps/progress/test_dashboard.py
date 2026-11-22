@@ -1,6 +1,7 @@
 """Tablero «Mi progreso»: retomar trabajo, lecciones guiadas e insignias (RF-06, RF-07)."""
 from django.conf import settings
 from django.test import override_settings
+from django.urls import reverse
 
 from apps.classification import services as classification_services
 from apps.classification.services import available_requirements
@@ -9,6 +10,7 @@ from apps.inspection.models import InspectionExercise
 from apps.interviews.models import InterviewQuestion, ScenarioVersion, StudentAttempt
 from apps.modeling import lessons
 from apps.modeling.models import ReferenceUseCase, UseCaseLesson
+from apps.progress.models import Partida
 from apps.progress.services import BADGES, LEVELS, USE_CASE_POINTS, level_for, open_interviews
 
 from .tests import BaseCase
@@ -58,6 +60,37 @@ class DashboardTests(BaseCase):
     def test_discard_requires_post(self):
         attempt = self.new_attempt()
         self.assertEqual(self.client.get(f"/elicitacion/intento/{attempt.id}/descartar/").status_code, 405)
+
+    def test_each_loose_practice_can_be_removed_from_dashboard(self):
+        interview = self.new_attempt()
+        classified = self.ready_attempt()
+        lesson = self.start_lesson(classified)
+        inspection = self.user.inspections.create(exercise=InspectionExercise.objects.first())
+        for module, practice, route in (
+            ("interview", interview, "interviews:interview"),
+            ("classification", classified, "classification:classify"),
+            ("lesson", lesson, "modeling:lesson"),
+            ("inspection", inspection, "inspection:inspect"),
+        ):
+            with self.subTest(module=module):
+                dismiss = reverse("progress:practice_dismiss", args=[module, practice.pk])
+                resume = reverse(route, args=[practice.pk])
+                page = self.client.get("/")
+                self.assertContains(page, dismiss)
+                self.assertContains(page, resume)
+                self.assertEqual(self.client.get(dismiss).status_code, 405)
+                self.assertRedirects(self.client.post(dismiss), "/")
+                self.assertNotContains(self.client.get("/"), resume)
+                practice.refresh_from_db()
+        self.assertContains(self.client.get("/reportes/"), classified.version.title)
+
+    def test_cannot_remove_other_students_or_active_game_practices(self):
+        foreign = StudentAttempt.objects.create(user=self.other, version=self.version)
+        active = self.new_attempt()
+        Partida.objects.create(user=self.user, attempt=active)
+        for attempt in (foreign, active):
+            dismiss = reverse("progress:practice_dismiss", args=["interview", attempt.id])
+            self.assertEqual(self.client.post(dismiss).status_code, 404)
 
     def test_lesson_in_progress_appears_in_resume(self):
         lesson = self.start_lesson(self.ready_attempt())

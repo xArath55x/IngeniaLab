@@ -22,6 +22,23 @@ class ReportExport(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
 
+class ReportSubmission(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    export = models.OneToOneField(ReportExport, on_delete=models.CASCADE, related_name="submission")
+    teacher = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="received_reports")
+    points = models.PositiveIntegerField()
+    pdf = models.BinaryField()
+
+
+class ReportFeedback(models.Model):
+    submission = models.ForeignKey(ReportSubmission, on_delete=models.CASCADE, related_name="feedback")
+    comment = models.TextField(max_length=3000)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at", "pk"]
+
+
 class PracticeCheckpoint(models.Model):
     """Punto de guardado de una práctica en curso (CU-10, SDS v3.0 §9).
 
@@ -54,6 +71,19 @@ class PracticeCheckpoint(models.Model):
 
     def __str__(self):
         return f"{self.user} · {self.get_module_display()} · {self.key} (rev. {self.revision})"
+
+
+class DismissedPractice(models.Model):
+    """Práctica que el alumno quitó de la lista de pendientes del tablero."""
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    module = models.CharField(max_length=20, choices=PracticeCheckpoint.MODULES)
+    practice_id = models.UUIDField()
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["user", "module", "practice_id"], name="unique_dismissed_practice"),
+        ]
 
 
 class Partida(models.Model):

@@ -68,24 +68,28 @@ def _svg_flowable(svg_text, max_width):
     return drawing
 
 
-def build_report(*, report_id, user, level, points, attempts, use_cases, inspections):
+def build_report(*, report_id, user, level, points, attempts, use_cases, inspections, partida=None):
     buf = io.BytesIO()
     st = _styles()
     doc = SimpleDocTemplate(buf, pagesize=letter, leftMargin=2 * cm, rightMargin=2 * cm,
                             topMargin=2 * cm, bottomMargin=2 * cm,
                             title=f"IngeniaLab — Reporte {report_id}", author=user.get_full_name() or user.username)
     width = doc.width
+    fields = [
+        ["Estudiante", user.get_full_name() or user.username],
+        ["Usuario", user.username],
+        ["Reporte", report_id],
+        ["Fecha de emisión", timezone.localtime().strftime("%d/%m/%Y %H:%M")],
+    ]
+    if partida:
+        fields += [["Escenario", partida["title"]], ["Puntos de la partida", str(partida["points"])]]
+    else:
+        fields.append(["Nivel formativo", f"{level['number']} · {level['name']} ({points} puntos)"])
     story = [
-        Paragraph("IngeniaLab — Reporte Técnico de Práctica", st["H1x"]),
+        Paragraph("IngeniaLab — Reporte de la partida" if partida else "IngeniaLab — Reporte Técnico de Práctica", st["H1x"]),
         Paragraph("Universidad Autónoma de Zacatecas · Introducción a la Ingeniería de Software", st["Small"]),
         Spacer(1, 8),
-        _table([
-            ["Estudiante", user.get_full_name() or user.username],
-            ["Usuario", user.username],
-            ["Reporte", report_id],
-            ["Fecha de emisión", timezone.localtime().strftime("%d/%m/%Y %H:%M")],
-            ["Nivel formativo", f"{level['number']} · {level['name']} ({points} puntos)"],
-        ], [4.5 * cm, width - 4.5 * cm], st, header=False),
+        _table(fields, [4.5 * cm, width - 4.5 * cm], st, header=False),
         Spacer(1, 4),
         Paragraph("Documento formativo generado automáticamente. No constituye una calificación oficial.", st["Small"]),
     ]
@@ -93,9 +97,10 @@ def build_report(*, report_id, user, level, points, attempts, use_cases, inspect
     if attempts:
         story.append(Paragraph("1. Elicitación y clasificación de requisitos", st["H2x"]))
         for a in attempts:
+            classification = f" · Puntaje de clasificación: {a['classification_score']}" if partida else ""
             block = [Paragraph(f"{_esc(a['title'])} — {a['code']}", st["H3x"]),
                      Paragraph(f"Cobertura: {a['coverage']} · Puntaje entrevista: {a['interview_score']} · "
-                               f"Precisión de clasificación: {a['precision']} % · Pistas: {a['hints']}", st["Small"]),
+                               f"Precisión de clasificación: {a['precision']} % · Pistas: {a['hints']}{classification}", st["Small"]),
                      Spacer(1, 4)]
             if a.get("log"):
                 block.append(Paragraph("Bitácora de la entrevista", st["H3x"]))
@@ -113,9 +118,15 @@ def build_report(*, report_id, user, level, points, attempts, use_cases, inspect
                 block.append(Paragraph("Sin requisitos clasificados.", st["Small"]))
             story += block
 
-    if use_cases:
+    if use_cases or partida:
         story.append(PageBreak())
-        story.append(Paragraph("2. Especificaciones de casos de uso", st["H2x"]))
+        story.append(Paragraph("2. Modelado de casos de uso" if partida else "2. Especificaciones de casos de uso", st["H2x"]))
+        if partida:
+            story.append(Paragraph(f"Puntaje de modelado: {partida['modeling_points']}", st["Small"]))
+            if partida["lessons"]:
+                rows = [["Lección completada", "XP"]]
+                rows += [[lesson["name"], str(lesson["xp"])] for lesson in partida["lessons"]]
+                story.append(_table(rows, [width - 2.5 * cm, 2.5 * cm], st))
         for uc in use_cases:
             rows = [
                 ["Campo", "Contenido"],

@@ -37,6 +37,7 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "apps.accounts.middleware.ApiSessionGuardMiddleware",
+    "apps.accounts.middleware.AccountRoleMiddleware",
     "apps.accounts.middleware.ApiRequestGuardMiddleware",
     "apps.accounts.middleware.ModuleGateMiddleware",
 ]

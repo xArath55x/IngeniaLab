@@ -310,7 +310,7 @@ class LessonTests(LessonHelpers, BaseCase):
         pre = next(e for e in lesson.exercises if e["id"] == "preconditions")
         self.assertEqual(pre["type"], "multi")
         self.assertEqual(len(pre["answer"]), 2)
-        self.assertEqual(len(pre["options"]), 5)
+        self.assertEqual(len(pre["options"]), 4)
         self.assertFalse(lessons.is_correct(pre, pre["answer"][:1]))
         self.assertTrue(lessons.is_correct(pre, list(reversed(pre["answer"]))))
         ids = [e["id"] for e in lesson.exercises]
@@ -415,18 +415,17 @@ class QuestionClarityTests(BaseCase):
                     if ex_id != "name":  # La de nombre pregunta justamente cuál es.
                         self.assertIn(f"«{ref.spec['name']}»", exercise["prompt"])
 
-    def test_flow_selection_asks_for_the_single_intruder(self):
+    def test_flow_selection_asks_for_one_first_step(self):
         for ref in ReferenceUseCase.objects.all():
             exercise = self.exercises(ref)["main_flow_select"]
             with self.subTest(caso=ref.key):
                 self.assertEqual(exercise["type"], "choice")
-                self.assertIn("NO", exercise["prompt"])
+                self.assertIn("primer paso", exercise["prompt"])
                 options = [o["text"] for o in exercise["options"]]
-                intruder = options[exercise["answer"]]
-                self.assertIn(intruder, ref.exercises["main_flow"]["distractors"])
-                self.assertEqual(sorted(o for o in options if o != intruder), sorted(ref.spec["main_flow"]))
+                self.assertEqual(options[exercise["answer"]], ref.spec["main_flow"][0])
+                self.assertEqual(len(options), 3)
 
-    def test_card_does_not_show_the_intruder_as_a_flow_step(self):
+    def test_card_waits_until_the_full_flow_is_ordered(self):
         ref = ReferenceUseCase.objects.get(version=self.version, key="UC-B1")
         lesson = UseCaseLesson(exercises=list(self.exercises(ref).values()), solved=["main_flow_select"])
         self.assertNotIn("main_flow_select", [part["id"] for part in lessons.built(lesson)])

@@ -7,33 +7,34 @@
   {# ACT-313B: sin este enlace los navegadores piden /favicon.ico y registran un 404 en la consola (OBS-01). #}
   <link rel="icon" href="{% static 'img/favicon.ico' %}" sizes="any">
   <link rel="icon" type="image/svg+xml" href="{% static 'img/favicon.svg' %}">
-  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=orden-cu10">
+  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=recorrido-2">
 </head>
 <body data-user-id="{{ user.pk }}">
-{% with url=request.resolver_match.namespace %}
+{% with url=request.resolver_match.namespace page=request.resolver_match.url_name %}
 <div class="layout">
-  <aside class="sidebar">
+  <header class="app-header">
+    <div class="app-header-inner">
     <a class="brand" href="{% url 'progress:dashboard' %}"><span class="brand-mark">IL</span> IngeniaLab</a>
     <nav class="nav" aria-label="Módulos">
-      {# Partida única: las etapas se abren desde la partida, no desde el menú. #}
-      <a href="{% url 'progress:dashboard' %}" class="{% if url == 'progress' and request.resolver_match.url_name == 'dashboard' or url == 'interviews' or url == 'classification' or url == 'modeling' or url == 'inspection' %}active{% endif %}"><span aria-hidden="true">🎮</span> Mi partida</a>
-      {% if "reports" in modules %}<div class="nav-section">Entregables</div>
-      <a href="{% url 'progress:reports' %}" class="{% if request.resolver_match.url_name == 'reports' %}active{% endif %}"><span aria-hidden="true">📄</span> Reportes</a>{% endif %}
+      {% if is_teacher %}
+      <a href="{% url 'progress:teacher_inbox' %}" class="{% if url == 'progress' %}active{% endif %}">Reportes recibidos</a>
+      {% else %}
+      <a href="{% url 'progress:dashboard' %}" class="{% if page == 'dashboard' or url == 'interviews' or url == 'classification' or url == 'modeling' or url == 'inspection' %}active{% endif %}">Mi partida</a>
+      {% if "reports" in modules %}
+      <a href="{% url 'progress:reports' %}" class="{% if page == 'reports' or page == 'partida_report' or page == 'submission_detail' %}active{% endif %}">Reportes</a>{% endif %}
+      {% endif %}
     </nav>
-    {% if nav_level %}<div class="side-progress">
-      <div><b>Nivel {{ nav_level.number }}</b> · {{ nav_level.name }}</div>
-      <div class="bar" style="margin:.45rem 0" role="progressbar" aria-valuenow="{{ nav_level.percent }}" aria-valuemin="0" aria-valuemax="100" aria-label="Avance al siguiente nivel"><span style="width: {{ nav_level.percent }}%"></span></div>
-      <div>{{ nav_points }} puntos{% if nav_level.next_at %} · siguiente nivel en {{ nav_level.next_at }}{% endif %}</div>
-    </div>{% endif %}
-    <div class="side-user"{% if not nav_level %} style="margin-top:auto"{% endif %}>
-      <span>{{ user.first_name|default:user.username }}</span>
-      <form method="post" action="{% url 'accounts:logout' %}">{% csrf_token %}<button type="submit">Salir</button></form>
+    <div class="app-account">
+      {% if nav_level %}<span class="account-level" title="{{ nav_level.name }} · {{ nav_points }} puntos">Nivel {{ nav_level.number }}</span>{% endif %}
+      <span class="account-name">{{ user.first_name|default:user.username }}</span>
+      <form method="post" action="{% url 'accounts:logout' %}">{% csrf_token %}<button class="btn small ghost" type="submit">Salir</button></form>
     </div>
-  </aside>
+    </div>
+  </header>
   <main class="main" id="contenido">
     {% if partida_bar %}{% with game=partida_bar %}
     <div class="partida-strip" role="region" aria-label="Partida en curso">
-      <div class="partida-strip-text"><strong>🎮 {{ game.title }}</strong> · Etapa {{ game.current_number }} de {{ game.total }}: {{ game.current_label }} · {{ game.percent }} %</div>
+      <div class="partida-strip-text"><strong>{{ game.title }}</strong><span>Etapa {{ game.current_number }} de {{ game.total }}: {{ game.current_label }} · {{ game.percent }} %</span></div>
       <div class="bar" role="progressbar" aria-valuenow="{{ game.percent }}" aria-valuemin="0" aria-valuemax="100" aria-label="Avance de la partida"><span style="width:{{ game.percent }}%"></span></div>
       <a class="btn small" href="{% url 'progress:partida_continue' %}">Continuar partida →</a>
     </div>

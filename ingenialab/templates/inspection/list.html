@@ -1,16 +1,11 @@
 {% extends "base.html" %}
 {% block title %}Inspección{% endblock %}
 {% block content %}
-<div class="page-head"><div><h1>Inspección de calidad</h1><p class="muted">Revisa artefactos con defectos controlados, identifícalos y tipifícalos.</p></div></div>
-<div class="instructions">
-  <b>Puntuación:</b> +10 por defecto correcto, −3 por registro erróneo, −5 por pista. La precisión es aciertos ÷ registros realizados.
-</div>
+<div class="page-head"><div><h1>Inspección de calidad</h1><p class="muted">Revisa un fragmento a la vez y elige cómo corregirlo.</p></div></div>
 <div class="grid-3" style="margin-bottom:1.5rem">
   {% for ex in exercises %}
   <div class="card">
     <h3>{{ ex.title }}</h3>
-    <p class="small">{{ ex.description }}</p>
-    <p class="small muted">{{ ex.code }} · {{ ex.fragments.count }} secciones</p>
     <form method="post" action="{% url 'inspection:start' ex.id %}">{% csrf_token %}<button class="btn" type="submit">Iniciar inspección</button></form>
   </div>
   {% endfor %}

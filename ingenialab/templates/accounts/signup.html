@@ -1,7 +1,7 @@
 {% extends "auth_base.html" %}
 {% block title %}Registro{% endblock %}
 {% block content %}
-<h2>Crear cuenta de estudiante</h2>
+<h1>Crear cuenta</h1>
 <form method="post" novalidate>
   {% csrf_token %}
   {% for field in form %}
@@ -11,7 +11,7 @@
     {% if field.errors %}<ul class="errorlist">{% for e in field.errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
   </div>
   {% endfor %}
-  <button class="btn" style="width:100%;justify-content:center" type="submit">Crear cuenta</button>
+  <button class="btn auth-submit" type="submit">Crear cuenta</button>
 </form>
 <p class="small muted" style="margin-top:1rem">¿Ya tienes cuenta? <a href="{% url 'accounts:login' %}">Inicia sesión</a></p>
 {% endblock %}

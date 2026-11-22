@@ -35,10 +35,11 @@
   </div>
   <p class="small muted" style="text-align:center">¿Prefieres ver todo el formulario? <a href="{% url 'modeling:new' %}">Editor avanzado</a></p>
 </div>
+<form id="wizard-guided" method="post" hidden>{% csrf_token %}<input type="hidden" name="attempt"></form>
 {{ guide|json_script:"guide-data" }}
 {{ validation_rules|json_script:"validation-rules" }}
 {% endblock %}
 {% block scripts %}
 <script src="{% static 'js/modeling-validation.js' %}"></script>
-<script src="{% static 'js/usecase-wizard.js' %}?v=cu02-unificado-2"></script>
+<script src="{% static 'js/usecase-wizard.js' %}?v=meta-unica"></script>
 {% endblock %}

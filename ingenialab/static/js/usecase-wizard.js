@@ -14,7 +14,9 @@
     secondary_actors: [], preconditions: "", main_flow: [], alternate_flows: [], postconditions: "", relations: [],
   };
   let step = 0, saved = null, openMode = false;
+  let selectedGoal = null;
   const current = () => guide.find((g) => g.id === data.attempt_id) || guide[0];
+  const goal = () => current().goals[selectedGoal];
   data.system_name = current().system;
 
   function payload() {
@@ -51,33 +53,56 @@
   /* ---------- Pasos ---------- */
   const STEPS = [
     {
-      kicker: "Punto de partida", title: "¿Qué requisitos cubre tu caso de uso?",
-      help: "Un caso de uso agrupa varios requisitos funcionales: uno es la meta del usuario (registrar, consultar, pedir…) y otros son reglas que se vuelven pasos o excepciones. Selecciona los que vas a modelar.",
+      kicker: "Punto de partida", title: "¿Qué quiere hacer el usuario?",
+      help: "Elige una sola acción. Por ejemplo, en una biblioteca alguien puede querer consultar el catálogo.",
       fields: ["attempt_id"],
       render(area) {
         if (guide.length > 1) {
           const select = el("select", { class: "wizard-input", "aria-label": "Entrevista" },
             guide.map((g) => el("option", { value: g.id, text: g.label })));
           select.value = data.attempt_id;
-          select.addEventListener("change", () => { data.attempt_id = select.value; data.system_name = current().system; data.covers = []; openMode = false; show(); });
+          select.addEventListener("change", () => {
+            selectGoal(null);
+            data.attempt_id = select.value;
+            data.system_name = current().system;
+            show();
+            $("step-area").querySelector("select").focus();
+          });
           area.append(el("label", { class: "small muted", text: "Entrevista" }), select);
         }
         const rfs = current().requirements.filter((r) => r.category === "RF");
-        if (!rfs.length) area.append(el("p", { class: "muted", text: "No clasificaste requisitos funcionales en esta entrevista; puedes continuar de todos modos." }));
-        area.append(el("div", { class: "lesson-options" }, rfs.map((r) => {
-          const on = data.covers.includes(r.statement);
-          const b = el("button", {
-            type: "button", class: `lesson-option${on ? " selected" : ""}`, "aria-pressed": String(on),
-            onclick: () => { data.covers = on ? data.covers.filter((s) => s !== r.statement) : [...data.covers, r.statement]; show(); },
-          }, [el("span", { text: r.statement })]);
-          return b;
-        })));
-        // Sin etiquetas: distinguir metas de reglas es lo que se practica; la retroalimentación llega al avanzar.
+        const keys = new Set(rfs.map((r) => r.key));
+        const options = Object.entries(current().goals)
+          .filter(([key, item]) => item.unlocked || keys.has(key))
+          .map(([key, item]) => [key, item.title]);
+        options.push(["", "Crear un caso de uso propio"]);
+        const choices = el("div", { class: "lesson-options", role: "group", "aria-label": "Acción del usuario" });
+        for (const [key, title] of options) {
+          choices.append(el("button", {
+            type: "button", class: `lesson-option${key === selectedGoal ? " selected" : ""}`,
+            "aria-pressed": String(key === selectedGoal), text: title,
+            onclick: (event) => {
+              selectGoal(key);
+              for (const option of choices.children) {
+                const chosen = option === event.currentTarget;
+                option.classList.toggle("selected", chosen);
+                option.setAttribute("aria-pressed", String(chosen));
+              }
+              $("step-error").replaceChildren();
+              renderBuilt();
+            },
+          }));
+        }
+        area.append(choices);
+        if (rfs.length) area.append(el("details", {}, [
+          el("summary", { text: "Consultar mis requisitos funcionales" }),
+          el("ul", { class: "small" }, rfs.map((r) => el("li", { text: r.statement }))),
+        ]));
       },
     },
     {
-      kicker: "Nombre", title: "¿Qué quiere lograr el actor?",
-      help: "Nómbralo con un verbo en infinitivo y un objeto: «Registrar préstamo», «Consultar catálogo». No uses el nombre del sistema ni una oración completa.",
+      kicker: "Nombre", title: "¿Cómo se llama esta acción?",
+      help: "Empieza con un verbo en infinitivo. Por ejemplo, «Consultar catálogo».",
       fields: ["name"],
       render(area) {
         area.append(input(data.name, "Ej. Registrar préstamo", (v) => { data.name = v; nameTip(); }));
@@ -86,8 +111,8 @@
       },
     },
     {
-      kicker: "Actores", title: "¿Quién participa?",
-      help: "El actor principal inicia el caso de uso para lograr su meta. Los secundarios lo apoyan sin iniciarlo, como un servicio externo.",
+      kicker: "Actores", title: "¿Quién inicia la acción?",
+      help: "Escribe quién quiere lograr la meta. Por ejemplo, quien consulta el catálogo es el alumno.",
       fields: ["primary_actors", "secondary_actors"],
       render(area) {
         const suggestions = current().actors || [];
@@ -105,14 +130,14 @@
       },
     },
     {
-      kicker: "Antes de empezar", title: "¿Qué debe ser cierto ANTES de empezar?",
-      help: "La precondición describe el estado necesario para iniciar, por ejemplo «El bibliotecario inició sesión». No es un paso ni el resultado.",
+      kicker: "Antes de empezar", title: "¿Qué debe estar listo antes de empezar?",
+      help: "Esto se llama precondición. Por ejemplo, «El bibliotecario ya inició sesión».",
       fields: ["preconditions"],
       render(area) { area.append(input(data.preconditions, "Ej. El bibliotecario inició sesión en el sistema.", (v) => { data.preconditions = v; }, true)); },
     },
     {
       kicker: "Flujo principal", title: "¿Qué pasa, paso a paso?",
-      help: "Describe el camino normal, sin errores. Alterna lo que hace el actor y lo que responde el sistema. Necesitas al menos 2 pasos; revisa que tus pasos cubran los requisitos de arriba.",
+      help: "Empieza con lo que hace la persona y luego explica cómo responde el sistema. Agrega al menos dos pasos.",
       fields: ["main_flow"],
       render(area) {
         if (data.main_flow.length) area.append(editableList(data.main_flow));
@@ -127,12 +152,12 @@
     },
     {
       kicker: "Excepciones (opcional)", title: "¿Qué pasa si algo sale distinto?",
-      help: "Un flujo alterno indica en qué paso puede cambiar el camino, la condición y cómo responde el sistema. Por ejemplo: si el alumno ya tiene tres libros, el sistema rechaza el préstamo.",
+      help: "Piensa en un problema concreto y en cómo responde el sistema. Por ejemplo, si la clase está llena, el sistema avisa que ya no hay lugares.",
       fields: ["alternate_flows"], optional: true,
       render(area) {
         const ruleReqs = data.covers.filter(isRule);
         if (ruleReqs.length) area.append(el("div", { class: "feedback hint" }, [el("span", { class: "icon", text: "💡" }), el("div", {},
-          [el("strong", { text: "Estos requisitos son reglas o pasos: suelen escribirse como un paso de verificación, un flujo alterno o un caso de uso incluido:" }),
+          [el("strong", { text: "Estas reglas pueden ayudarte a escribir una excepción." }),
            el("ul", { class: "small" }, ruleReqs.map((s) => el("li", { text: s })))])]));
         if (data.alternate_flows.length) area.append(editableList(data.alternate_flows));
         if (!data.main_flow.length) return area.append(el("p", { class: "muted", text: "Primero escribe el flujo principal." }));
@@ -152,8 +177,8 @@
       },
     },
     {
-      kicker: "Al terminar", title: "¿Qué queda cierto cuando termina con éxito?",
-      help: "La postcondición describe el resultado, por ejemplo «El préstamo queda registrado con su fecha de devolución».",
+      kicker: "Al terminar", title: "¿Cuál es el resultado si todo sale bien?",
+      help: "Esto se llama postcondición. Por ejemplo, «La reserva quedó registrada».",
       fields: ["postconditions"],
       render(area) { area.append(input(data.postconditions, "Ej. El préstamo queda registrado con su fecha de devolución.", (v) => { data.postconditions = v; }, true)); },
     },
@@ -225,62 +250,46 @@
     tip.className = `small ${ok ? "ok-text" : "hint-text"}`;
   }
 
-  /* Modo guiado: si la meta elegida tiene caso de uso de referencia, se construye con opciones (lección). */
-  const keyOf = (statement) => (current().requirements.find((r) => r.statement === statement) || {}).key;
-  const goalOf = (statement) => (current().goals || {})[keyOf(statement)];
-
-  function startGuided(url) {
-    const form = el("form", { method: "post", action: url }, [
-      el("input", { type: "hidden", name: "csrfmiddlewaretoken", value: (document.cookie.match(/(?:^|; )csrftoken=([^;]+)/) || [])[1] || "" }),
-      el("input", { type: "hidden", name: "attempt", value: data.attempt_id }),
-    ]);
-    document.body.append(form);
-    form.submit();
+  function selectGoal(key) {
+    if (key === selectedGoal) return;
+    if (data.name === goal()?.title) data.name = "";
+    selectedGoal = key;
+    openMode = false;
+    data.covers = key ? current().requirements
+      .filter((r) => r.category === "RF" && (r.key === key || current().rule_of[r.key] === key))
+      .map((r) => r.statement) : [];
   }
 
-  function showProblem(children, kind = "hint") {
-    $("step-error").replaceChildren(el("div", { class: `feedback ${kind}` },
-      [el("span", { class: "icon", text: kind === "ok" ? "✔" : "💡" }), el("div", {}, children)]));
+  function showProblem(children) {
+    $("step-error").replaceChildren(el("div", { class: "feedback hint" },
+      [el("span", { class: "icon", text: "💡" }), el("div", {}, children)]));
   }
 
-  // Devuelve true si el paso 1 ya decidió qué hacer (iniciar el modo guiado o mostrar un aviso).
   function routeFromOrigin() {
-    if (openMode) return false;
-    if (data.covers.length && data.covers.every(isRule)) {
-      showProblem([el("strong", { text: "Lo que elegiste es una regla o un paso, no la meta de un usuario." }),
-        el("p", { class: "small", text: "¿A qué acción del usuario pertenece? Por ejemplo, «impedir el préstamo si…» ocurre al registrar un préstamo: selecciona también el requisito de esa acción." })]);
+    if (selectedGoal === null) {
+      showProblem([el("strong", { text: "Elige una acción o selecciona «Crear un caso de uso propio»." })]);
       return true;
     }
-    const goalKeys = [...new Set(data.covers.map(keyOf).filter((k) => k in (current().goals || {})))];
-    if (goalKeys.length > 1) {
-      showProblem([el("strong", { text: "Elegiste la meta de dos casos de uso distintos." }),
-        el("p", { class: "small", text: "Un caso de uso tiene una sola meta del usuario: deja solo una y crea el otro después." })]);
-      return true;
-    }
-    if (!goalKeys.length) return false;
-    // Reglas que pertenecen a la meta de otro caso de uso.
-    const ruleOf = current().rule_of || {};
-    const foreign = data.covers.filter((s) => ruleOf[keyOf(s)] && ruleOf[keyOf(s)] !== goalKeys[0]);
-    if (foreign.length) {
-      showProblem([el("strong", { text: "Estos requisitos son reglas de otro caso de uso, no de este:" }),
-        el("ul", { class: "small" }, foreign.map((s) => el("li", { text: s }))),
-        el("p", { class: "small", text: "Quítalos o cambia la meta que elegiste." })]);
-      return true;
-    }
-    const goal = current().goals[goalKeys[0]];
-    if (goal.unlocked) {
-      showProblem([el("strong", { text: "¡Bien! Elegiste la meta de un caso de uso." }),
-        el("p", { class: "small", text: "Ahora lo construirás con preguntas de opción múltiple…" })], "ok");
+    const selected = goal();
+    if (!selected || openMode) return false;
+    if (selected.unlocked) {
+      const form = $("wizard-guided");
+      form.action = selected.start_url;
+      form.elements.namedItem("attempt").value = data.attempt_id;
       $("btn-next").disabled = true;
-      setTimeout(() => startGuided(goal.start_url), 900);
+      form.submit();
       return true;
     }
-    const missing = [...goal.not_discovered.map((t) => `Descubrir en la entrevista un requisito del tema «${t}».`),
-      ...goal.not_classified.map((s) => `Clasificar como RF: «${s}»`)];
-    showProblem([el("strong", { text: "Este caso de uso tiene un modo guiado con opciones, pero aún no se desbloquea:" }),
-      el("ul", { class: "small" }, missing.map((m) => el("li", { text: m }))),
-      el("button", { type: "button", class: "btn small secondary", text: "Continuar con respuestas abiertas",
-        onclick: () => { openMode = true; step += 1; show(); focusInput(); } })]);
+    showProblem([el("strong", { text: "Puedes empezar a escribir este caso de uso." }),
+      el("p", { class: "small", text: "Para practicar con opciones, descubre sus requisitos en la entrevista y clasifícalos como funcionales." }),
+      el("button", { type: "button", class: "btn small secondary", text: "Escribir mi caso de uso",
+        onclick: () => {
+          openMode = true;
+          if (!data.name.trim()) data.name = selected.title;
+          step += 1;
+          show();
+          focusInput();
+        } })]);
     return true;
   }
 
@@ -297,7 +306,7 @@
   function renderBuilt() {
     // [etiqueta, valores, paso en que se llena, lista numerada]
     const parts = [
-      ["Requisitos que cubre", data.covers, 0],
+      ["Acción elegida", goal() ? [goal().title] : selectedGoal === "" ? ["Crear un caso de uso propio"] : [], 0],
       ["Nombre", data.name.trim() ? [data.name.trim()] : [], 1],
       ["Actor principal", data.primary_actors, 2],
       ["Actores secundarios", data.secondary_actors, 2],
@@ -309,7 +318,7 @@
     ];
     // Solo se muestra lo construido y, vacío, lo que corresponde al paso actual.
     const visible = parts.filter(([label, values, at]) => values.length || (at === step && label !== "Actores secundarios"));
-    $("built").replaceChildren(...(visible.length ? visible : [["Requisitos que cubre", [], 0]]).flatMap(([label, values, , ordered]) => {
+    $("built").replaceChildren(...(visible.length ? visible : [["Acción elegida", [], 0]]).flatMap(([label, values, , ordered]) => {
       const dd = el("dd", { class: values.length ? "" : "empty" });
       if (!values.length) dd.textContent = "Por construir";
       else if (ordered || values.length > 1) dd.append(el(ordered ? "ol" : "ul", {}, values.map((v) => el("li", { text: v }))));
@@ -323,12 +332,13 @@
     $("step-kicker").textContent = s.kicker;
     $("step-title").textContent = s.title;
     $("step-help").textContent = s.help;
-    $("step-context").replaceChildren(...(step > 0 && step < STEPS.length - 1 ? data.covers.map((s) => el("li", { text: s })) : []));
+    $("step-context").replaceChildren(...(s.fields.includes("main_flow") ? data.covers.map((s) => el("li", { text: s })) : []));
     $("step-error").replaceChildren();
     const area = $("step-area"); area.replaceChildren(); s.render(area);
     $("progress").style.width = `${Math.round(100 * step / (STEPS.length - 1))}%`;
     $("step-count").textContent = `Paso ${step + 1} de ${STEPS.length}`;
     $("btn-back").disabled = step === 0;
+    $("btn-next").disabled = false;
     $("btn-next").hidden = step === STEPS.length - 1;
     $("btn-next").textContent = s.optional ? "Siguiente (o saltar) →" : "Siguiente →";
     renderBuilt();
@@ -348,6 +358,7 @@
     step += 1; show(); focusInput();
   });
   $("btn-back").addEventListener("click", () => { if (step > 0 && !saved) { step -= 1; show(); } });
+  window.addEventListener("pageshow", () => { if (step === 0) $("btn-next").disabled = false; });
   window.addEventListener("beforeunload", (e) => {
     if (!saved && (data.name || data.main_flow.length)) { e.preventDefault(); e.returnValue = ""; }
   });

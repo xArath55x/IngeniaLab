@@ -25,6 +25,7 @@ class WizardTests(BaseCase):
         self.assertNotIn("B02", guide["part_of"])
         # B01 es la meta de «Registrar préstamo»: tiene modo guiado, bloqueado hasta clasificar B01 y B04.
         self.assertIn("B01", guide["goals"])
+        self.assertEqual(guide["goals"]["B01"]["title"], "Registrar préstamo")
         self.assertFalse(guide["goals"]["B01"]["unlocked"])
         self.assertTrue(guide["goals"]["B01"]["start_url"].endswith("/iniciar/"))
         # B05 (multa al devolver tarde) es regla de «Registrar devolución», cuya meta es B12 (ACT-328).

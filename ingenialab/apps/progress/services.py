@@ -40,12 +40,12 @@ def total_points(user):
             + user.use_cases.count() * USE_CASE_POINTS + sum(row["best"] for row in lessons))
 
 
-def open_interviews(user):
+def open_interviews(user, *, excluded=()):
     """Entrevistas en curso agrupadas por escenario: la más reciente visible y las demás aparte."""
     from apps.interviews.models import StudentAttempt
     from apps.interviews.services import rounds
 
-    attempts = (user.attempts.filter(status=StudentAttempt.INTERVIEWING).select_related("version")
+    attempts = (user.attempts.filter(status=StudentAttempt.INTERVIEWING).exclude(pk__in=excluded).select_related("version")
                 .annotate(asked=Count("log_entries")).order_by("-started_at"))
     groups, totals = {}, {}
     for a in attempts:  # ordenadas de la más reciente a la más antigua
@@ -56,13 +56,14 @@ def open_interviews(user):
     return [{"latest": g[0], "older": g[1:]} for g in groups.values()]
 
 
-def lesson_summary(user):
+def lesson_summary(user, *, excluded=()):
     """Lecciones guiadas en curso (una por caso de uso) y cuántos casos de uso ya se completaron."""
     from apps.modeling.models import ReferenceUseCase, UseCaseLesson
 
     active = {"reference__version__is_active": True}
     in_progress, seen = [], set()
     for lesson in (user.lessons.filter(status=UseCaseLesson.IN_PROGRESS, **active)
+                   .exclude(pk__in=excluded)
                    .select_related("reference", "attempt__version")):
         if lesson.reference_id not in seen:
             seen.add(lesson.reference_id)

@@ -1,11 +1,16 @@
 from django.conf import settings
 
+from apps.accounts.models import is_teacher
+
 from . import partidas
 from .services import level_for, total_points
 
 
 def progress_summary(request):
     ctx = {"modules": settings.INGENIALAB_MODULES}
+    if is_teacher(getattr(request, "user", None)):
+        ctx["is_teacher"] = True
+        return ctx
     if "progress" in ctx["modules"] and getattr(request, "user", None) and request.user.is_authenticated:
         points = total_points(request.user)
         ctx.update(nav_points=points, nav_level=level_for(points))

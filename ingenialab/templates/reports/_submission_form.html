@@ -1,0 +1,17 @@
+<section class="card" aria-labelledby="enviar-reporte">
+  <h2 id="enviar-reporte">Enviar reporte a un profesor</h2>
+  {% if submission_form.has_teachers %}
+  <p class="muted">{{ description }}</p>
+  <form method="post" action="{{ submission_url }}">
+    {% csrf_token %}
+    <div class="field">
+      {{ submission_form.teacher.label_tag }}
+      {{ submission_form.teacher }}
+      {{ submission_form.teacher.errors }}
+    </div>
+    <button class="btn" type="submit">Enviar reporte</button>
+  </form>
+  {% else %}
+  <p class="muted">Aún no hay profesores registrados disponibles para recibir reportes.</p>
+  {% endif %}
+</section>

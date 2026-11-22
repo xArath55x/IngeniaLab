@@ -2,176 +2,74 @@
 {% load static %}
 {% block title %}Inspección · {{ attempt.exercise.title }}{% endblock %}
 {% block content %}
-<div class="page-head">
-  <div><p class="small muted" style="margin:0"><a href="{% url 'inspection:list' %}">Inspección</a> / {{ attempt.exercise.code }}</p>
-    <h1>{{ attempt.exercise.title }}</h1>
-    {% if not attempt.is_concluded %}<div style="margin-top:.5rem">{% include "progress/_autosave.html" %}</div>{% endif %}</div>
-  <div class="metrics" aria-live="polite">
-    <div class="metric"><b id="m-found">{{ summary.found }} / {{ summary.total }}</b><span>Defectos hallados</span></div>
-    <div class="metric"><b id="m-precision">{{ summary.precision }} %</b><span>Precisión</span></div>
-    <div class="metric"><b id="m-score">{{ summary.score }}</b><span>Puntos</span></div>
-  </div>
-</div>
-{% if attempt.is_concluded %}
-<div class="feedback ok" style="margin-bottom:1rem"><span class="icon">✔</span><div><strong>Práctica concluida el {{ attempt.concluded_at|date:"d/m/Y H:i" }}.</strong> Precisión final {{ attempt.precision }} % · {{ attempt.score }} puntos.</div></div>
-{% else %}
-<div class="instructions">{{ attempt.exercise.description }} Haz clic en una sección, elige el tipo de defecto y pulsa <b>Registrar hallazgo</b>.</div>
-{% endif %}
-
-<div class="grid-2 wide-left">
-  <section class="card doc" aria-labelledby="doc-title">
-    <h2 id="doc-title" style="font-family:system-ui,sans-serif">Documento bajo inspección</h2>
-    {% for item in fragments %}
-    <div class="frag{% if item.finding.is_correct %} found{% elif item.finding %} wrong{% endif %}" tabindex="0" role="button"
-         data-id="{{ item.f.id }}" data-label="{{ item.f.label }}" {% if attempt.is_concluded %}aria-disabled="true"{% endif %}>
-      <span class="frag-label">{{ item.f.label }}</span>
-      <span>{{ item.f.text }}</span>
-      <span class="frag-status">{% if item.finding.is_correct %}<span class="tag ok">✔ {{ item.label }}</span>{% elif item.finding %}<span class="tag bad">✖ {{ item.label }}</span>{% endif %}</span>
+<div class="inspection-practice">
+  <div class="page-head">
+    <div>
+      <p class="small muted"><a href="{% url 'inspection:list' %}">Inspección</a></p>
+      <h1>{{ attempt.exercise.title }}</h1>
     </div>
-    {% if attempt.is_concluded and item.f.defect_type %}<p class="small muted" style="margin:0 0 .6rem 108px;font-family:system-ui">🔑 {{ item.f.get_defect_type_display }}: {{ item.f.explanation }}</p>{% endif %}
-    {% endfor %}
-  </section>
-
-  <section class="card sticky">
     {% if not attempt.is_concluded %}
-    <h2>Registrar hallazgo</h2>
-    <div class="selection-box" id="selection">Selecciona una sección del documento.</div>
-    <div class="field">
-      <label for="defect-type">Tipo de defecto</label>
-      <select id="defect-type"><option value="">— Elige un tipo —</option>{% for v, l in defect_types %}<option value="{{ v }}">{{ l }}</option>{% endfor %}</select>
-    </div>
-    <div class="btn-row">
-      <button class="btn" type="button" id="btn-register" disabled>Registrar hallazgo</button>
-      <button class="btn ghost" type="button" id="btn-hint">💡 Solicitar pista (−5 pts)</button>
-    </div>
-    <div id="feedback" aria-live="polite"></div>
-    <hr style="border:0;border-top:1px solid var(--border);margin:1rem 0">
-    <button class="btn secondary" type="button" id="btn-conclude">Concluir práctica</button>
+    {% include "progress/_autosave.html" with hint="Cada respuesta se guarda al instante" %}
     {% endif %}
-    <details {% if attempt.is_concluded %}open{% endif %}><summary>Tipos de defecto</summary>
-      <ul class="small" style="padding-left:1.1rem;margin:0">
-        <li><b>Ambigüedad:</b> admite más de una interpretación.</li>
-        <li><b>Omisión / Incompletitud:</b> falta información necesaria o queda pendiente.</li>
-        <li><b>Inconsistencia:</b> contradice otro elemento o un concepto.</li>
-        <li><b>No verificable:</b> no hay criterio objetivo para probarlo.</li>
-        <li><b>Redundancia:</b> repite información existente.</li>
-        <li><b>Imposición de diseño:</b> dicta el «cómo» técnico en lugar del «qué».</li>
-      </ul>
-    </details>
+  </div>
+
+  {% if attempt.is_concluded %}
+  <section class="card lesson-body">
+    <h2>Inspección terminada</h2>
+    <p>{{ summary.found }} de {{ summary.total }} aciertos · {{ attempt.precision }} % de precisión · {{ attempt.score }} puntos</p>
+    {% include "inspection/_corrections.html" %}
+    <div class="btn-row"><a class="btn" href="{% url 'progress:dashboard' %}">Volver a Mi partida</a></div>
   </section>
+  {% elif fragment %}
+  <section class="card lesson-body">
+    <p class="small muted lesson-kicker">{{ reviewed }} de {{ summary.total }} revisados · {{ fragment.label }}</p>
+    <h2 class="lesson-prompt">{% if finding %}Corrección{% else %}¿Qué cambiarías en este fragmento?{% endif %}</h2>
+    <blockquote class="inspection-quote">{{ fragment.text }}</blockquote>
+    {% if related_fragment %}
+      <p class="small muted">Para comparar con {{ related_fragment.label }}</p>
+      <blockquote class="inspection-quote inspection-context">{{ related_fragment.text }}</blockquote>
+    {% endif %}
+    {% if finding %}
+      <div class="feedback {% if finding.is_correct %}ok{% else %}hint{% endif %}">
+        <div>
+          <strong>{% if finding.is_correct %}¡Correcto!{% else %}Esta era la corrección{% endif %}</strong>
+          <p>{{ fragment.explanation }}</p>
+          {% if correction %}<p><b>Ejemplo de corrección</b><br>{{ correction }}</p>{% endif %}
+        </div>
+      </div>
+      {% if has_next %}
+      <div class="btn-row"><a class="btn" href="{% url 'inspection:inspect' attempt.id %}">Siguiente fragmento</a></div>
+      {% else %}
+      <form class="btn-row" method="post" action="{% url 'inspection:finish' attempt.id %}">
+        {% csrf_token %}
+        <button class="btn" type="submit">{% if partida %}Ver reporte de la partida{% else %}Ver resultado{% endif %}</button>
+      </form>
+      {% endif %}
+    {% else %}
+      <form class="lesson-options" method="post" action="{% url 'inspection:answer' attempt.id fragment.id %}">
+        {% csrf_token %}
+        {% for value, label in options %}
+          <button class="lesson-option" name="defect_type" value="{{ value }}" type="submit">{{ label }}</button>
+        {% endfor %}
+      </form>
+    {% endif %}
+  </section>
+  {% else %}
+  <section class="card lesson-body">
+    <h2>Revisión completa</h2>
+    <form class="btn-row" method="post" action="{% url 'inspection:finish' attempt.id %}">
+      {% csrf_token %}
+      <button class="btn" type="submit">{% if partida %}Ver reporte de la partida{% else %}Ver resultado{% endif %}</button>
+    </form>
+  </section>
+  {% endif %}
 </div>
 {% endblock %}
-
 {% block scripts %}
 {% if not attempt.is_concluded %}
 <script src="{% static 'js/autosave.js' %}?v=cu10-4"></script>
 <script>
-(function () {
-  const BASE = "/inspeccion/api/intento/{{ attempt.id }}/";
-  const LABELS = { {% for v, l in defect_types %}"{{ v }}": "{{ l|escapejs }}",{% endfor %} };
-  let selected = null, saver = null;
-  const frags = document.querySelectorAll(".frag");
-  const regBtn = document.getElementById("btn-register");
-  const typeSel = document.getElementById("defect-type");
-  const fb = document.getElementById("feedback");
-  const hintBtn = document.getElementById("btn-hint");
-  const concludeBtn = document.getElementById("btn-conclude");
-  const actions = IL.actionGroup([regBtn, hintBtn, concludeBtn], (b) => b !== regBtn || !!selected);
-
-  function select(f) {
-    frags.forEach((x) => x.classList.remove("selected"));
-    f.classList.add("selected");
-    selected = f;
-    document.getElementById("selection").textContent = f.dataset.label + ": «" + f.children[1].textContent + "»";
-    if (!actions.busy) regBtn.disabled = false;  // Mientras espera al servidor, sigue bloqueado (ACT-313B).
-    if (saver) saver.markDirty();
-  }
-  frags.forEach((f) => {
-    f.addEventListener("click", () => select(f));
-    f.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); select(f); } });
-  });
-
-  let registrations = {{ summary.registrations }};
-  function setSummary(s) {
-    registrations = s.registrations;
-    document.getElementById("m-found").textContent = `${s.found} / ${s.total}`;
-    document.getElementById("m-precision").textContent = s.precision + " %";
-    document.getElementById("m-score").textContent = s.score;
-  }
-
-  // ACT-313B: un clic a la vez (IL.actionGroup). Mientras el servidor responde, los tres botones quedan
-  // deshabilitados y el resultado se pinta en la sección y el tipo elegidos al hacer clic, aunque el alumno
-  // seleccione otra sección mientras espera.
-  regBtn.addEventListener("click", () => {
-    if (!selected) return;
-    if (!typeSel.value) { fb.innerHTML = IL.feedback("bad", "Elige el tipo de defecto detectado."); typeSel.focus(); return; }
-    const target = selected, type = typeSel.value;
-    return actions.run(regBtn, async () => {
-      const r = await IL.api(BASE + "hallazgo/", { fragment_id: target.dataset.id, defect_type: type });
-      if (!r.ok) { fb.innerHTML = IL.feedback("bad", r.message); return; }
-      if (r.status === "already_found") { fb.innerHTML = IL.feedback("ok", r.message, " " + r.explanation); return; }
-      setSummary(r.summary);
-      const status = target.querySelector(".frag-status");
-      target.classList.remove("found", "wrong", "hinted");
-      if (r.status === "correct") {
-        target.classList.add("found");
-        status.innerHTML = `<span class="tag ok">✔ ${IL.esc(LABELS[type])}</span>`;
-        fb.innerHTML = IL.feedback("ok", r.message, " " + r.explanation);
-      } else {
-        target.classList.add("wrong");
-        status.innerHTML = r.status === "no_defect" ? '<span class="tag bad">✖ Sin defecto</span>' : `<span class="tag bad">✖ ${IL.esc(LABELS[type])}</span>`;
-        fb.innerHTML = IL.feedback("bad", r.message, " " + r.explanation);
-      }
-    });
-  });
-
-  hintBtn.addEventListener("click", () => actions.run(hintBtn, async () => {
-    const r = await IL.api(BASE + "pista/");
-    if (!r.ok) return IL.toast(r.message, "bad");
-    fb.innerHTML = IL.feedback("hint", "Pista:", " " + r.hint);
-    setSummary(r.summary);
-    if (r.fragment_id) {
-      const f = document.querySelector(`.frag[data-id="${r.fragment_id}"]`);
-      f.classList.add("hinted");
-      f.scrollIntoView({ behavior: "smooth", block: "center" });
-    }
-  }));
-
-  concludeBtn.addEventListener("click", async () => {
-    if (actions.busy) return;
-    if (!registrations) {  // CP-14 (ACT-313C): el servidor también lo rechaza.
-      document.getElementById("feedback").innerHTML = IL.feedback("bad", "Registra al menos un hallazgo antes de concluir la práctica.");
-      return;
-    }
-    const found = document.getElementById("m-found").textContent;
-    if (!(await IL.confirmModal("Concluir práctica", `Llevas ${found} defectos encontrados. Al concluir ya no podrás registrar hallazgos y verás la clave completa.`, "Concluir"))) return;
-    return actions.run(concludeBtn, async () => {
-      const r = await IL.api(BASE + "concluir/");
-      if (!r.ok) return IL.toast(r.message, "bad");
-      IL.showBadges(r.badges);
-      if (saver) saver.stop();  // Concluida: el servidor ya borró o rechaza su autoguardado (RN-01).
-      IL.toast(`Práctica concluida: ${r.summary.score} puntos, precisión ${r.summary.precision} %.`, "ok");
-      setTimeout(() => window.location.reload(), 900);
-      return IL.KEEP_LOCKED;  // Concluida: nada más que hacer hasta que recargue.
-    });
-  });
-
-  // CU-10: autoguarda el fragmento seleccionado y el tipo de defecto aún sin registrar.
-  typeSel.addEventListener("change", () => { if (saver) saver.markDirty(); });
-  if (IL.autosave) {
-    saver = IL.autosave.mount({
-      module: "inspection", key: "{{ attempt.id }}",
-      // Solo hay una selección en pantalla; lo confirmado ya está en el servidor: no se pregunta al salir.
-      warnOnLeave: false,
-      collect: () => ({ fragment: selected ? selected.dataset.id : null, defect_type: typeSel.value || null }),
-      restore: (p) => {
-        const f = p.fragment && document.querySelector(`.frag[data-id="${CSS.escape(String(p.fragment))}"]`);
-        if (f) select(f);
-        if (p.defect_type && [...typeSel.options].some((o) => o.value === p.defect_type)) typeSel.value = p.defect_type;
-      },
-    });
-  }
-})();
+  if (IL.autosave) IL.autosave.mount({ module: "inspection", key: "{{ attempt.id }}", collect: () => ({}) });
 </script>
 {% endif %}
 {% endblock %}

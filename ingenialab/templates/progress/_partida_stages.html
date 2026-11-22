@@ -1,10 +1,13 @@
 <ol class="partida-stages" aria-label="Etapas de la partida">
-  {% for s in game.stages %}
+  {% for s in stages %}
   <li class="partida-stage{% if s.done %} done{% elif s.current %} current{% endif %}"{% if s.current %} aria-current="step"{% endif %}>
-    <span class="partida-dot" aria-hidden="true">{% if s.done %}✓{% else %}{{ s.icon }}{% endif %}</span>
+    <span class="partida-dot" aria-hidden="true">
+      <span class="partida-icon partida-icon--{{ s.label|slugify }}"></span>
+    </span>
     <div class="partida-stage-body">
-      <div class="partida-stage-name">{{ s.number }}. {{ s.label }}{% if s.done %} <span class="tag ok">Checkpoint guardado</span>{% elif s.current %} <span class="tag hint">Aquí vas</span>{% endif %}</div>
-      <div class="small muted">{{ s.detail }}</div>
+      <div class="partida-stage-name">{{ s.label }}</div>
+      {% if s.detail %}<div class="small muted">{{ s.detail }}</div>{% endif %}
+      {% if s.done or s.current %}<span class="stage-status">{% if s.done %}Completada{% else %}Aquí vas{% endif %}</span>{% endif %}
     </div>
   </li>
   {% endfor %}

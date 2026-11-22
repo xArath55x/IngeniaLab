@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Reportes{% endblock %}
 {% block content %}
-<div class="page-head">
+<div class="page-head report-heading">
   <div><h1>Exportar reporte de práctica</h1><p class="muted">Genera un PDF con tus requisitos clasificados, casos de uso con diagrama y resultados de inspección.</p></div>
   {% if has_data %}<a class="btn" href="{% url 'progress:report_download' %}">⬇ Descargar PDF</a>{% endif %}
 </div>
@@ -17,5 +17,11 @@
     <ul class="item-list">{% for i in inspections %}<li><span>{{ i.title }}</span><span class="tag">{{ i.found }}/{{ i.total }} · {{ i.precision }} %</span></li>{% empty %}<li class="muted">Ninguna concluida</li>{% endfor %}</ul></div>
 </div>
 <p class="small muted" style="margin-top:1rem">El archivo se descargará como <code>IngeniaLab_Reporte_[ID].pdf</code>.</p>
+{% url 'progress:report_submit' as submission_url %}
+{% include "reports/_submission_form.html" with description="Comparte el PDF de tu avance actual con el profesor que elijas." %}
 {% endif %}
+<section class="card" aria-labelledby="reportes-enviados">
+  <h2 id="reportes-enviados">Reportes enviados</h2>
+  {% include "reports/_submissions.html" with empty_message="Aún no has enviado reportes." %}
+</section>
 {% endblock %}

@@ -1,0 +1,4 @@
+<form method="post" action="{% url 'progress:practice_dismiss' module practice_id %}" onsubmit="return confirm('¿Eliminar esta práctica de la lista? Se conservará el trabajo guardado.')">
+  {% csrf_token %}
+  <button type="submit" class="btn small ghost">Eliminar</button>
+</form>

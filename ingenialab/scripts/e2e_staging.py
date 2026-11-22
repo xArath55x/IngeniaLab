@@ -110,7 +110,7 @@ def json_script(html, element_id):
 def signup(browser, username, name):
     browser.get("/cuentas/registro/")
     r = browser.form("/cuentas/registro/", {
-        "username": username, "first_name": name, "email": f"{username}@staging.uaz.edu.mx",
+        "role": "student", "username": username, "first_name": name, "email": f"{username}@staging.uaz.edu.mx",
         "password1": PASSWORD, "password2": PASSWORD,
     })
     check(r["status"] == 200 and r["path"] == "/", f"registro de {username}: terminó en {r['path']} ({r['status']})")
@@ -200,20 +200,25 @@ class Flow:
         m = re.fullmatch(rf"/inspeccion/intento/({UUID})/", r["path"])
         check(m, f"iniciar inspección terminó en {r['path']}")
         attempt = m.group(1)
-        fragments = list(dict.fromkeys(re.findall(rf'data-id="({UUID})"', r["text"])))
-        check(fragments, "el ejercicio no tiene fragmentos")
+        path = f"/inspeccion/intento/{attempt}/"
+        fragments = set()
+        while answer := re.search(rf'action="({path}responder/({UUID})/)"', r["text"]):
+            fragment_id = answer.group(2)
+            options = re.findall(r'name="defect_type" value="([^"]+)"', r["text"])
+            check(fragment_id not in fragments and len(options) == 2, "el fragmento no avanzó o no ofrece dos opciones")
+            r = self.alumno.form(answer.group(1), {"defect_type": options[0]})
+            check(r["status"] == 200 and r["path"] == f"{path}revision/{fragment_id}/"
+                  and "Ejemplo de corrección" in r["text"], "la respuesta no mostró su corrección")
+            fragments.add(fragment_id)
+            r = self.alumno.get(path)
+        check(fragments and f'action="{path}terminar/"' in r["text"], "la revisión no ofrece terminar la práctica")
+        r = self.alumno.form(path + "terminar/", {})
+        check(r["status"] == 200 and "Inspección terminada" in r["text"], "la inspección no mostró su resultado")
         base = f"/inspeccion/api/intento/{attempt}/"
-        r = self.alumno.api(base + "hallazgo/", {"fragment_id": fragments[0], "defect_type": "ambiguity"})
-        check(r["json"].get("ok") and r["json"].get("status"), f"hallazgo: {r['text'][:200]}")
-        r = self.alumno.api(base + "pista/")
-        check(r["json"].get("ok") and r["json"].get("hint"), f"pista: {r['text'][:200]}")
-        r = self.alumno.api(base + "concluir/")
-        check(r["json"].get("ok"), f"concluir: {r['text'][:200]}")
-        summary = r["json"]["summary"]
-        r = self.alumno.api(base + "hallazgo/", {"fragment_id": fragments[0], "defect_type": "ambiguity"})
+        r = self.alumno.api(base + "hallazgo/", {"fragment_id": next(iter(fragments)), "defect_type": "ambiguity"})
         check(r["status"] == 400, "se aceptó un hallazgo en una inspección concluida")
         self.ctx["inspection"] = attempt
-        return f"{len(fragments)} fragmentos; concluida con precisión {summary['precision']} % y {summary['score']} pts"
+        return f"{len(fragments)} fragmentos revisados con retroalimentación; práctica concluida"
 
     def tablero(self):
         r = self.alumno.get("/")

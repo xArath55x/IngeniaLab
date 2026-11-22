@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}Reporte de la partida · {{ overview.title }}{% endblock %}
+{% block content %}
+<div class="page-head report-heading">
+  <div>
+    <h1>Reporte de la partida</h1>
+    <p class="report-scenario">{{ overview.title }}</p>
+    <p class="muted">4 etapas completadas · {{ overview.points }} puntos en esta partida · {{ partida.finished_at|date:"d/m/Y" }}</p>
+  </div>
+  <a class="btn" href="{% url 'progress:partida_report_download' partida.id %}">Descargar PDF</a>
+</div>
+<div class="grid-2" style="margin-bottom:1rem">
+  <section class="card">
+    <h2>Entrevista</h2>
+    {% if interview %}
+    <p>{{ interview.coverage }} formuladas · {{ interview.interview_score }} puntos</p>
+    {% if interview.log %}
+    <details>
+      <summary>Ver bitácora</summary>
+      <ol>
+        {% for entry in interview.log %}
+        <li><strong>{{ entry.question }}</strong><p>{{ entry.answer }}</p></li>
+        {% endfor %}
+      </ol>
+    </details>
+    {% endif %}
+    {% else %}<p class="muted">Sin entrevista guardada.</p>{% endif %}
+  </section>
+  <section class="card">
+    <h2>Clasificación</h2>
+    {% if interview %}
+    <p>{{ interview.classified }} de {{ interview.available }} enunciados clasificados · {{ interview.precision }} % de precisión · {{ interview.classification_score }} puntos</p>
+    {% if interview.rows %}
+    <details>
+      <summary>Ver requisitos clasificados</summary>
+      <ul class="item-list">
+        {% for row in interview.rows %}
+        <li><span>{{ row.statement }}</span><span class="tag {% if row.is_correct %}ok{% else %}bad{% endif %}">{{ row.category }} · {% if row.is_correct %}Correcto{% else %}Incorrecto{% endif %}</span></li>
+        {% endfor %}
+      </ul>
+    </details>
+    {% endif %}
+    {% else %}<p class="muted">Sin clasificación guardada.</p>{% endif %}
+  </section>
+  <section class="card">
+    <h2>Modelado</h2>
+    <p>{{ overview.lessons|length }} lecciones completadas · {{ overview.modeling_points }} puntos</p>
+    {% if overview.lessons %}
+    <ul class="item-list">
+      {% for lesson in overview.lessons %}
+      <li><span>{{ lesson.name }}</span><span class="tag ok">{{ lesson.xp }} XP</span></li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+    {% if use_cases %}
+    <h3>Casos de uso guardados</h3>
+    <ul class="item-list">
+      {% for uc in use_cases %}
+      <li><a href="{% url 'modeling:edit' uc.id %}">{{ uc.name }}</a></li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </section>
+  <section class="card">
+    <h2>Inspección</h2>
+    {% if inspection %}
+    <p><strong>{{ inspection.title }}</strong></p>
+    <p>{{ inspection.found }} de {{ inspection.total }} aciertos · {{ inspection.precision }} % de precisión · {{ inspection.score }} puntos</p>
+    {% include "inspection/_corrections.html" %}
+    {% else %}<p class="muted">Sin inspección guardada.</p>{% endif %}
+  </section>
+</div>
+{% url 'progress:partida_report_submit' partida.id as submission_url %}
+{% include "reports/_submission_form.html" with description="Comparte el reporte de esta partida con el profesor que elijas." %}
+<div class="btn-row"><a class="btn secondary" href="{% url 'progress:dashboard' %}">Volver a Mi partida</a></div>
+{% endblock %}

@@ -59,7 +59,8 @@ def lesson_status(attempt, reference):
 
 
 def _choice(rng, ex_id, title, prompt, correct, distractors, explanation, context=None):
-    options = [correct, *distractors]
+    alternatives = [text for text in dict.fromkeys(distractors) if text != correct]
+    options = [correct, *alternatives[:2]]
     rng.shuffle(options)
     return {
         "id": ex_id, "type": "choice", "title": title, "prompt": prompt, "context": context or [],
@@ -70,7 +71,10 @@ def _choice(rng, ex_id, title, prompt, correct, distractors, explanation, contex
 
 def _multi(rng, ex_id, title, prompt, correct, distractors, explanation):
     """Varias respuestas correctas entre opciones mezcladas; se califica el conjunto exacto."""
-    options = [*correct, *distractors]
+    if len(correct) == 1:
+        return _choice(rng, ex_id, title, prompt, correct[0], distractors, explanation)
+    alternatives = [text for text in dict.fromkeys(distractors) if text not in correct]
+    options = [*correct, *alternatives[:2]]
     rng.shuffle(options)
     return {
         "id": ex_id, "type": "multi", "title": title, "prompt": prompt, "context": [],
@@ -85,6 +89,11 @@ def relation_text(relation):
     return f"«{relation['type']}» {relation['target']}"
 
 
+def _alternate_flow_prompt(name):
+    return (f"Selecciona las opciones en las que tanto la situación como la respuesta del sistema "
+            f"coinciden con las reglas de «{name}».")
+
+
 def build_exercises(reference, statements, seed):
     """Ejercicios de la lección en orden; incluyen la respuesta (solo para el servidor)."""
     rng = random.Random(seed)
@@ -93,42 +102,40 @@ def build_exercises(reference, statements, seed):
     actors = spec["primary_actors"] + spec["secondary_actors"]
     items = [
         _choice(rng, "name", "Del requisito al caso de uso",
-                "¿Cuál es el nombre correcto del caso de uso que sale de estos requisitos?",
+                "¿Qué acción quiere realizar el usuario?",
                 name, ex["name"]["distractors"], ex["name"]["explanation"], context=statements),
-        _multi(rng, "actors", "¿Quién participa?", f"Marca a todos los actores de «{name}» (personas o sistemas externos que interactúan con él).",
+        _multi(rng, "actors", "Actores", f"¿Quién participa directamente en «{name}»?",
                actors, ex["actors"]["distractors"], ex["actors"]["explanation"]),
     ]
     if len(actors) > 1:
-        items.append(_choice(rng, "primary_actor", "¿Quién participa?", f"De ellos, ¿quién INICIA «{name}»?",
+        items.append(_choice(rng, "primary_actor", "Actor principal", f"¿Quién da el primer paso en «{name}»?",
                              spec["primary_actors"][0], actors[1:], ex["primary_actor"]["explanation"]))
     items.append(_multi(rng, "preconditions", "Antes de empezar",
-                        f"Marca lo que debe ser cierto ANTES de empezar «{name}».",
+                        f"¿Qué debe estar listo antes de empezar «{name}»?",
                         ex["preconditions"]["correct"], ex["preconditions"]["distractors"], ex["preconditions"]["explanation"]))
-    # Un solo paso intruso entre los del flujo: distinguir qué pertenece al caso de uso sin tener que marcar
-    # todos los pasos (eso ya lo pide el ejercicio de ordenar).
-    intruder = rng.choice(ex["main_flow"]["distractors"])
-    items.append(_choice(rng, "main_flow_select", "¿Qué pasa?", f"¿Cuál de estos pasos NO es de «{name}»?",
-                         intruder, spec["main_flow"],
-                         f"«{intruder}» pertenece a otra situación. {ex['main_flow']['explanation']}"))
+    # Conserva el identificador para las lecciones en curso.
+    first_step = spec["main_flow"][0]
+    items.append(_choice(rng, "main_flow_select", "Primer paso", f"¿Cuál es el primer paso de «{name}»?",
+                         first_step, ex["main_flow"]["distractors"],
+                         f"El caso empieza así: «{first_step}»"))
     steps = list(enumerate(spec["main_flow"]))
     while len(steps) > 1 and [i for i, _ in steps] == list(range(len(steps))):
         rng.shuffle(steps)
     items.append({
         "id": "main_flow", "type": "order", "title": "¿Qué pasa?",
-        "prompt": f"Ahora ordena los pasos de «{name}» tocándolos en el orden en que ocurren. "
-                  "Pista: el caso de uso empieza con lo que hace el actor, y el sistema responde a sus acciones.",
+        "prompt": f"Ordena los pasos de «{name}». Empieza con la primera acción que hace la persona.",
         "context": [], "options": [{"id": i, "text": t} for i, t in steps],
         "answer": list(range(len(spec["main_flow"]))), "explanation": ex["main_flow"]["explanation"],
     })
     if spec["alternate_flows"]:
-        items.append(_multi(rng, "alternate_flows", "¿Qué pasa si…?", f"Marca las excepciones válidas de «{name}».",
+        items.append(_multi(rng, "alternate_flows", PARTS["alternate_flows"], _alternate_flow_prompt(name),
                             ex["alternate_flows"]["correct"], ex["alternate_flows"]["distractors"],
                             ex["alternate_flows"]["explanation"]))
     items.append(_multi(rng, "postconditions", "¿Cómo termina?",
-                        f"Marca lo que queda cierto cuando «{name}» termina con éxito.",
+                        f"¿Cuál es el resultado cuando «{name}» sale bien?",
                         ex["postconditions"]["correct"], ex["postconditions"]["distractors"], ex["postconditions"]["explanation"]))
     if spec["relations"]:
-        items.append(_multi(rng, "relations", "Relaciones", f"Marca las relaciones correctas de «{name}».",
+        items.append(_multi(rng, "relations", "Relaciones", f"¿Qué otro caso de uso se relaciona con «{name}»?",
                             ex["relations"]["correct"], ex["relations"]["distractors"], ex["relations"]["explanation"]))
     return items
 
@@ -247,8 +254,7 @@ def refresh_in_progress(reference):
 def built(lesson):
     """Partes del caso de uso ya construidas; las no resueltas van vacías para no adelantar respuestas."""
     solved = set(lesson.solved)
-    # «Pasos del flujo» solo construye algo en las lecciones anteriores (marcar todos los pasos); ahora es
-    # «¿cuál NO es?», cuya respuesta es el paso intruso, y la tarjeta muestra el flujo ya ordenado.
+    # La tarjeta muestra el flujo completo cuando se resuelve el ejercicio de ordenarlo.
     return [{"id": e["id"], "label": PARTS[e["id"]], "values": solution_text(e) if e["id"] in solved else None}
             for e in lesson.exercises
             if not (e["id"] == "main_flow_select" and (e["type"] == "choice" or "main_flow" in solved))]
@@ -257,10 +263,18 @@ def built(lesson):
 def state(lesson):
     # «lesson_status» y no «status»: IL.api (static/js/app.js) usa «status» para el código HTTP.
     by_id = {e["id"]: e for e in lesson.exercises}
+    current = public(by_id[lesson.queue[0]]) if lesson.status == UseCaseLesson.IN_PROGRESS else None
+    if current and current["id"] == "alternate_flows":
+        # Aplica la nueva consigna a las lecciones guardadas sin regenerar sus opciones.
+        current.update(
+            title=PARTS["alternate_flows"],
+            prompt=_alternate_flow_prompt(lesson.reference.spec["name"]),
+            hint="FA significa «flujo alterno». El paso entre paréntesis indica dónde cambia el flujo principal.",
+        )
     return {
         "lesson_status": lesson.status, "lives": lesson.lives, "max_lives": LIVES, "xp": lesson.xp,
         "mistakes": lesson.mistakes, "solved": len(lesson.solved), "total": len(lesson.exercises),
-        "current": public(by_id[lesson.queue[0]]) if lesson.status == UseCaseLesson.IN_PROGRESS else None,
+        "current": current,
         "built": built(lesson), "saved": bool(lesson.use_case_id),
     }
 

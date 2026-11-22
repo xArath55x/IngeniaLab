@@ -42,8 +42,10 @@ class EmptyInspectionTests(BaseCase):
         self.assertEqual(r.status_code, 200)
         self.assertEqual(r.json()["summary"]["precision"], 0.0)
 
-    def test_page_warns_before_asking_to_conclude(self):
-        self.assertContains(self.client.get(f"/inspeccion/intento/{self.attempt.id}/"), EMPTY_INSPECTION)
+    def test_page_requires_review_before_offering_to_finish(self):
+        page = self.client.get(f"/inspeccion/intento/{self.attempt.id}/")
+        self.assertContains(page, "¿Qué cambiarías en este fragmento?")
+        self.assertNotContains(page, "Ver resultado")
 
 
 class EmptyLessonAnswerTests(LessonHelpers, BaseCase):

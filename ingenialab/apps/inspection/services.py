@@ -5,6 +5,7 @@ from django.utils import timezone
 
 from apps.locking import lock_and_refresh
 
+from . import guided
 from .models import DEFECT_LABELS, InspectionAttempt, InspectionFinding, InspectionFragment
 
 POINTS_PER_DEFECT = 10
@@ -18,6 +19,12 @@ class AuditError(Exception):
 
 def found_defect_ids(attempt):
     return set(attempt.findings.filter(is_correct=True).values_list("fragment_id", flat=True))
+
+
+def pending_fragments(attempt):
+    return attempt.exercise.fragments.exclude(defect_type="").exclude(
+        id__in=attempt.findings.order_by().values("fragment_id"),
+    )
 
 
 def compute(attempt: InspectionAttempt):
@@ -71,13 +78,7 @@ def register_finding(attempt: InspectionAttempt, fragment_id, defect_type: str) 
         return {"status": "no_defect", "message": "El fragmento no contiene defectos conforme a la clave.",
                 "explanation": fragment.explanation, "summary": summary(attempt)}
 
-    is_correct = fragment.defect_type == defect_type
-    if not is_correct:
-        attempt.wrong_registrations += 1
-    attempt.save(update_fields=["registrations", "wrong_registrations"])
-    InspectionFinding.objects.update_or_create(
-        attempt=attempt, fragment=fragment, defaults={"selected_type": defect_type, "is_correct": is_correct},
-    )
+    is_correct = _record_finding(attempt, fragment, defect_type)
     if is_correct:
         return {"status": "correct", "message": f"Correcto: {DEFECT_LABELS[defect_type]}.",
                 "explanation": fragment.explanation, "summary": summary(attempt)}
@@ -85,6 +86,32 @@ def register_finding(attempt: InspectionAttempt, fragment_id, defect_type: str) 
             "message": "Inconsistencia detectada: el fragmento sí tiene un defecto, pero de otro tipo.",
             "explanation": "Vuelve a leerlo con atención y compara las definiciones de los tipos de defecto.",
             "summary": summary(attempt)}
+
+
+def _record_finding(attempt, fragment, defect_type):
+    is_correct = fragment.defect_type == defect_type
+    if not is_correct:
+        attempt.wrong_registrations += 1
+    attempt.save(update_fields=["registrations", "wrong_registrations"])
+    InspectionFinding.objects.update_or_create(
+        attempt=attempt, fragment=fragment, defaults={"selected_type": defect_type, "is_correct": is_correct},
+    )
+    return is_correct
+
+
+@transaction.atomic
+def answer(attempt, fragment_id, defect_type):
+    lock_and_refresh(attempt)
+    _ensure_open(attempt)
+    if attempt.findings.filter(fragment_id=fragment_id).exists():
+        return  # Un doble envío vuelve a la misma corrección.
+    fragment = pending_fragments(attempt).first()
+    if fragment is None or fragment.id != fragment_id:
+        raise AuditError("Responde el fragmento que aparece en pantalla.")
+    if defect_type not in dict(guided.options(fragment)):
+        raise AuditError("Elige una de las dos correcciones.")
+    attempt.registrations += 1
+    _record_finding(attempt, fragment, defect_type)
 
 
 @transaction.atomic
@@ -103,10 +130,14 @@ def request_hint(attempt: InspectionAttempt) -> dict:
 
 
 @transaction.atomic
-def conclude(attempt: InspectionAttempt) -> dict:
+def conclude(attempt: InspectionAttempt, *, after_review=False) -> dict:
     lock_and_refresh(attempt)
+    if after_review and attempt.is_concluded:
+        return summary(attempt)
     _ensure_open(attempt)
-    if attempt.registrations == 0:
+    if after_review and pending_fragments(attempt).exists():
+        raise AuditError("Revisa los fragmentos pendientes para terminar.")
+    if attempt.registrations == 0 and not after_review:
         # CU-07 E-1 / CP-14 (ACT-313C, BR-11): sin hallazgos no hay precisión que calcular, y concluir daba la
         # insignia «Sin ayuda» por una práctica vacía.
         raise AuditError("Registra al menos un hallazgo antes de concluir la práctica.")
