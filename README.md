@@ -1,10 +1,16 @@
 # IngeniaLab
 
-[![CI](https://github.com/adriariasd/IngeniaLab/actions/workflows/ci.yml/badge.svg)](https://github.com/adriariasd/IngeniaLab/actions/workflows/ci.yml)
+[![CI](https://github.com/xArath55x/IngeniaLab/actions/workflows/ci.yml/badge.svg)](https://github.com/xArath55x/IngeniaLab/actions/workflows/ci.yml)
 
 Plataforma web didáctica para practicar **elicitación, especificación (casos de uso + UML) e inspección de requisitos**.
 Proyecto del equipo **Byte Force** para la materia de Introducción a la Ingeniería de Software (UAZ), desarrollado conforme
 a ISO/IEC 29110-5-1-2:2025, Perfil Básico.
+
+## Entrega v3.0.0
+
+- [Código de la Línea Base 03](https://github.com/xArath55x/IngeniaLab/tree/v3.0.0)
+- [Instalación, arranque y verificación de integridad](https://github.com/xArath55x/IngeniaLab/blob/v3.0.0/LEEME_RELEASE.md)
+- [Paquete de entrega y documentación (ACT-325)](https://docs.google.com/document/d/1PCz7RN6Hes9wOyF3g8SpW3rWs5cZC5rb1NroH6NroAY/edit?usp=drivesdk)
 
 ## Descripción del producto
 
@@ -47,7 +53,7 @@ reciban retroalimentación inmediata.
 1. Clona el repositorio y entra a la carpeta del proyecto Django:
 
    ```bash
-   git clone https://github.com/adriariasd/IngeniaLab.git
+   git clone https://github.com/xArath55x/IngeniaLab.git
    cd IngeniaLab/ingenialab
    ```
 
